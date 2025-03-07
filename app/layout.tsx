@@ -7,7 +7,7 @@ const outfit = Outfit({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Miit Daga",
-  description: "Embrace the algorithms",
+  description: "Code that powers the unseen",
 };
 
 export default function RootLayout({
