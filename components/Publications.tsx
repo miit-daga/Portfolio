@@ -57,6 +57,7 @@
 'use client';
 import React from 'react';
 import { HoverEffect } from "@/components/ui/card-hover-effect";
+import Heading from "@/components/Heading";
 
 const Publications = () => {
     // Hardcoded publications - no need for useState or useEffect
@@ -77,14 +78,12 @@ const Publications = () => {
     const items = publications.map(pub => ({
         title: pub.title,
         description: pub.description,
-        link: pub.link || ''// If link is empty string, make it undefined
+        link: pub.link || '' // If link is empty string, make it undefined
     }));
 
     return (
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications">
-            <h1 className='py-10 text-center text-6xl font-extrabold lg:text-8xl'>
-                Publications
-            </h1>
+            <Heading text="Publications" />
             <HoverEffect items={items} column={2} />
         </div>
     );
