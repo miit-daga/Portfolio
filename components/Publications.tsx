@@ -81,7 +81,7 @@ const Publications = () => {
 
     return (
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications">
-            <Heading text="    Publications" />
+            <Heading text="  Publications" />
             <HoverEffect items={items} column={2} />
         </div>
     );

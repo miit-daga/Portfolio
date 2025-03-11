@@ -1,7 +1,7 @@
 import React from 'react';
 import { TypewriterEffect } from './ui/typewriter-effect';
 
-const Heading = ({ text = "  Projects" }) => {
+const Heading = ({ text = " Projects" }) => {
   // Convert text to array of word objects for TypewriterEffect
   const words = text.split(" ").map(word => ({
     text: word,
