@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface ParagraphProps {
-  para: string; 
+  para: string;
 }
 
 const Paragraph: React.FC<ParagraphProps> = ({ para }) => {
