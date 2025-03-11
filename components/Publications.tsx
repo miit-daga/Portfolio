@@ -60,7 +60,6 @@ import { HoverEffect } from "@/components/ui/card-hover-effect";
 import Heading from "@/components/Heading";
 
 const Publications = () => {
-    // Hardcoded publications - no need for useState or useEffect
     const publications = [
         {
             title: "Enhancing Cognitive Evaluation: A Thorough Examination of the Hong Kong Adaptation of the Montreal Cognitive Assessment (HK-MoCA) and Bayesian Integration",
@@ -70,20 +69,19 @@ const Publications = () => {
         {
             title: "Statistical Validation in Cultural Adaptations of Cognitive Tests: A Multi-Regional Systematic Review ",
             description: "A comprehensive review of cultural adaptations for cognitive assessment tools across global populations. This analysis explores methodological approaches, statistical validations, and demographic factors, emphasizing cultural sensitivity, community involvement, and rigorous validation for accurate, equitable cognitive health evaluations worldwide. Accepted and currently under publication by CRC press.",
-            link: "" // No link for work in progress
+            link: ""
         }
     ];
 
-    // Transform the data to match the format expected by HoverEffect component
     const items = publications.map(pub => ({
         title: pub.title,
         description: pub.description,
-        link: pub.link || '' // If link is empty string, make it undefined
+        link: pub.link || ''
     }));
 
     return (
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications">
-            <Heading text="Publications" />
+            <Heading text="    Publications" />
             <HoverEffect items={items} column={2} />
         </div>
     );

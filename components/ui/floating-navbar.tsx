@@ -25,7 +25,6 @@ export const FloatingNav = ({
   const [visible, setVisible] = useState(false);
 
   useMotionValueEvent(scrollYProgress, "change", (current) => {
-    // Check if current is not undefined and is a number
     if (typeof current === "number") {
       let direction = current! - scrollYProgress.getPrevious()!;
 
@@ -42,7 +41,6 @@ export const FloatingNav = ({
   });
 
   const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK
-  // console.log(resumeLink)
   return (
     <AnimatePresence mode="wait">
       <motion.div
