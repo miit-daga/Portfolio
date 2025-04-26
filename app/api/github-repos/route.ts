@@ -17,9 +17,15 @@ export async function GET() {
       },
       visibility: 'public' // Ensure only public repositories are fetched
     });
-    return NextResponse.json(response.data);
+
+    const filteredRepos = response.data.filter((repo: { name: string }) => repo.name !== 'miit-daga');
+
+    return NextResponse.json(filteredRepos); // Return the filtered list
+
   } catch (error) {
     console.error('Error fetching repositories:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    console.error(`Detailed Error: ${errorMessage}`); // Log details server-side
     return NextResponse.json({ error: 'Failed to fetch repositories' }, { status: 500 });
   }
 }
