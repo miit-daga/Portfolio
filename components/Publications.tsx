@@ -67,6 +67,11 @@ const Publications = () => {
             link: "https://rb.gy/0qoeij"
         },
         {
+            title: "DeepSeqCoco: A Robust Mobile Friendly Deep Learning Model for Detection of Diseases in Cocos nucifera",
+            description: "Proposes DeepSeqCoco, an EfficientNet-B3 based deep learning model for coconut disease detection, optimized for mobile use. Achieves high accuracy (up to 99.5%) with reduced computational cost compared to existing methods, tested using SGD, Adam, and hybrid optimizers. Accepted for publication in IEEE Access (pending revisions).",
+            link: ""
+        },
+        {
             title: "Statistical Validation in Cultural Adaptations of Cognitive Tests: A Multi-Regional Systematic Review ",
             description: "A comprehensive review of cultural adaptations for cognitive assessment tools across global populations. This analysis explores methodological approaches, statistical validations, and demographic factors, emphasizing cultural sensitivity, community involvement, and rigorous validation for accurate, equitable cognitive health evaluations worldwide. Accepted and currently under publication by CRC press.",
             link: ""
