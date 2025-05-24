@@ -70,6 +70,8 @@ export const HoverEffect = ({
         return (
           <Link
             href={item?.link}
+            target="_blank"
+            rel="noopener noreferrer"
             key={item?.link}
             className={cn(linkWrapperClasses)}
             onMouseEnter={() => setHoveredIndex(idx)}

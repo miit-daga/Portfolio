@@ -33,6 +33,8 @@ export const HoverEffectPublications = ({
           <Link
             key={item?.link}
             href={item?.link}
+            target="_blank"
+            rel="noopener noreferrer"
             className={cn(
               "relative group block p-2 h-full",
               isLonelyItem ? "md:w-1/2 lg:w-1/2" : "w-full",
