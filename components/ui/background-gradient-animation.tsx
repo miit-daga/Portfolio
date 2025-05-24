@@ -3,17 +3,15 @@ import { cn } from "@/utils/cn";
 import { useEffect, useRef, useState } from "react";
 
 export const BackgroundGradientAnimation = ({
-  gradientBackgroundStart = "rgb(0, 0, 0)",
-  gradientBackgroundEnd = "rgb(0, 0, 0)",
-  firstColor = "255, 0, 0",
-  secondColor = "0, 255, 0",
-  thirdColor = "0, 0, 255",
-  fourthColor = "255, 255, 0",
-  fifthColor = "0, 255, 255",
-  sixthColor = "255, 0, 255",   // Magenta
-  seventhColor = "255, 165, 0", // Orange
-  pointerColor = "128, 0, 128", // Purple for pointer
-  size = "75%",
+  gradientBackgroundStart = "rgb(0, 0, 0)", // Black background start
+  gradientBackgroundEnd = "rgb(0, 0, 0)", // Black background end
+  firstColor = "255, 0, 0", // Red
+  secondColor = "0, 255, 0", // Green
+  thirdColor = "0, 0, 255", // Blue
+  fourthColor = "255, 255, 0", // Yellow
+  fifthColor = "0, 255, 255", // Cyan
+  pointerColor = "255, 0, 255", // Magenta
+  size = "80%",
   blendingValue = "hard-light",
   children,
   className,
@@ -27,8 +25,6 @@ export const BackgroundGradientAnimation = ({
   thirdColor?: string;
   fourthColor?: string;
   fifthColor?: string;
-  sixthColor?: string;
-  seventhColor?: string;
   pointerColor?: string;
   size?: string;
   blendingValue?: string;
@@ -43,51 +39,39 @@ export const BackgroundGradientAnimation = ({
   const [curY, setCurY] = useState(0);
   const [tgX, setTgX] = useState(0);
   const [tgY, setTgY] = useState(0);
-
   useEffect(() => {
-    document.body.style.setProperty("--gradient-background-start", gradientBackgroundStart);
-    document.body.style.setProperty("--gradient-background-end", gradientBackgroundEnd);
+    document.body.style.setProperty(
+      "--gradient-background-start",
+      gradientBackgroundStart
+    );
+    document.body.style.setProperty(
+      "--gradient-background-end",
+      gradientBackgroundEnd
+    );
     document.body.style.setProperty("--first-color", firstColor);
     document.body.style.setProperty("--second-color", secondColor);
     document.body.style.setProperty("--third-color", thirdColor);
     document.body.style.setProperty("--fourth-color", fourthColor);
     document.body.style.setProperty("--fifth-color", fifthColor);
-    document.body.style.setProperty("--sixth-color", sixthColor);
-    document.body.style.setProperty("--seventh-color", seventhColor);
     document.body.style.setProperty("--pointer-color", pointerColor);
     document.body.style.setProperty("--size", size);
     document.body.style.setProperty("--blending-value", blendingValue);
-  }, [
-    gradientBackgroundStart,
-    gradientBackgroundEnd,
-    firstColor,
-    secondColor,
-    thirdColor,
-    fourthColor,
-    fifthColor,
-    sixthColor,
-    seventhColor,
-    pointerColor,
-    size,
-    blendingValue,
-  ]);
+  }, []);
 
   useEffect(() => {
     function move() {
       if (!interactiveRef.current) {
         return;
       }
-      setCurX((prevCurX) => prevCurX + (tgX - prevCurX) / 20);
-      setCurY((prevCurY) => prevCurY + (tgY - prevCurY) / 20);
+      setCurX(curX + (tgX - curX) / 20);
+      setCurY(curY + (tgY - curY) / 20);
       interactiveRef.current.style.transform = `translate(${Math.round(
         curX
       )}px, ${Math.round(curY)}px)`;
     }
-    // Only run move if interactive is enabled and the pointer is meant to move
-    if (interactive) {
-      move();
-    }
-  }, [tgX, tgY, curX, curY, interactive]); // Added interactive to dependencies
+
+    move();
+  }, [tgX, tgY]);
 
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     if (interactiveRef.current) {
@@ -97,13 +81,9 @@ export const BackgroundGradientAnimation = ({
     }
   };
 
-  // Correct placement and definition of isSafari
   const [isSafari, setIsSafari] = useState(false);
   useEffect(() => {
-    // Ensure this runs only on the client side
-    if (typeof window !== "undefined") {
-      setIsSafari(/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
-    }
+    setIsSafari(/^((?!chrome|android).)*safari/i.test(navigator.userAgent));
   }, []);
 
   return (
@@ -135,7 +115,7 @@ export const BackgroundGradientAnimation = ({
       <div
         className={cn(
           "gradients-container h-full w-full blur-lg",
-          isSafari ? "blur-2xl" : "[filter:url(#blurMe)_blur(40px)]" // isSafari usage
+          isSafari ? "blur-2xl" : "[filter:url(#blurMe)_blur(40px)]"
         )}
       >
         <div
@@ -183,26 +163,7 @@ export const BackgroundGradientAnimation = ({
             `opacity-100`
           )}
         ></div>
-        <div
-          className={cn(
-            `absolute [background:radial-gradient(circle_at_center,_rgba(var(--sixth-color),_0.8)_0,_rgba(var(--sixth-color),_0)_50%)_no-repeat]`,
-            `[mix-blend-mode:var(--blending-value)] w-[var(--size)] h-[var(--size)] top-[calc(50%-var(--size)/2)] left-[calc(50%-var(--size)/2)]`,
-            `[transform-origin:calc(50%+200px)_calc(50%-200px)]`,
-            `animate-sixth`,
-            `opacity-80`
-          )}
-        ></div>
-        <div
-          className={cn(
-            `absolute [background:radial-gradient(circle_at_center,_rgba(var(--seventh-color),_0.8)_0,_rgba(var(--seventh-color),_0)_50%)_no-repeat]`,
-            `[mix-blend-mode:var(--blending-value)] w-[var(--size)] h-[var(--size)] top-[calc(50%-var(--size)/2)] left-[calc(50%-var(--size)/2)]`,
-            `[transform-origin:calc(50%-100px)_calc(50%+300px)]`,
-            `animate-seventh`,
-            `opacity-90`
-          )}
-        ></div>
 
-        {/* Corrected interactive pointer div */}
         {interactive && (
           <div
             ref={interactiveRef}

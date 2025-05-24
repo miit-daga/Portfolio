@@ -1,3 +1,4 @@
+// tailwind.config.ts
 import type { Config } from "tailwindcss";
 
 const config: Config = {
@@ -24,9 +25,6 @@ const config: Config = {
         third: "moveInCircle 40s linear infinite",
         fourth: "moveHorizontal 40s ease infinite",
         fifth: "moveInCircle 20s ease infinite",
-        // Added new animations
-        sixth: "moveDiagonal 35s ease-in-out infinite",
-        seventh: "moveVerticalReverse 25s linear infinite",
       },
       keyframes: {
         moveHorizontal: {
@@ -60,35 +58,6 @@ const config: Config = {
           },
           "100%": {
             transform: "translateY(-50%)",
-          },
-        },
-        // Added new keyframes
-        moveDiagonal: {
-          "0%": {
-            transform: "translate(-50%, -50%) rotate(0deg)",
-          },
-          "25%": {
-            transform: "translate(50%, -50%) rotate(90deg)",
-          },
-          "50%": {
-            transform: "translate(50%, 50%) rotate(180deg)",
-          },
-          "75%": {
-            transform: "translate(-50%, 50%) rotate(270deg)",
-          },
-          "100%": {
-            transform: "translate(-50%, -50%) rotate(360deg)",
-          },
-        },
-        moveVerticalReverse: {
-          "0%": {
-            transform: "translateY(50%)",
-          },
-          "50%": {
-            transform: "translateY(-50%)",
-          },
-          "100%": {
-            transform: "translateY(50%)",
           },
         },
       },
