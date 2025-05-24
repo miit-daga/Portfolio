@@ -1,4 +1,3 @@
-// tailwind.config.ts
 import type { Config } from "tailwindcss";
 
 const config: Config = {
@@ -12,7 +11,7 @@ const config: Config = {
       transitionProperty: {
         'height': 'height',
         'spacing': 'margin, padding',
-        'DEFAULT': 'color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter', // Add backdrop-filter
+        'DEFAULT': 'color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter',
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
@@ -20,11 +19,16 @@ const config: Config = {
           "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
       },
       animation: {
-        first: "moveVertical 30s ease infinite",
-        second: "moveInCircle 20s reverse infinite",
-        third: "moveInCircle 40s linear infinite",
-        fourth: "moveHorizontal 40s ease infinite",
-        fifth: "moveInCircle 20s ease infinite",
+        first: "moveVertical 15s ease infinite",
+        second: "moveInCircle 10s reverse infinite",
+        third: "moveInCircle 20s linear infinite",
+        fourth: "moveHorizontal 20s ease infinite",
+        fifth: "moveInCircle 10s ease infinite",
+        sixth: "moveInCircle 17s reverse infinite",
+        seventh: "moveHorizontal 15s ease infinite",
+        eighth: "moveVertical 22s ease infinite",
+        ninth: "moveInCircle 25s linear infinite",
+        tenth: "moveHorizontal 17s reverse infinite",
       },
       keyframes: {
         moveHorizontal: {
