@@ -1,62 +1,6 @@
-// 'use client';
-// import React from 'react'
-// import { useEffect, useState } from 'react';
-// import { HoverEffect } from "@/components/ui/card-hover-effect";
-
-// const Publications = () => {
-//     const [publications, setPublications] = useState([
-//         {
-//             title: "Publication 1",
-//             description: "Description for Publication 1", // You'll fill this text
-//             link: "https://example.com/publication1" // Link for the first publication
-//         },
-//         {
-//             title: "Publication 2 (Upcoming)",
-//             description: "Description for Publication 2", // You'll fill this text
-//             link: "" // No link for the work in progress
-//         }
-//     ]);
-
-//     // This is a placeholder function that you could implement later
-//     // if you want to fetch publications from an API instead of hardcoding them
-//     const fetchPublications = async () => {
-//         try {
-//             // Uncomment and modify this if you want to fetch from an API later
-//             // const response = await fetch('/api/publications');
-//             // if (!response.ok) {
-//             //   throw new Error('Failed to fetch publications');
-//             // }
-//             // const data = await response.json();
-//             // setPublications(data);
-//         } catch (error) {
-//             console.error('Error fetching publications:', error);
-//         }
-//     };
-
-//     useEffect(() => {
-//         // Uncomment this if you implement the fetch function
-//         // fetchPublications();
-//     }, []);
-
-//     const transformedPublications = publications.map(pub => ({
-//         title: pub.title,
-//         description: pub.description,
-//         link: pub.link || undefined // If link is empty string, make it undefined so card won't be clickable
-//     }));
-
-//     return (
-//         <div className="max-w-5xl mx-auto px-8" id="publications">
-//             <h1 className='py-10 text-center text-6xl font-extrabold lg:text-8xl'>
-//                 Publications
-//             </h1>
-//         </div>
-//     );
-// };
-
-// export default Publications;
 'use client';
 import React from 'react';
-import { HoverEffect } from "@/components/ui/card-hover-effect";
+import { HoverEffectPublications } from "@/components/ui/card-hover-effect-publications"; // New import
 import Heading from "@/components/Heading";
 
 const Publications = () => {
@@ -87,7 +31,7 @@ const Publications = () => {
     return (
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications">
             <Heading text="  Publications" />
-            <HoverEffect items={items} column={2} />
+            <HoverEffectPublications items={items} />
         </div>
     );
 };
