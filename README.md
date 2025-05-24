@@ -13,7 +13,7 @@ git clone https://github.com/miit-daga/Portfolio
 2. Navigate to the project directory:
 
 ```bash
-cd portfolio-website
+cd Portfolio
 ```
 
 3. Install dependancies
