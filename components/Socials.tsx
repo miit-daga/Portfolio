@@ -3,16 +3,16 @@ import Link from "next/link"
 
 const Socials = () => {
   return (
-    <div className="flex gap-6 items-center justify-center my-14 "> 
+    <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-3 items-center justify-center my-10 sm:my-14 px-4">
       {socials.map((social) => {
         const IconComponent = social.icon;
         return (
           <Link
-            key={social.key} 
+            key={social.key}
             href={social.url}
             className="flex items-center text-gray-300 hover:text-white transition-colors"
             target="_blank"
-            rel="noopener noreferrer" 
+            rel="noopener noreferrer"
           >
             {IconComponent && <IconComponent className="mr-2 h-5 w-5" />}
             <span>{social.name}</span>
