@@ -19,53 +19,21 @@ export const HoverEffect = ({
 }) => {
   let [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
-  const gridClasses = column === 3
-    ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 py-10"
-    : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 py-10";
+  const flexContainerClasses = cn(
+    "flex flex-wrap justify-center py-10",
+    className
+  );
 
   return (
-    <div className={cn(gridClasses, className)}>
+    <div className={flexContainerClasses}>
       {items.map((item, idx) => {
-        const isLastItem = idx === items.length - 1;
-        const totalItems = items.length;
-
-        // Calculate if last item is lonely
-        const isLonelyOnLg = column === 3
-          ? (totalItems % 3 === 1 && isLastItem)
-          : (totalItems % 2 === 1 && isLastItem);
-
-        const isLonelyOnMd = totalItems % 2 === 1 && isLastItem;
-
-        // Base classes for the Link wrapper
-        const linkWrapperClasses = ["relative", "group", "block", "p-2", "h-full", "w-full"];
-
-        // Handle centering for lonely items
-        if (isLonelyOnLg) {
-          if (column === 3) {
-            // For 3-column layout, place lonely item in center column (column 2)
-            linkWrapperClasses.push("lg:col-start-2");
-          } else {
-            // For 2-column layout, span both columns and center the content
-            linkWrapperClasses.push("lg:col-span-2", "lg:flex", "lg:justify-center");
-            // Remove w-full and add specific width for centering
-            const wFullIndex = linkWrapperClasses.indexOf("w-full");
-            if (wFullIndex !== -1) {
-              linkWrapperClasses.splice(wFullIndex, 1);
-            }
-            linkWrapperClasses.push("lg:w-1/2");
-          }
+        let itemResponsiveBasisClasses: string[];
+        if (column === 3) {
+          itemResponsiveBasisClasses = ["basis-full", "md:basis-1/2", "lg:basis-1/3"];
+        } else {
+          itemResponsiveBasisClasses = ["basis-full", "md:basis-1/2", "lg:basis-1/2"];
         }
-
-        if (isLonelyOnMd && column === 3) {
-          // For MD breakpoint with 2 columns, span both and center
-          linkWrapperClasses.push("md:col-span-2", "md:flex", "md:justify-center");
-          // Remove w-full and add specific width for centering
-          const wFullIndex = linkWrapperClasses.indexOf("w-full");
-          if (wFullIndex !== -1) {
-            linkWrapperClasses.splice(wFullIndex, 1);
-          }
-          linkWrapperClasses.push("md:w-1/2");
-        }
+        const linkWrapperBaseClasses = ["relative", "group", "block", "p-2", "flex-shrink-0"];
 
         return (
           <Link
@@ -73,7 +41,7 @@ export const HoverEffect = ({
             target="_blank"
             rel="noopener noreferrer"
             key={item?.link}
-            className={cn(linkWrapperClasses)}
+            className={cn(linkWrapperBaseClasses, ...itemResponsiveBasisClasses)}
             onMouseEnter={() => setHoveredIndex(idx)}
             onMouseLeave={() => setHoveredIndex(null)}
           >

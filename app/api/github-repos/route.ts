@@ -18,7 +18,7 @@ export async function GET() {
       visibility: 'public' // Ensure only public repositories are fetched
     });
 
-    const filteredRepos = response.data.filter((repo: { name: string }) => repo.name !== 'miit-daga');
+    const filteredRepos = response.data.filter((repo: { name: string }) => repo.name !== 'miit-daga' && repo.name !== 'Portfolio');
 
     return NextResponse.json(filteredRepos); // Return the filtered list
 
