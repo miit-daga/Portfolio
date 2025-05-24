@@ -7,7 +7,7 @@ const Publications = () => {
     const publications = [
         {
             title: "DeepSeqCoco: A Robust Mobile Friendly Deep Learning Model for Detection of Diseases in Cocos nucifera",
-            description: "Proposes DeepSeqCoco, an EfficientNet-B3 based deep learning model for coconut disease detection, optimized for mobile use. Achieves high accuracy (up to 99.5%) with reduced computational cost compared to existing methods, tested using SGD, Adam, and hybrid optimizers. Accepted for publication in IEEE Access (pending revisions).",
+            description: "Proposes DeepSeqCoco, an EfficientNet-B3-based deep learning model for coconut disease detection, optimized for mobile use. The model achieves high accuracy (up to 99.5%) with reduced computational cost compared to existing methods. It was tested using SGD, Adam, and hybrid optimizers. The work has been published in IEEE Access.",
             link: "https://doi.org/10.1109/ACCESS.2025.3571800"
         },
         {
