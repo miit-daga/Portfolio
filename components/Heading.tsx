@@ -12,7 +12,7 @@ const Heading = ({ text = " Projects" }) => {
     <div className='py-10 text-center'>
       <TypewriterEffect
         words={words}
-        className='font-extrabold text-4xl md:text-6xl lg:text-8xl'
+        className='font-extrabold text-4xl md:text-6xl lg:text-7xl'
         cursorClassName='bg-white h-8 md:h-12 lg:h-16 w-[6px] md:w-[8px] lg:w-[10px]' // Always white cursor
         repeat={false}
       />

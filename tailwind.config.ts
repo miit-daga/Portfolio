@@ -8,6 +8,11 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      transitionProperty: {
+        'height': 'height',
+        'spacing': 'margin, padding',
+        'DEFAULT': 'color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter', // Add backdrop-filter
+      },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic":
@@ -19,6 +24,9 @@ const config: Config = {
         third: "moveInCircle 40s linear infinite",
         fourth: "moveHorizontal 40s ease infinite",
         fifth: "moveInCircle 20s ease infinite",
+        // Added new animations
+        sixth: "moveDiagonal 35s ease-in-out infinite",
+        seventh: "moveVerticalReverse 25s linear infinite",
       },
       keyframes: {
         moveHorizontal: {
@@ -52,6 +60,35 @@ const config: Config = {
           },
           "100%": {
             transform: "translateY(-50%)",
+          },
+        },
+        // Added new keyframes
+        moveDiagonal: {
+          "0%": {
+            transform: "translate(-50%, -50%) rotate(0deg)",
+          },
+          "25%": {
+            transform: "translate(50%, -50%) rotate(90deg)",
+          },
+          "50%": {
+            transform: "translate(50%, 50%) rotate(180deg)",
+          },
+          "75%": {
+            transform: "translate(-50%, 50%) rotate(270deg)",
+          },
+          "100%": {
+            transform: "translate(-50%, -50%) rotate(360deg)",
+          },
+        },
+        moveVerticalReverse: {
+          "0%": {
+            transform: "translateY(50%)",
+          },
+          "50%": {
+            transform: "translateY(-50%)",
+          },
+          "100%": {
+            transform: "translateY(50%)",
           },
         },
       },

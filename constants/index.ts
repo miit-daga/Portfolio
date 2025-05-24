@@ -1,3 +1,6 @@
+import { FaGithub, FaLinkedin, FaEnvelope } from 'react-icons/fa';
+import { BsFileEarmarkPerson } from 'react-icons/bs';
+
 export const navlinks = [
     {
         name: 'Home',
@@ -11,29 +14,33 @@ export const navlinks = [
         name: 'Publications',
         url: '/publications'
     },
-    
+
 ]
 
 export const socials = [
     {
         name: 'GitHub',
         url: 'https://github.com/miit-daga',
-        key: 'github'
+        key: 'github',
+        icon: FaGithub
     },
     {
         name: 'LinkedIn',
         url: 'https://www.linkedin.com/in/miit-daga',
-        key: 'linkedin'
+        key: 'linkedin',
+        icon: FaLinkedin 
     },
     {
         name: 'Email',
         url: 'mailto:miitcodes27@gmail.com',
-        key: 'email'
+        key: 'email',
+        icon: FaEnvelope
     },
     {
         name: 'Resume',
         url: 'https://drive.google.com/file/d/1kiqfQF5cPjSXrU6ZgsC0t2XLkKZ2wkYO/view?usp=drive_link',
-        key: 'resume'
+        key: 'resume',
+        icon: BsFileEarmarkPerson
     },
 ]
 

@@ -8,13 +8,13 @@ const Home = () => {
   const navItems = [
     {
       name: "About Me",
-      link: "/",
+      link: "#about-me",
       icon: <IconHome className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
     {
-      name: "Work Experience", // Added this
-      link: "#workex",         // Link to the ID in WorkExp.tsx
-      icon: <IconBriefcase className="h-4 w-4 text-neutral-500 dark:text-white" />, // Added icon
+      name: "Work Experience",
+      link: "#workex",
+      icon: <IconBriefcase className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
     {
       name: "Projects",
@@ -33,10 +33,10 @@ const Home = () => {
     <div className="overflow-hidden relative w-full">
       <FloatingNav navItems={navItems} />
       <Hero />
-      <div className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20"> {/* Adjusted margins for potentially better spacing */}
+      <div id="about-me" className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20">
         <Paragraph para={aboutme} />
       </div>
-      <WorkExp /> {/* Add the WorkExp component here */}
+      <WorkExp />
       <Projects />
       <Publications />
     </div>
