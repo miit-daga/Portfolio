@@ -94,12 +94,12 @@ export const FloatingNav = ({
             )}
           >
             <span className="block sm:hidden">{navItem.icon}</span>
-            <span className="hidden sm:block text-sm">{navItem.name}</span>
+            <span className="hidden sm:block text-sm font-bold">{navItem.name}</span>
           </Link>
         ))}
         <Link href={resumeLink!} target="_blank" rel="noopener noreferrer">
           <button className={cn(
-            "text-sm font-medium relative px-4 py-2 rounded-full",
+            "text-sm font-bold relative px-4 py-2 rounded-full",
             "transition-colors duration-300 ease-in-out",
             isAtVeryTop && visible
               ? "border border-white/[0.3] hover:bg-white/[0.1]"
