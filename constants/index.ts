@@ -1,5 +1,6 @@
 import { FaGithub, FaLinkedin, FaEnvelope } from 'react-icons/fa';
 import { BsFileEarmarkPerson } from 'react-icons/bs';
+import type { IconType } from 'react-icons';
 
 export const navlinks = [
     {
@@ -17,7 +18,12 @@ export const navlinks = [
 
 ]
 
-export const socials = [
+export const socials: {
+    name: string;
+    url: string;
+    key: string;
+    icon: IconType;
+}[] = [
     {
         name: 'GitHub',
         url: 'https://github.com/miit-daga',

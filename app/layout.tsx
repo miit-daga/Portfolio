@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
-import "./globals.css";
-import { Socials } from "@/components";
+import type React from "react"
+import type { Metadata } from "next"
+import { Outfit } from "next/font/google"
+import "./globals.css"
+import Socials from '@/components/Socials'
+import { AnimatedBackground } from "@/components/ui/animated-background"
 
-const outfit = Outfit({ subsets: ["latin"] });
+const outfit = Outfit({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Miit Daga",
@@ -13,11 +15,10 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
-};
+    generator: 'v0.dev'
+}
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <head>
@@ -25,8 +26,10 @@ export default function RootLayout({
       </head>
       <body className={outfit.className}>
         {children}
-        <Socials />
+        <AnimatedBackground>
+          <Socials />
+        </AnimatedBackground>
       </body>
     </html>
-  );
+  )
 }
