@@ -1,6 +1,6 @@
 import { FaGithub, FaLinkedin, FaEnvelope } from 'react-icons/fa';
 import { BsFileEarmarkPerson } from 'react-icons/bs';
-import type { ComponentType } from 'react';
+import type { IconType } from 'react-icons';
 
 export const navlinks = [
     {
@@ -22,7 +22,7 @@ export const socials: {
     name: string;
     url: string;
     key: string;
-    icon: ComponentType<{ className?: string }>;
+    icon: IconType;
 }[] = [
     {
         name: 'GitHub',

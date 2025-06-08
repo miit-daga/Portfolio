@@ -5,7 +5,7 @@ const Socials = () => {
   return (
     <div className="flex flex-wrap gap-x-4 sm:gap-x-6 gap-y-3 items-center justify-center my-10 sm:my-14 px-4">
       {socials.map((social) => {
-        const Icon = social.icon
+        const Icon = social.icon as React.ComponentType<{ className?: string }>
         return (
           <Link
             key={social.key}
@@ -14,7 +14,7 @@ const Socials = () => {
             target="_blank"
             rel="noopener noreferrer"
           >
-            {Icon && <Icon className="mr-2 h-5 w-5" />}
+            <Icon className="mr-2 h-5 w-5" />
             <span>{social.name}</span>
           </Link>
         )
