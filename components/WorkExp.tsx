@@ -4,6 +4,21 @@ import Heading from "./Heading"
 export function WorkExp() {
   const data = [
     {
+      title: "Summer Intern — Mumbai, India",
+      content: (
+        <div className="flex-col">
+          <p className="mb-8 text-xl md:text-3xl font-bold text-neutral-200">Tata Power</p>
+          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[May 2025 – Present]</p>
+          <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
+            Enhanced the reliability of key operational data systems by automating daily logging for blower states and temperature violations across multiple power plants. Migrated data collection from manual CSV processes to a robust cloud PostgreSQL database, orchestrating the workflows with AWS Step Functions and scheduled cron jobs. Resolved critical data integrity bugs, including a UTC–IST time conversion error and an incorrect API method usage, to eliminate reporting inaccuracies across 80+ units and ensure metrics were reliable for business decisions.
+          </p>
+          <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
+            Drove major performance improvements on business-critical dashboards and data pipelines. Optimized a key processing pipeline to achieve a 12x speedup, cutting its runtime from 6 minutes to under 30 seconds. By implementing a caching mechanism and optimizing a core endpoint, I reduced dashboard and API response times from over 30-40 seconds down to under 5-10 seconds, enabling near real-time data synchronization and accelerating daily operational decisions.
+          </p>
+        </div>
+      ),
+    },
+    {
       title: "Full Stack Developer Intern — Remote",
       content: (
         <div className="flex-col">
@@ -45,7 +60,7 @@ export function WorkExp() {
           </p>
         </div>
       ),
-    },
+    }
   ]
   return (
     <div className="relative w-full overflow-clip py-16" id="workex">
