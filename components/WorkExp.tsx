@@ -26,7 +26,8 @@ export function WorkExp() {
           <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[March 2025 – Present]</p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
             Developed backend systems for multiple high-impact projects within the company. Led the development of a comprehensive business management platform for Xceed Electronics, featuring core functionalities such as real-time in-house inventory tracking, order enquiry processing, and secure, role-based admin operations. The platform also integrated the Waldom API to source and manage an extended range of products. Optimized API workflows to reduce backend latency by over 40%. Deployed the application on AWS to ensure scalability and reliability. The system currently handles over 1,000 inventory and order-related actions per month.
-            <br />
+          </p>
+          <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
             Led the complete backend development for a headless inventory and ordering platform, designed as a scalable Software-as-a-Service (SaaS) solution. The system was engineered with a robust, transactional ordering process to ensure data integrity and precise inventory control across products with multiple variants. A secure, dual-role authentication flow was implemented using Firebase JWT to manage distinct permissions for administrators and clients. For file management, the platform was integrated with AWS S3, featuring both single image uploads from product forms and a sophisticated, asynchronous bulk-upload system for ZIP archives that automatically processes images and generates CSV reports. The API was designed to be highly practical, accepting user-friendly identifiers (like product size) to simplify frontend integration and enhance the overall user experience for the authenticated ordering portal.
           </p>
         </div>
