@@ -2,11 +2,12 @@
 import Hero from '@/components/Hero'
 import Paragraph from '@/components/Paragraph'
 import { WorkExp } from '@/components/WorkExp'
+import { Education } from '@/components/Education' 
 import Projects from '@/components/Projects'
 import Publications from '@/components/Publications'
 import { aboutme } from "@/constants"
 import { FloatingNav } from "@/components/ui/floating-navbar"
-import { IconHome, IconCode, IconBook, IconBriefcase } from "@tabler/icons-react"
+import { IconHome, IconCode, IconBook, IconBriefcase, IconSchool } from "@tabler/icons-react"
 import { AnimatedBackground } from "@/components/ui/animated-background"
 
 const Home = () => {
@@ -20,6 +21,11 @@ const Home = () => {
       name: "Work Experience",
       link: "#workex",
       icon: <IconBriefcase className="h-4 w-4 text-neutral-500 dark:text-white" />,
+    },
+    {
+      name: "Education",
+      link: "#education",
+      icon: <IconSchool className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
     {
       name: "Projects",
@@ -45,6 +51,10 @@ const Home = () => {
 
       <AnimatedBackground>
         <WorkExp />
+      </AnimatedBackground>
+
+      <AnimatedBackground>
+        <Education />
       </AnimatedBackground>
 
       <AnimatedBackground>
