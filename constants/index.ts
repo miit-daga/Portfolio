@@ -37,12 +37,6 @@ export const socials: {
         icon: FaLinkedin 
     },
     {
-        name: 'Email',
-        url: 'mailto:miitcodes27@gmail.com',
-        key: 'email',
-        icon: FaEnvelope
-    },
-    {
         name: 'Resume',
         url: 'https://drive.google.com/file/d/1kiqfQF5cPjSXrU6ZgsC0t2XLkKZ2wkYO/view?usp=drive_link',
         key: 'resume',
