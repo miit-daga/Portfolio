@@ -13,7 +13,7 @@ export function WorkExp() {
             Enhanced the reliability of key operational data systems by automating daily logging for blower states and temperature violations across multiple power plants. Migrated data collection from manual CSV processes to a robust cloud PostgreSQL database, orchestrating the workflows with AWS Step Functions and scheduled cron jobs. Resolved critical data integrity bugs, including a UTC–IST time conversion error and an incorrect API method usage, to eliminate reporting inaccuracies across 80+ units and ensure metrics were reliable for business decisions.
           </p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
-            Drove major performance improvements on business-critical dashboards and data pipelines. Optimized a key processing pipeline to achieve a 12x speedup, cutting its runtime from 6 minutes to under 30 seconds. By implementing a caching mechanism and optimizing a core endpoint, I reduced dashboard and API response times from over 30-40 seconds down to under 5-10 seconds, enabling near real-time data synchronization and accelerating daily operational decisions.
+            Drove major performance improvements on business-critical dashboards and data pipelines. Optimized a key processing pipeline to achieve a 12x speedup, cutting its runtime from 6 minutes to under 30 seconds. By implementing a caching mechanism, automating daily PPGCL data saving via cron jobs, and optimizing a core endpoint, I reduced dashboard and API response times from over 30-40 seconds down to under 5-10 seconds, enabling near real-time data synchronization and accelerating daily operational decisions.
           </p>
         </div>
       ),
@@ -25,20 +25,9 @@ export function WorkExp() {
           <p className="mb-8 text-xl md:text-3xl font-bold text-neutral-200">TechWire Studio</p>
           <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[March 2025 – Present]</p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
-            Spearheading backend development for multiple high-impact projects at TechWire Studio. Led the development
-            of a comprehensive business management platform for Xceed Electronics. Core functionalities included
-            real-time tracking of in-house inventory, order enquiry processing, and secure role-based admin operations.
-            The platform also integrated the Waldom API to source and manage an extended range of products, with
-            development of its corresponding payment gateway also completed to facilitate sales of these Waldom-specific
-            items. Optimized API workflows to reduce backend latency by over 40%, and deployed the application on AWS to
-            ensure reliability at scale — currently handling over 1000+ inventory and order-related actions monthly.
+            Developed backend systems for multiple high-impact projects within the company. Led the development of a comprehensive business management platform for Xceed Electronics, featuring core functionalities such as real-time in-house inventory tracking, order enquiry processing, and secure, role-based admin operations. The platform also integrated the Waldom API to source and manage an extended range of products. Optimized API workflows to reduce backend latency by over 40%. Deployed the application on AWS to ensure scalability and reliability. The system currently handles over 1,000 inventory and order-related actions per month.
             <br />
-            Additionally, designed and developed an internal project management and automated payment portal for
-            TechWire Studio's recurring maintenance clients. This phase included engineering the Razorpay integration
-            for seamless invoicing, which was successfully tested locally. The portal was designed to allow admins to
-            manage client records, project details, and payment tracking. A paywall mechanism was also designed,
-            intended to automatically block client websites post due dates and restore access instantly upon payment
-            confirmation, aimed at significantly reducing collection delays and improving cash flow.
+            Led the complete backend development for a headless inventory and ordering platform, designed as a scalable Software-as-a-Service (SaaS) solution. The system was engineered with a robust, transactional ordering process to ensure data integrity and precise inventory control across products with multiple variants. A secure, dual-role authentication flow was implemented using Firebase JWT to manage distinct permissions for administrators and clients. For file management, the platform was integrated with AWS S3, featuring both single image uploads from product forms and a sophisticated, asynchronous bulk-upload system for ZIP archives that automatically processes images and generates CSV reports. The API was designed to be highly practical, accepting user-friendly identifiers (like product size) to simplify frontend integration and enhance the overall user experience for the authenticated ordering portal.
           </p>
         </div>
       ),
