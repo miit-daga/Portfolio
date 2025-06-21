@@ -11,7 +11,7 @@ export function Education() {
                         Vellore Institute of Technology
                     </p>
                     <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">
-                        Sep 2022 – Jul 2026
+                        Sep 2022 – Present
                     </p>
                     <p className="my-5 text-xs md:text-sm text-neutral-200">
                         Currently pursuing a B.Tech in Information Technology, covering a broad range of computing concepts, programming principles, and emerging technologies.
