@@ -41,7 +41,7 @@ export const FloatingNav = ({
           setVisible(true);
         } else {
           setVisible(false);
-          setIsMenuOpen(false); 
+          setIsMenuOpen(false);
         }
       }
       setIsAtVeryTop(isCurrentlyAtTop);
@@ -158,7 +158,8 @@ export const FloatingNav = ({
                       className="flex items-center space-x-4 text-white text-lg font-semibold hover:text-neutral-300 transition-colors"
                     >
                       <span className="w-6 flex items-center justify-center">
-                        {React.cloneElement(item.icon!, {
+                        {/* Clone the icon and apply consistent classes for mobile */}
+                        {React.cloneElement(item.icon as any, {
                           className: "h-5 w-5 text-white",
                         })}
                       </span>
