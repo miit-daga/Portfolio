@@ -8,7 +8,7 @@ import {
 } from "framer-motion";
 import { cn } from "@/utils/cn";
 import Link from "next/link";
-import { FiMenu, FiX } from "react-icons/fi";
+import { IconMenu2, IconX } from "@tabler/icons-react";
 import { IconFileText } from "@tabler/icons-react";
 
 export const FloatingNav = ({
@@ -124,9 +124,9 @@ export const FloatingNav = ({
               transition={{ duration: 0.2 }}
             >
               {isMenuOpen ? (
-                <FiX className="text-white text-2xl" />
+                <IconX className="h-6 w-6 text-white" />
               ) : (
-                <FiMenu className="text-white text-2xl" />
+                <IconMenu2 className="h-6 w-6 text-white" />
               )}
             </motion.div>
           </AnimatePresence>
@@ -158,7 +158,6 @@ export const FloatingNav = ({
                       className="flex items-center space-x-4 text-white text-lg font-semibold hover:text-neutral-300 transition-colors"
                     >
                       <span className="w-6 flex items-center justify-center">
-                        {/* Clone the icon and apply consistent classes for mobile */}
                         {React.cloneElement(item.icon as any, {
                           className: "h-5 w-5 text-white",
                         })}
