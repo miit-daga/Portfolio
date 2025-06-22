@@ -62,7 +62,7 @@ export const FloatingNav = ({
           exit={{ y: -100, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
           className={cn(
-            "hidden sm:flex max-w-fit fixed top-10 inset-x-0 mx-auto rounded-full text-white shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1),0px_1px_0px_0px_rgba(25,28,33,0.02),0px_0px_0px_1px_rgba(25,28,33,0.08)] z-[5000] pr-2 pl-8 py-2 items-center justify-center space-x-4",
+            "hidden lg:flex max-w-fit fixed top-10 inset-x-0 mx-auto rounded-full text-white shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1),0px_1px_0px_0px_rgba(25,28,33,0.02),0px_0px_0px_1px_rgba(25,28,33,0.08)] z-[5000] pr-2 pl-8 py-2 items-center justify-center space-x-4",
             "transition-colors transition-backdrop-filter duration-300 ease-in-out",
             isAtVeryTop && visible
               ? "bg-black/15 backdrop-blur-lg border border-white/[0.3]"
@@ -76,7 +76,7 @@ export const FloatingNav = ({
               href={navItem.link}
               className="relative text-white items-center flex space-x-1 hover:text-neutral-300"
             >
-              <span className="hidden sm:block text-sm font-bold">
+              <span className="hidden lg:block text-sm font-bold">
                 {navItem.name}
               </span>
             </Link>
@@ -98,7 +98,7 @@ export const FloatingNav = ({
         </motion.div>
       </AnimatePresence>
 
-      <div className="sm:hidden">
+      <div className="lg:hidden">
         <motion.button
           key="mobile-nav-trigger"
           initial={{ y: -100, opacity: 0 }}
