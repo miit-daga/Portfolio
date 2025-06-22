@@ -1,6 +1,7 @@
 "use client";
 import { cn } from "@/utils/cn";
 import { useEffect, useRef, useState } from "react";
+
 const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(false);
 
@@ -27,11 +28,6 @@ export const BackgroundGradientAnimation = ({
   thirdColor = "150, 220, 180",
   fourthColor = "220, 180, 150",
   fifthColor = "180, 220, 255",
-  sixthColor = "255, 180, 220",
-  seventhColor = "220, 150, 255",
-  eighthColor = "255, 220, 180",
-  ninthColor = "150, 255, 220",
-  tenthColor = "255, 150, 180",
   pointerColor = "255, 190, 255",
   size = "80%",
   blendingValue = "hard-light",
@@ -48,11 +44,6 @@ export const BackgroundGradientAnimation = ({
   thirdColor?: string;
   fourthColor?: string;
   fifthColor?: string;
-  sixthColor?: string;
-  seventhColor?: string;
-  eighthColor?: string;
-  ninthColor?: string;
-  tenthColor?: string;
   pointerColor?: string;
   size?: string;
   blendingValue?: string;
@@ -68,7 +59,6 @@ export const BackgroundGradientAnimation = ({
   const [curY, setCurY] = useState(0);
   const [tgX, setTgX] = useState(0);
   const [tgY, setTgY] = useState(0);
-
 
   const isMobile = useIsMobile();
   const isInteractive = interactive && !isMobile;
@@ -88,11 +78,6 @@ export const BackgroundGradientAnimation = ({
     document.body.style.setProperty("--third-color", thirdColor);
     document.body.style.setProperty("--fourth-color", fourthColor);
     document.body.style.setProperty("--fifth-color", fifthColor);
-    document.body.style.setProperty("--sixth-color", sixthColor);
-    document.body.style.setProperty("--seventh-color", seventhColor);
-    document.body.style.setProperty("--eighth-color", eighthColor);
-    document.body.style.setProperty("--ninth-color", ninthColor);
-    document.body.style.setProperty("--tenth-color", tenthColor);
     document.body.style.setProperty("--pointer-color", pointerColor);
     document.body.style.setProperty("--size", size);
     document.body.style.setProperty("--blending-value", blendingValue);
@@ -208,61 +193,6 @@ export const BackgroundGradientAnimation = ({
           )}
           style={{ animationDuration: `${baseSpeed * 4.5}s` }}
         ></div>
-
-        {!isMobile && (
-          <>
-            <div
-              className={cn(
-                `absolute [background:radial-gradient(circle_at_center,_rgba(var(--sixth-color),_0.7)_0,_rgba(var(--sixth-color),_0)_50%)_no-repeat]`,
-                `[mix-blend-mode:var(--blending-value)] w-[calc(var(--size)*0.8)] h-[calc(var(--size)*0.8)] top-[calc(50%-var(--size)*0.4)] left-[calc(50%-var(--size)*0.4)]`,
-                `[transform-origin:calc(50%+600px)_calc(50%-300px)]`,
-                `animate-sixth`,
-                `opacity-80`
-              )}
-              style={{ animationDuration: `${baseSpeed * 4}s` }}
-            ></div>
-            <div
-              className={cn(
-                `absolute [background:radial-gradient(circle_at_center,_rgba(var(--seventh-color),_0.6)_0,_rgba(var(--seventh-color),_0)_50%)_no-repeat]`,
-                `[mix-blend-mode:var(--blending-value)] w-[calc(var(--size)*0.9)] h-[calc(var(--size)*0.9)] top-[calc(50%-var(--size)*0.45)] left-[calc(50%-var(--size)*0.45)]`,
-                `[transform-origin:calc(50%-600px)_calc(50%-600px)]`,
-                `animate-seventh`,
-                `opacity-75`
-              )}
-              style={{ animationDuration: `${baseSpeed * 5}s` }}
-            ></div>
-            <div
-              className={cn(
-                `absolute [background:radial-gradient(circle_at_center,_rgba(var(--eighth-color),_0.7)_0,_rgba(var(--eighth-color),_0)_50%)_no-repeat]`,
-                `[mix-blend-mode:var(--blending-value)] w-[calc(var(--size)*0.7)] h-[calc(var(--size)*0.7)] top-[calc(50%-var(--size)*0.35)] left-[calc(50%-var(--size)*0.35)]`,
-                `[transform-origin:calc(50%+300px)_calc(50%+600px)]`,
-                `animate-eighth`,
-                `opacity-65`
-              )}
-              style={{ animationDuration: `${baseSpeed * 3}s` }}
-            ></div>
-            <div
-              className={cn(
-                `absolute [background:radial-gradient(circle_at_center,_rgba(var(--ninth-color),_0.8)_0,_rgba(var(--ninth-color),_0)_50%)_no-repeat]`,
-                `[mix-blend-mode:var(--blending-value)] w-[calc(var(--size)*0.6)] h-[calc(var(--size)*0.6)] top-[calc(50%-var(--size)*0.3)] left-[calc(50%-var(--size)*0.3)]`,
-                `[transform-origin:calc(50%-500px)_calc(50%+400px)]`,
-                `animate-ninth`,
-                `opacity-70`
-              )}
-              style={{ animationDuration: `${baseSpeed * 4.5}s` }}
-            ></div>
-            <div
-              className={cn(
-                `absolute [background:radial-gradient(circle_at_center,_rgba(var(--tenth-color),_0.6)_0,_rgba(var(--tenth-color),_0)_50%)_no-repeat]`,
-                `[mix-blend-mode:var(--blending-value)] w-[calc(var(--size)*0.85)] h-[calc(var(--size)*0.85)] top-[calc(50%-var(--size)*0.425)] left-[calc(50%-var(--size)*0.425)]`,
-                `[transform-origin:calc(50%+700px)_calc(50%-200px)]`,
-                `animate-tenth`,
-                `opacity-60`
-              )}
-              style={{ animationDuration: `${baseSpeed * 3.5}s` }}
-            ></div>
-          </>
-        )}
 
         {isInteractive && (
           <div
