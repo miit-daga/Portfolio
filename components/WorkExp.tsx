@@ -23,7 +23,7 @@ export function WorkExp() {
       content: (
         <div className="flex-col">
           <p className="mb-8 text-xl md:text-3xl font-bold text-neutral-200">TechWire Studio</p>
-          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[March 2025 – Present]</p>
+          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[March 2025 – June 2025]</p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
             Developed backend systems for multiple high-impact projects within the company. Led the development of a comprehensive business management platform for Xceed Electronics, featuring core functionalities such as real-time in-house inventory tracking, order enquiry processing, and secure, role-based admin operations. The platform also integrated the Waldom API to source and manage an extended range of products. Optimized API workflows to reduce backend latency by over 40%. Deployed the application on AWS to ensure scalability and reliability. The system currently handles over 1,000 inventory and order-related actions per month.
           </p>
