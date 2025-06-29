@@ -8,7 +8,7 @@ export function WorkExp() {
       content: (
         <div className="flex-col">
           <p className="mb-8 text-xl md:text-3xl font-bold text-neutral-200">Tata Power</p>
-          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[May 2025 – Present]</p>
+          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[June 2025 – Present]</p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
             Enhanced the reliability of key operational data systems by automating daily logging for blower states and temperature violations across multiple power plants. Migrated data collection from manual CSV processes to a robust cloud PostgreSQL database, orchestrating the workflows with AWS Step Functions and scheduled cron jobs. Resolved critical data integrity bugs, including a UTC–IST time conversion error and an incorrect API method usage, to eliminate reporting inaccuracies across 80+ units and ensure metrics were reliable for business decisions.
           </p>
