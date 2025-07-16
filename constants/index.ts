@@ -38,7 +38,7 @@ export const socials: {
     },
     {
         name: 'Resume',
-        url: 'https://drive.google.com/file/d/1JG3D9gZfTf9DmlMCMhC1U3UbbdQ8NIIQ/view?usp=sharing',
+        url: 'https://drive.google.com/file/d/1kiqfQF5cPjSXrU6ZgsC0t2XLkKZ2wkYO/view?usp=sharing',
         key: 'resume',
         icon: BsFileEarmarkPerson
     },

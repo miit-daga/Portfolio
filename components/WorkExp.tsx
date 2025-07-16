@@ -4,16 +4,20 @@ import Heading from "./Heading"
 export function WorkExp() {
   const data = [
     {
-      title: "Summer Intern — Mumbai, India",
+      title: "Project Intern — Mumbai, India",
       content: (
         <div className="flex-col">
           <p className="mb-8 text-xl md:text-3xl font-bold text-neutral-200">Tata Power</p>
-          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[June 2025 – Present]</p>
+          <p className="mb-8 text-md md:text-xl font-bold text-neutral-500">[May 2025 – July 2025]</p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
-            Enhanced the reliability of key operational data systems by automating daily logging for blower states and temperature violations across multiple power plants. Migrated data collection from manual CSV processes to a robust cloud PostgreSQL database, orchestrating the workflows with AWS Step Functions and scheduled cron jobs. Resolved critical data integrity bugs, including a UTC–IST time conversion error and an incorrect API method usage, to eliminate reporting inaccuracies across 80+ units and ensure metrics were reliable for business decisions.
+            Improved the reliability and performance of operational data systems across Tata Power’s Maithon, PPGCL, and Jojobera plants by automating daily logging workflows and modernizing backend infrastructure. Replaced manual CSV-based processes with a cloud-hosted PostgreSQL database, orchestrated using AWS Step Functions and scheduled cron jobs. This made data collection for blower states and temperature violations significantly more consistent and maintainable. Fixed critical data issues, including a UTC to IST time conversion bug and incorrect API usage, which had caused discrepancies across over 80 units. These fixes helped restore accuracy in real-time dashboards and improved trust in key operational metrics.
+
           </p>
           <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
-            Drove major performance improvements on business-critical dashboards and data pipelines. Optimized a key processing pipeline to achieve a 12x speedup, cutting its runtime from 6 minutes to under 30 seconds. By implementing a caching mechanism, automating daily PPGCL data saving via cron jobs, and optimizing a core endpoint, I reduced dashboard and API response times from over 30-40 seconds down to under 5-10 seconds, enabling near real-time data synchronization and accelerating daily operational decisions.
+            Focused on speeding up pipelines and dashboards that were slowing down decision-making. Reduced a core processing pipeline’s runtime from six minutes to under thirty seconds and cut dashboard response times from over forty seconds to under five. Achieved this through caching, endpoint optimization, and pushing heavy aggregation work into the database after identifying missing indexes. Built a real-time mill runtime tracking system with reliable job execution by isolating the scheduler in a dedicated thread. Also restructured legacy services into a modular, asynchronous design, which improved scalability and reduced response lag by forty percent.
+          </p>
+          <p className="my-5 text-xs font-normal md:text-sm text-neutral-200">
+            Enhanced the platform’s analytical capabilities by integrating an existing time-series forecasting model for anomaly detection into the upgraded codebase, ensuring it worked smoothly after migration. On top of that, built a new suite of diagnostic APIs for LRSB health tracking, including caution flags and historical inactivity reports, which enabled a shift toward predictive maintenance and improved system visibility for plant operators.
           </p>
         </div>
       ),
