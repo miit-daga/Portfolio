@@ -1,18 +1,25 @@
-"use client"
-import Hero from '@/components/Hero'
-import Paragraph from '@/components/Paragraph'
-import { WorkExp } from '@/components/WorkExp'
-import Projects from '@/components/Projects'
-import Publications from '@/components/Publications'
-import { Contact } from '@/components/Contact'
-import { Education } from '@/components/Education'
-import { SkillsAndAchievements } from '@/components/SkillsAndAchievements'
-import { aboutme } from "@/constants"
-import { FloatingNav } from "@/components/ui/floating-navbar"
-import { IconHome, IconCode, IconBook, IconBriefcase, IconAward, IconMail, IconSchool } from "@tabler/icons-react"
-import { AnimatedBackground } from "@/components/ui/animated-background"
+"use client";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import Hero from "@/components/Hero";
+import Paragraph from "@/components/Paragraph";
+import { WorkExp } from "@/components/WorkExp";
+import Projects from "@/components/Projects";
+import Publications from "@/components/Publications";
+import { Contact } from "@/components/Contact";
+import { Education } from "@/components/Education";
+import { SkillsAndAchievements } from "@/components/SkillsAndAchievements";
+import { aboutme } from "@/constants";
+import { FloatingNav } from "@/components/ui/floating-navbar";
+import {
+  IconHome, IconCode, IconBook, IconBriefcase, IconAward, IconMail, IconSchool,
+} from "@tabler/icons-react";
+import { AnimatedBackground } from "@/components/ui/animated-background";
+import { EnterScreen } from "@/components/EnterScreen";
 
 const Home = () => {
+  const [showEnterScreen, setShowEnterScreen] = useState(true);
+
   const navItems = [
     {
       name: "About Me",
@@ -49,43 +56,62 @@ const Home = () => {
       link: "#contact",
       icon: <IconMail className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
-  ]
+  ];
+
   return (
-    <div className="overflow-hidden relative w-full">
-      <FloatingNav navItems={navItems} />
-      <Hero />
+    <>
+      <AnimatePresence>
+        {showEnterScreen && (
+          <EnterScreen onAnimationComplete={() => setShowEnterScreen(false)} />
+        )}
+      </AnimatePresence>
 
-      <AnimatedBackground>
-        <div id="about-me" className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20">
-          <Paragraph para={aboutme} />
-        </div>
-      </AnimatedBackground>
+      <AnimatePresence>
+        {!showEnterScreen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.0 }}
+            className="overflow-hidden relative w-full"
+          >
+            <FloatingNav navItems={navItems} />
+            <Hero />
 
-      <AnimatedBackground>
-        <WorkExp />
-      </AnimatedBackground>
+            <AnimatedBackground>
+              <div id="about-me" className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20">
+                <Paragraph para={aboutme} />
+              </div>
+            </AnimatedBackground>
 
-      <AnimatedBackground>
-        <Education />
-      </AnimatedBackground>
+            <AnimatedBackground>
+              <WorkExp />
+            </AnimatedBackground>
 
-      <AnimatedBackground>
-        <SkillsAndAchievements />
-      </AnimatedBackground>
+            <AnimatedBackground>
+              <Education />
+            </AnimatedBackground>
 
-      <AnimatedBackground>
-        <Projects />
-      </AnimatedBackground>
+            <AnimatedBackground>
+              <SkillsAndAchievements />
+            </AnimatedBackground>
 
-      <AnimatedBackground>
-        <Publications />
-      </AnimatedBackground>
+            <AnimatedBackground>
+              <Projects />
+            </AnimatedBackground>
 
-      <AnimatedBackground>
-        <Contact />
-      </AnimatedBackground>
-    </div>
-  )
-}
+            <AnimatedBackground>
+              <Publications />
+            </AnimatedBackground>
 
-export default Home
+            <AnimatedBackground>
+              <Contact />
+            </AnimatedBackground>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+};
+
+export default Home;
