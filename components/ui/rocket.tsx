@@ -1,10 +1,6 @@
 "use client"
-
-import type React from "react"
-
-import { motion } from "framer-motion"
-
-interface RocketIconProps extends React.SVGProps<SVGSVGElement> {
+import { motion, SVGMotionProps } from "framer-motion"
+interface RocketIconProps extends SVGMotionProps<SVGSVGElement> {
     isIgnited?: boolean
 }
 
