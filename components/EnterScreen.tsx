@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { motion, AnimatePresence, Variants } from "framer-motion"
+import { motion, AnimatePresence, type Variants } from "framer-motion"
 import { RocketIcon } from "./ui/rocket"
 
 interface EnterScreenProps {
@@ -122,6 +122,18 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
             </AnimatePresence>
 
             <div className="relative flex flex-col items-center justify-center h-full">
+                <motion.h1
+                    className="text-xl sm:text-2xl md:text-3xl lg:text-4xl xl:text-5xl font-bold text-white mb-6 sm:mb-8 text-center tracking-wide px-4 max-w-4xl"
+                    animate={{ opacity: animationState === "initial" ? 1 : 0 }}
+                    transition={{ duration: 0.5 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    style={{
+                        animation: animationState === "initial" ? "fadeInUp 0.8s ease-out 0.3s both" : undefined,
+                    }}
+                >
+                    System Online. Ready for Liftoff
+                </motion.h1>
+
                 <motion.div
                     variants={rocketVariants}
                     initial="initial"
