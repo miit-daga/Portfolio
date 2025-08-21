@@ -71,6 +71,7 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
 
     return (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-black">
+            <h1 className="sr-only">Miit Daga Portfolio - Blast Off</h1>
             <AnimatePresence>
                 {animationState === "takeoff" && (
                     <motion.div
