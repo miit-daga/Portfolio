@@ -2,6 +2,7 @@
 import { motion, useScroll, useTransform } from "framer-motion"
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
+import { Terminal, Keyboard } from "lucide-react"
 
 const Hero = () => {
   const { scrollY } = useScroll()
@@ -29,6 +30,20 @@ const Hero = () => {
               cursorClassName="bg-gray-300"
               repeatDelay={5000}
             />
+          </div>
+          
+          {/* Terminal Access Button - Desktop Only */}
+          <div className="absolute bottom-10 right-10 pointer-events-auto hidden lg:block">
+            <a
+              href="/terminal.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-sm border border-white/20 rounded-full hover:bg-black/50 hover:border-white/40 transition-all duration-300"
+            >
+              <Terminal className="h-4 w-4 text-gray-300 group-hover:text-white" />
+              <span className="text-sm font-medium text-gray-300 group-hover:text-white">Terminal Mode</span>
+              <Keyboard className="h-3 w-3 text-gray-400 group-hover:text-gray-300" />
+            </a>
           </div>
         </div>
       </BackgroundGradientAnimation>

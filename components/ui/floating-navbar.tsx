@@ -74,9 +74,11 @@ export const FloatingNav = ({
             <Link
               key={navItem.link}
               href={navItem.link}
-              className="relative text-white items-center flex space-x-1 hover:text-neutral-300"
+              target={navItem.name === "Terminal" ? "_blank" : undefined}
+              rel={navItem.name === "Terminal" ? "noopener noreferrer" : undefined}
+              className="relative text-white items-center flex space-x-1 hover:text-neutral-300 hidden lg:flex"
             >
-              <span className="hidden lg:block text-sm font-bold">
+              <span className="text-sm font-bold">
                 {navItem.name}
               </span>
             </Link>
@@ -151,19 +153,23 @@ export const FloatingNav = ({
               >
                 <div className="flex flex-col items-start space-y-6 pt-16">
                   {navItems.map((item, idx) => (
-                    <Link
-                      key={`link=${idx}`}
-                      href={item.link}
-                      onClick={toggleMenu}
-                      className="flex items-center space-x-4 text-white text-lg font-semibold hover:text-neutral-300 transition-colors"
-                    >
-                      <span className="w-6 flex items-center justify-center">
-                        {React.cloneElement(item.icon as any, {
-                          className: "h-5 w-5 text-white",
-                        })}
-                      </span>
-                      <span>{item.name}</span>
-                    </Link>
+                    (item as any).isDesktopOnly ? null : (
+                      <Link
+                        key={`link=${idx}`}
+                        href={item.link}
+                        target={item.name === "Terminal" ? "_blank" : undefined}
+                        rel={item.name === "Terminal" ? "noopener noreferrer" : undefined}
+                        onClick={toggleMenu}
+                        className="flex items-center space-x-4 text-white text-lg font-semibold hover:text-neutral-300 transition-colors"
+                      >
+                        <span className="w-6 flex items-center justify-center">
+                          {React.cloneElement(item.icon as any, {
+                            className: "h-5 w-5 text-white",
+                          })}
+                        </span>
+                        <span>{item.name}</span>
+                      </Link>
+                    )
                   ))}
                   <Link
                     href={resumeLink!}

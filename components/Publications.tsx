@@ -11,14 +11,19 @@ const Publications = () => {
             link: "https://doi.org/10.1109/ACCESS.2025.3571800"
         },
         {
+            title: "Co-inventor, AI Powered Smart Disease Detection",
+            description: "A multi-crop diagnostic system using deep learning to achieve 99.3% accuracy in under 2.5 seconds. The invention discloses a system and method for rapid plant disease diagnosis across multiple crop species, supporting at least five plant species including coconut, rubber, black gram, turmeric, and eggplant. It enables high accuracy detection without specialized hardware, addressing critical needs in modern agriculture. The work has been filed as Indian Patent Application No. 202541082595 in September 2025.",
+            link: ""
+        },
+        {
+            title: "A Lightweight Ensemble Approach for Classification of DDoS Attacks in IoE Environments",
+            description: "Developed a lightweight ensemble machine learning framework for DDoS attack detection in IoT networks using the CIC IoT-2023 dataset. Focuses on four ensemble models: RUSBoost, AdaBoost, Bagging-Decision Trees, and Random Subspace k-Nearest Neighbors. Results revealed that Bagging-DT performed with 99.96% accuracy, while standalone DT achieved 100% accuracy with only 0.04MB storage, making it scalable for real-time IoT security applications. The work has been published in proceedings of SENNET 2025, IEEE Xplore Digital Library.",
+            link: "https://doi.org/10.1109/SENNET64220.2025.11136075"
+        },
+        {
             title: "Enhancing Cognitive Evaluation: A Thorough Examination of the Hong Kong Adaptation of the Montreal Cognitive Assessment (HK-MoCA) and Bayesian Integration",
             description: "A detailed review of the Hong Kong adaptation of the Montreal Cognitive Assessment (HK-MoCA), exploring its improvements through the integration of Bayesian techniques to enhance cognitive evaluation accuracy. The work is published in a book with ISBN 978-93-6674-263-2.",
             link: "https://rb.gy/0qoeij"
-        },
-        {
-            title: "Statistical Validation in Cultural Adaptations of Cognitive Tests: A Multi-Regional Systematic Review ",
-            description: "A comprehensive review of cultural adaptations for cognitive assessment tools across global populations. This analysis explores methodological approaches, statistical validations, and demographic factors, emphasizing cultural sensitivity, community involvement, and rigorous validation for accurate, equitable cognitive health evaluations worldwide. Accepted and currently under publication by CRC press.",
-            link: ""
         }
     ];
 
@@ -30,7 +35,7 @@ const Publications = () => {
 
     return (
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications">
-            <Heading text="  Publications" />
+            <Heading text="Publications & Patents" />
             <HoverEffectPublications items={items} />
         </div>
     );

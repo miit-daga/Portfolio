@@ -1,0 +1,79 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <!-- 
+      Radial gradient for the moon's surface.
+      It goes from a bright, light-gray center (#F3F4F6) to a
+      darker gray shadow (#9CA3AF) at the edge, simulating spherical light.
+    -->
+        <radialGradient id="moonGradient" cx="50%" cy="50%" r="50%" fx="35%" fy="35%">
+            <stop offset="0%" style="stop-color:#F9FAFB; stop-opacity:1" />
+            <stop offset="70%" style="stop-color:#E5E7EB; stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#9CA3AF; stop-opacity:1" />
+        </radialGradient>
+
+        <!-- 
+      Radial gradient for the craters.
+      This creates an inner shadow (#9CA3AF) and an opposite inner highlight (#FFFFFF)
+      to give the impression of depth and a rim.
+    -->
+        <radialGradient id="craterGradient" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
+            <stop offset="0%" style="stop-color:#FFFFFF; stop-opacity:0.7" />
+            <stop offset="60%" style="stop-color:#D1D5DB; stop-opacity:0" />
+            <stop offset="80%" style="stop-color:#9CA3AF; stop-opacity:0.8" />
+            <stop offset="100%" style="stop-color:#6B7280; stop-opacity:0.5" />
+        </radialGradient>
+
+        <!-- 
+      Gaussian blur filter to create the soft outer glow (aura).
+    -->
+        <filter id="moonGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.5" result="blurred" />
+        </filter>
+
+        <!-- 
+      Style for the smaller, subtle surface spots (maria/plains).
+    -->
+        <style>
+            .moon-spot {
+                fill: #D1D5DB;
+                opacity: 0.6;
+            }
+        </style>
+    </defs>
+
+    <!-- 
+    Layer 1: The Glow
+    This circle is filled with a light blue-white and the blur filter
+    is applied, creating the soft aura.
+  -->
+    <circle cx="16" cy="16" r="14" fill="#E0E7FF" filter="url(#moonGlow)" />
+
+    <!-- 
+    Layer 2: The Moon's Body
+    This circle sits on top of the glow and is filled
+    with the main spherical gradient.
+  -->
+    <circle cx="16" cy="16" r="14" fill="url(#moonGradient)" />
+
+    <!-- 
+    Layer 3: Subtle surface texture (maria/plains)
+    These are flat, slightly darker spots without the crater effect.
+  -->
+    <g class="moon-spot">
+        <circle cx="12" cy="10" r="3" />
+        <circle cx="21" cy="14" r="2.5" />
+        <circle cx="14" cy="21" r="2" />
+    </g>
+
+    <!-- 
+    Layer 4: Craters
+    These circles use the crater gradient to appear indented.
+  -->
+    <g>
+        <circle cx="11" cy="11" r="2.5" fill="url(#craterGradient)" />
+        <circle cx="20" cy="13" r="2" fill="url(#craterGradient)" />
+        <circle cx="15" cy="20" r="1.8" fill="url(#craterGradient)" />
+        <circle cx="22" cy="8" r="1.5" fill="url(#craterGradient)" />
+        <circle cx="10" cy="16" r="1.2" fill="url(#craterGradient)" />
+    </g>
+</svg>

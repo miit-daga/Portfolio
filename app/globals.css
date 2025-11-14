@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom space-themed cursors */
+body {
+  cursor: url('/moon-cursor.svg'), auto;
+}
+
+/* Different cursor for interactive elements */
+button, a, [role="button"], [onclick] {
+  cursor: url('/sun-cursor.svg'), pointer;
+}
+
 :root {
   background-color: black;
   color: white;

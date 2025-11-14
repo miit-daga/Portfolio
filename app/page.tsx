@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Hero from "@/components/Hero";
 import Paragraph from "@/components/Paragraph";
@@ -12,10 +12,11 @@ import { SkillsAndAchievements } from "@/components/SkillsAndAchievements";
 import { aboutme } from "@/constants";
 import { FloatingNav } from "@/components/ui/floating-navbar";
 import {
-  IconHome, IconCode, IconBook, IconBriefcase, IconAward, IconMail, IconSchool,
+  IconHome, IconCode, IconBook, IconBriefcase, IconAward, IconMail, IconSchool, IconTerminal,
 } from "@tabler/icons-react";
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { EnterScreen } from "@/components/EnterScreen";
+
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(true);
@@ -47,7 +48,7 @@ const Home = () => {
       icon: <IconCode className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
     {
-      name: "Publications",
+      name: "Publications & Patents",
       link: "#publications",
       icon: <IconBook className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
@@ -55,6 +56,12 @@ const Home = () => {
       name: "Contact",
       link: "#contact",
       icon: <IconMail className="h-4 w-4 text-neutral-500 dark:text-white" />,
+    },
+    {
+      name: "Terminal",
+      link: "/terminal.html",
+      icon: <IconTerminal className="h-4 w-4 text-neutral-500 dark:text-white" />,
+      isDesktopOnly: true,
     },
   ];
 

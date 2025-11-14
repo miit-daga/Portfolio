@@ -18,7 +18,11 @@ export async function GET() {
       visibility: 'public' // Ensure only public repositories are fetched
     });
 
-    const filteredRepos = response.data.filter((repo: { name: string }) => repo.name !== 'miit-daga' && repo.name !== 'Portfolio');
+    const filteredRepos = response.data.filter((repo: { name: string; fork: boolean }) =>
+      repo.name !== 'miit-daga' &&
+      repo.name !== 'Portfolio' &&
+      (!repo.fork || repo.name === 'DisMan') // Exclude forked repositories except DisMan
+    );
 
     return NextResponse.json(filteredRepos); // Return the filtered list
 

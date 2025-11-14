@@ -30,7 +30,7 @@ const SkillBadge = ({ skill }: { skill: string }) => {
         <div
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="relative group rounded-lg overflow-hidden cursor-default"
+            className="relative group rounded-lg overflow-hidden"
         >
             <motion.div
                 className="relative backdrop-blur-sm rounded-lg overflow-hidden"
