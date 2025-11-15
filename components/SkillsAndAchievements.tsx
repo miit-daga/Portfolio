@@ -5,7 +5,7 @@ import { HoverEffectAchievements } from "./ui/card-hover-effect-achievements"
 
 const skillsData = {
     "Languages": ["JavaScript", "TypeScript", "Java", "Python", "C", "C++", "HTML", "CSS", "SQL"],
-    "Libraries & Frameworks": ["Node.js", "Express.js", "React.js", "Next.js", "Bootstrap", "Chakra UI", "ShadCN UI"],
+    "Libraries/Frameworks": ["NodeJS", "ExpressJS", "ReactJS", "NextJS", "Bootstrap", "Chakra UI"],
     "Databases": ["MongoDB", "MySQL", "PostgreSQL", "Redis", "Firebase"],
     "Other Tools & Platforms": ["Git", "Postman", "AWS", "Nginx", "VS Code", "Render", "Vercel", "Netlify"],
 };
