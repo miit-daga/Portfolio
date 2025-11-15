@@ -24,7 +24,7 @@ const Home = () => {
   const navItems = [
     {
       name: "About Me",
-      link: "#",
+      link: "#about-me",
       icon: <IconHome className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
     {
