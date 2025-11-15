@@ -199,6 +199,9 @@
         }
 
         async function runCommand(command) {
+            // Trim whitespace to handle commands with trailing spaces
+            command = command.trim();
+            
             if (isTyping) return;
             isTyping = true;
 
