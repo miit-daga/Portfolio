@@ -24,8 +24,9 @@ export const HoverEffectPublications = ({
       {items.map((item, idx) => {
         const isLastItem = idx === items.length - 1
         const isLonelyItem = isLastItem && items.length % 2 === 1
+        const hasValidLink = item?.link && item.link.trim() !== ""
 
-        return (
+        return hasValidLink ? (
           <Link
             key={item?.link}
             href={item?.link}
@@ -56,6 +57,34 @@ export const HoverEffectPublications = ({
               <CardDescription>{item.description}</CardDescription>
             </Card>
           </Link>
+        ) : (
+          <div
+            key={idx}
+            className={cn(
+              "relative group block p-2 h-full",
+              isLonelyItem ? "md:w-1/2 lg:w-1/2" : "w-full",
+              isLonelyItem && "md:col-span-2 md:justify-self-center lg:col-span-2 lg:justify-self-center",
+            )}
+            onMouseEnter={() => setHoveredIndex(idx)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          >
+            <AnimatePresence>
+              {hoveredIndex === idx && (
+                <motion.span
+                  className="absolute inset-0 h-full w-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 block rounded-3xl"
+                  layoutId="hoverBackgroundPublications"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                />
+              )}
+            </AnimatePresence>
+            <Card className="w-full h-full" isHovered={hoveredIndex === idx}>
+              <CardTitle>{item.title}</CardTitle>
+              <CardDescription>{item.description}</CardDescription>
+            </Card>
+          </div>
         )
       })}
     </div>
