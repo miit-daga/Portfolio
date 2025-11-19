@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Hero from "@/components/Hero";
 import Paragraph from "@/components/Paragraph";
@@ -16,6 +16,8 @@ import {
 } from "@tabler/icons-react";
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { EnterScreen } from "@/components/EnterScreen";
+import { ScrollProgress } from "@/components/ScrollProgress"; // New Import
+import { BackToTop } from "@/components/BackToTop"; // New Import
 
 
 const Home = () => {
@@ -67,6 +69,9 @@ const Home = () => {
 
   return (
     <>
+      {/* Progress Bar - Always visible after enter screen */}
+      {!showEnterScreen && <ScrollProgress />}
+
       <AnimatePresence>
         {showEnterScreen && (
           <EnterScreen onAnimationComplete={() => setShowEnterScreen(false)} />
@@ -114,6 +119,10 @@ const Home = () => {
             <AnimatedBackground>
               <Contact />
             </AnimatedBackground>
+
+            {/* Back To Top Button */}
+            <BackToTop />
+
           </motion.div>
         )}
       </AnimatePresence>

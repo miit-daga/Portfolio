@@ -1,21 +1,14 @@
 import React from 'react';
-import { TypewriterEffect } from './ui/typewriter-effect';
+import { CipherText } from './ui/cipher-text';
 
-const Heading = ({ text = " Projects" }) => {
-  // Convert text to array of word objects for TypewriterEffect
-  const words = text.split(" ").map(word => ({
-    text: word,
-    className: "text-white" // Always white text
-  }));
-
+const Heading = ({ text = "Projects" }) => {
   return (
-    <div className='py-10 text-center'>
-      <TypewriterEffect
-        words={words}
-        className='font-extrabold text-4xl md:text-6xl lg:text-7xl'
-        cursorClassName='bg-white h-8 md:h-12 lg:h-16 w-[6px] md:w-[8px] lg:w-[10px]' // Always white cursor
-        repeat={false}
-      />
+    <div className='py-10 text-center overflow-hidden'>
+      {/* Added font-mono to the container to prevent width-jitter during animation */}
+      <h2 className='font-mono font-extrabold text-4xl md:text-6xl lg:text-7xl text-white tracking-tight'>
+        <CipherText text={text} />
+      </h2>
+      <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-teal-500 mx-auto mt-4 rounded-full opacity-80" />
     </div>
   );
 };
