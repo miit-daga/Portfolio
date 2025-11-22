@@ -1,7 +1,6 @@
 import Heading from "./Heading"
-import { useState } from "react"
-import { motion } from "framer-motion"
 import { HoverEffectAchievements } from "./ui/card-hover-effect-achievements"
+import { Spotlight } from "./ui/spotlight-card"
 
 const skillsData = {
     "Languages": ["JavaScript", "TypeScript", "Java", "Python", "C", "C++", "HTML", "CSS", "SQL"],
@@ -23,46 +22,6 @@ const achievementsData = [
     }
 ];
 
-const SkillBadge = ({ skill }: { skill: string }) => {
-    const [isHovered, setIsHovered] = useState(false);
-
-    return (
-        <div
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
-            className="relative group rounded-lg overflow-hidden"
-        >
-            <motion.div
-                className="relative backdrop-blur-sm rounded-lg overflow-hidden"
-                animate={{
-                    scale: isHovered ? 1.05 : 1,
-                }}
-                transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-            >
-                <div className="absolute inset-0 bg-black/30 rounded-lg" />
-                <motion.div
-                    className="absolute inset-0 bg-gradient-to-br from-blue-500/40 via-purple-500/40 to-teal-500/40 rounded-lg"
-                    initial={{ x: "-100%" }}
-                    animate={{ x: isHovered ? "0%" : "-100%" }}
-                    transition={{ duration: 0.3, ease: "easeInOut" }}
-                />
-                <motion.div
-                    className="absolute inset-0 rounded-lg"
-                    animate={{
-                        borderColor: isHovered ? "rgba(148, 163, 184, 0.5)" : "rgba(255, 255, 255, 0.15)",
-                    }}
-                    style={{ border: "1px solid" }}
-                    transition={{ duration: 0.25 }}
-                />
-                <div className="relative z-10 px-4 py-2 text-neutral-100 font-semibold">
-                    {skill}
-                </div>
-            </motion.div>
-        </div>
-    );
-};
-
-
 export function SkillsAndAchievements() {
     return (
         <div className="relative w-full overflow-clip py-16" id="skills-achievements">
@@ -75,7 +34,11 @@ export function SkillsAndAchievements() {
                             <h3 className="text-2xl md:text-3xl font-bold text-neutral-300 mb-6 text-center">{category.replace(/ & /g, ' & ')}</h3>
                             <div className="flex flex-wrap items-center justify-center gap-4">
                                 {skills.map(skill => (
-                                    <SkillBadge key={skill} skill={skill} />
+                                    <Spotlight key={skill} className="w-auto inline-block rounded-lg hover:border-teal-500/50 transition-colors">
+                                        <div className="px-6 py-3 font-medium text-neutral-200">
+                                            {skill}
+                                        </div>
+                                    </Spotlight>
                                 ))}
                             </div>
                         </div>

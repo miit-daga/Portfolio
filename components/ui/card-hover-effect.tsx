@@ -102,7 +102,7 @@ const TiltCard = ({
           href={item?.link}
           target="_blank"
           rel="noopener noreferrer"
-          className="h-full w-full block"
+          className="h-full w-full block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           onMouseEnter={() => setHoveredIndex(idx)}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
@@ -150,9 +150,9 @@ export const Card = ({
         className
       )}
       style={{
-        backdropFilter: "blur(120px)", // Hardcoded high blur
-        WebkitBackdropFilter: "blur(120px)", // Safari support
-        background: "rgba(0, 0, 0, 0.6)", // Darker background to show the frosting
+        backdropFilter: "blur(120px)",
+        WebkitBackdropFilter: "blur(120px)",
+        background: "rgba(0, 0, 0, 0.6)",
       }}
       animate={{
         borderColor: isHovered ? "rgba(148, 163, 184, 0.7)" : "rgba(255, 255, 255, 0.15)",

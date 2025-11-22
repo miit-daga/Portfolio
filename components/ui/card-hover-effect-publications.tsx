@@ -129,7 +129,7 @@ const TiltCard = ({
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="h-full w-full block"
+            className="h-full w-full block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             {Content}
           </Link>

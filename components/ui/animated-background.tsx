@@ -9,13 +9,14 @@ interface AnimatedBackgroundProps {
   className?: string
 }
 
-// Define the types for better readability and type safety
 type Star = {
   x: number; y: number; size: number; brightness: number;
   color: { r: number; g: number; b: number };
   canTwinkle: boolean;
   twinklePhase: number;
   twinkleSpeed: number;
+  originalX: number;
+  originalY: number;
 }
 
 type ShootingStar = {
@@ -26,9 +27,57 @@ type ShootingStar = {
   size: number; distance: "near" | "medium" | "far";
 }
 
+// --- SOUND EFFECT GENERATOR ---
+const playWarpSound = (isEngaging: boolean) => {
+  if (typeof window === 'undefined') return;
+
+  // Create Audio Context
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  if (!AudioContext) return;
+
+  const ctx = new AudioContext();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  // Connect Oscillator -> Gain -> Speakers
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  const now = ctx.currentTime;
+
+  if (isEngaging) {
+    // Warp Engine Spool Up (Pitch rising from 100Hz to 800Hz)
+    osc.type = 'sawtooth'; // Rougher sound for engine
+    osc.frequency.setValueAtTime(100, now);
+    osc.frequency.exponentialRampToValueAtTime(800, now + 1.5);
+
+    // Volume envelope (Fade out smoothly)
+    gain.gain.setValueAtTime(0.05, now); // Low volume start
+    gain.gain.linearRampToValueAtTime(0, now + 1.5);
+
+    osc.start(now);
+    osc.stop(now + 1.5);
+  } else {
+    // Warp Engine Power Down (Pitch dropping from 800Hz to 50Hz)
+    osc.type = 'sine'; // Smoother sound for power down
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(50, now + 1);
+
+    // Volume envelope
+    gain.gain.setValueAtTime(0.05, now);
+    gain.gain.linearRampToValueAtTime(0, now + 1);
+
+    osc.start(now);
+    osc.stop(now + 1);
+  }
+};
+
 export const AnimatedBackground = ({ children, className }: AnimatedBackgroundProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
+
+  // Track warp state without triggering re-renders
+  const isWarpingRef = useRef(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -38,6 +87,36 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
     const ctx = canvas.getContext("2d")
     const bgCtx = backgroundCanvas.getContext("2d")
     if (!ctx || !bgCtx) return
+
+    // --- Konami Code Logic ---
+    const konamiCode = ["ArrowUp", "ArrowUp", "ArrowDown", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowLeft", "ArrowRight", "b", "a"];
+    let keyHistory: string[] = [];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      keyHistory.push(e.key);
+      if (keyHistory.length > konamiCode.length) {
+        keyHistory.shift();
+      }
+
+      if (JSON.stringify(keyHistory) === JSON.stringify(konamiCode)) {
+        isWarpingRef.current = !isWarpingRef.current;
+
+        // TRIGGER SOUND EFFECT
+        playWarpSound(isWarpingRef.current);
+
+        if (!isWarpingRef.current) {
+          // Reset stars immediately on stop
+          stars.forEach(star => {
+            star.x = star.originalX;
+            star.y = star.originalY;
+          });
+          bgCtx.clearRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+          drawStaticStars();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
 
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = "high"
@@ -58,10 +137,7 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
     let potentialTwinklers: Star[] = []
     let activeTwinklers: Star[] = []
     let shootingStars: ShootingStar[] = []
-
-    // --- NEW: Store last known dimensions to prevent re-render on mobile scroll ---
-    let lastWidth = 0
-    let lastHeight = 0
+    let lastWidth = window.innerWidth;
 
     // --- Helper Functions ---
     const getStarColor = () => {
@@ -93,22 +169,10 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
       })
     }
 
-    // --- MODIFIED: The resize function is now smarter ---
     const resizeCanvas = () => {
       const newWidth = window.innerWidth;
       const newHeight = window.innerHeight;
 
-      // Check if the resize is significant enough to warrant a full redraw
-      // This prevents the expensive re-render on mobile browsers when the address bar hides.
-      if (lastWidth > 0 && Math.abs(newWidth - lastWidth) < 100 && Math.abs(newHeight - lastHeight) < 100) {
-        return;
-      }
-
-      // Update the last known dimensions
-      lastWidth = newWidth;
-      lastHeight = newHeight;
-
-      // Continue with the full resize logic only if it's a significant change
       canvas.width = newWidth;
       canvas.height = newHeight;
       backgroundCanvas.width = newWidth;
@@ -121,9 +185,14 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
       const starCount = Math.floor((canvas.width * canvas.height) / 12000)
       for (let i = 0; i < starCount; i++) {
         const canTwinkle = Math.random() < TWINKLE_CHANCE
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+
         const star: Star = {
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
+          x,
+          y,
+          originalX: x,
+          originalY: y,
           size: Math.random() * 1.5 + 0.5,
           brightness: 0.4 + Math.random() * 0.5,
           color: getStarColor(),
@@ -137,6 +206,14 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
 
       drawStaticStars()
     }
+
+    const handleResize = () => {
+      const newWidth = window.innerWidth;
+      if (Math.abs(newWidth - lastWidth) > 50) {
+        resizeCanvas();
+        lastWidth = newWidth;
+      }
+    };
 
     const createShootingStar = () => {
       if (shootingStars.filter(s => s.active).length >= MAX_SHOOTING_STARS) return
@@ -176,34 +253,70 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
 
     const drawSpace = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      if (isWarpingRef.current) {
+        bgCtx.clearRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+      }
+
       ctx.globalCompositeOperation = "source-over"
       ctx.globalAlpha = 1
 
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      // 0. WARP LOGIC
+      if (isWarpingRef.current) {
+        stars.forEach(star => {
+          const dx = star.x - centerX;
+          const dy = star.y - centerY;
+
+          star.x += dx * 0.05;
+          star.y += dy * 0.05;
+
+          if (star.x < 0 || star.x > canvas.width || star.y < 0 || star.y > canvas.height) {
+            star.x = centerX + (Math.random() - 0.5) * 20;
+            star.y = centerY + (Math.random() - 0.5) * 20;
+          }
+
+          const { r, g, b } = star.color;
+          bgCtx.lineWidth = star.size;
+          bgCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness})`;
+          bgCtx.beginPath();
+          bgCtx.moveTo(star.x, star.y);
+          bgCtx.lineTo(star.x - dx * 0.05 * 4, star.y - dy * 0.05 * 4);
+          bgCtx.stroke();
+        });
+      }
+
       // 1. Draw Active Twinkling Stars
-      for (let i = activeTwinklers.length - 1; i >= 0; i--) {
-        const star = activeTwinklers[i]
-        star.twinklePhase += star.twinkleSpeed
+      if (!isWarpingRef.current) {
+        for (let i = activeTwinklers.length - 1; i >= 0; i--) {
+          const star = activeTwinklers[i]
+          star.twinklePhase += star.twinkleSpeed
 
-        if (star.twinklePhase >= Math.PI * 2) {
-          star.twinklePhase = 0
-          activeTwinklers.splice(i, 1)
+          if (star.twinklePhase >= Math.PI * 2) {
+            star.twinklePhase = 0
+            activeTwinklers.splice(i, 1)
+            const { r, g, b } = star.color
+            bgCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
+            bgCtx.beginPath(); bgCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2); bgCtx.fill()
+            continue
+          }
+
+          const baseIntensity = (Math.sin(star.twinklePhase) + 1) / 2
+          const twinkleIntensity = MIN_TWINKLE_BRIGHTNESS + (baseIntensity * (1 - MIN_TWINKLE_BRIGHTNESS))
+
+          const currentBrightness = star.brightness * twinkleIntensity
           const { r, g, b } = star.color
-          bgCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
-          bgCtx.beginPath(); bgCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2); bgCtx.fill()
-          continue
+
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${currentBrightness})`
+          ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2); ctx.fill()
         }
-
-        const baseIntensity = (Math.sin(star.twinklePhase) + 1) / 2
-        const twinkleIntensity = MIN_TWINKLE_BRIGHTNESS + (baseIntensity * (1 - MIN_TWINKLE_BRIGHTNESS))
-
-        const currentBrightness = star.brightness * twinkleIntensity
-        const { r, g, b } = star.color
-
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${currentBrightness})`
-        ctx.beginPath(); ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2); ctx.fill()
       }
 
       // 2. Draw Shooting Stars
+      const speedMultiplier = isWarpingRef.current ? 5 : 1;
+
       for (let i = shootingStars.length - 1; i >= 0; i--) {
         const ss = shootingStars[i]
         let fadeFactor = 1
@@ -211,7 +324,11 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
         if (ss.active) ss.trail.push({ x: ss.x, y: ss.y, opacity: ss.brightness * fadeFactor })
         const maxTrailLength = ss.distance === "near" ? 80 : ss.distance === "medium" ? 60 : 40
         if (ss.trail.length > maxTrailLength) ss.trail.shift()
-        if (ss.active) { ss.x += ss.vx; ss.y += ss.vy }
+
+        if (ss.active) {
+          ss.x += ss.vx * speedMultiplier;
+          ss.y += ss.vy * speedMultiplier;
+        }
         ss.life++
 
         ss.trail.forEach((p, index) => {
@@ -235,7 +352,7 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
       }
 
       // 3. Create new shooting stars periodically
-      shootingStarTimer++
+      shootingStarTimer += isWarpingRef.current ? 5 : 1;
       if (shootingStarTimer > shootingStarInterval) {
         createShootingStar()
         shootingStarTimer = 0
@@ -247,6 +364,8 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
     }
 
     const manageTwinkling = () => {
+      if (isWarpingRef.current) return;
+
       if (activeTwinklers.length >= MAX_ACTIVE_TWINKLERS || potentialTwinklers.length === 0) return
       const starToActivate = potentialTwinklers[Math.floor(Math.random() * potentialTwinklers.length)]
       if (!activeTwinklers.includes(starToActivate)) {
@@ -255,14 +374,14 @@ export const AnimatedBackground = ({ children, className }: AnimatedBackgroundPr
       }
     }
 
-    // --- Initialization and Cleanup ---
     resizeCanvas()
     drawSpace()
     twinkleIntervalHandle = window.setInterval(manageTwinkling, TWINKLE_INTERVAL)
-    window.addEventListener("resize", resizeCanvas)
+    window.addEventListener("resize", handleResize)
 
     return () => {
-      window.removeEventListener("resize", resizeCanvas)
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("resize", handleResize)
       if (animationFrame) cancelAnimationFrame(animationFrame)
       if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)
     }

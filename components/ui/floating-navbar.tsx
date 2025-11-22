@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   motion,
   AnimatePresence,
@@ -27,16 +27,21 @@ export const FloatingNav = ({
 
   const [visible, setVisible] = useState(true);
   const [isAtVeryTop, setIsAtVeryTop] = useState(true);
+  const [activeSection, setActiveSection] = useState(""); // Track active section
   const lastScrollY = useRef(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // --- Scroll Visibility & Active State Logic ---
   useMotionValueEvent(scrollYProgress, "change", (current) => {
     if (typeof current === "number") {
       const direction = current - lastScrollY.current;
       const isCurrentlyAtTop = current < 0.05;
 
+      // Logic to show/hide navbar
       if (isCurrentlyAtTop) {
         setVisible(true);
+        // FIX: Force clear active section when at the Hero (top of page)
+        setActiveSection("");
       } else {
         if (direction < 0) {
           setVisible(true);
@@ -49,6 +54,38 @@ export const FloatingNav = ({
       lastScrollY.current = current;
     }
   });
+
+  // --- Intersection Observer for Sections ---
+  useEffect(() => {
+    const observerOptions = {
+      root: null,
+      rootMargin: "-20% 0px -35% 0px", // Activates when section is near middle-top of screen
+      threshold: 0.1,
+    };
+
+    const observerCallback = (entries: IntersectionObserverEntry[]) => {
+      // Don't update via observer if we are at the very top (let the scroll listener handle that)
+      if (window.scrollY < 100) return;
+
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          setActiveSection(`#${entry.target.id}`);
+        }
+      });
+    };
+
+    const observer = new IntersectionObserver(observerCallback, observerOptions);
+
+    // Observe all sections defined in navItems (only those starting with #)
+    navItems.forEach((item) => {
+      if (item.link.startsWith("#")) {
+        const element = document.getElementById(item.link.substring(1));
+        if (element) observer.observe(element);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, [navItems]);
 
   const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK;
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
@@ -71,20 +108,27 @@ export const FloatingNav = ({
             className
           )}
         >
-          {navItems.map((navItem: any) => (
-            <MagneticWrapper key={navItem.link} strength={0.2}>
-              <Link
-                href={navItem.link}
-                target={navItem.name === "Terminal" ? "_blank" : undefined}
-                rel={navItem.name === "Terminal" ? "noopener noreferrer" : undefined}
-                className="relative text-white items-center flex space-x-1 hover:text-neutral-300 hidden lg:flex px-2 py-1"
-              >
-                <span className="text-sm font-bold">
-                  {navItem.name}
-                </span>
-              </Link>
-            </MagneticWrapper>
-          ))}
+          {navItems.map((navItem: any) => {
+            const isActive = activeSection === navItem.link;
+
+            return (
+              <MagneticWrapper key={navItem.link} strength={0.2}>
+                <Link
+                  href={navItem.link}
+                  target={navItem.name === "Terminal" ? "_blank" : undefined}
+                  rel={navItem.name === "Terminal" ? "noopener noreferrer" : undefined}
+                  className={cn(
+                    "relative items-center flex space-x-1 hidden lg:flex px-2 py-1 transition-colors duration-300",
+                    isActive ? "text-teal-400" : "text-white hover:text-neutral-300"
+                  )}
+                >
+                  <span className="text-sm font-bold">
+                    {navItem.name}
+                  </span>
+                </Link>
+              </MagneticWrapper>
+            );
+          })}
 
           <MagneticWrapper strength={0.2}>
             <Link href={resumeLink!} target="_blank" rel="noopener noreferrer">
@@ -157,25 +201,31 @@ export const FloatingNav = ({
                 className="fixed top-0 left-0 bottom-0 w-3/4 max-w-xs bg-black/90 backdrop-blur-lg z-[5000] p-8"
               >
                 <div className="flex flex-col items-start space-y-6 pt-16">
-                  {navItems.map((item, idx) => (
-                    (item as any).isDesktopOnly ? null : (
-                      <Link
-                        key={`link=${idx}`}
-                        href={item.link}
-                        target={item.name === "Terminal" ? "_blank" : undefined}
-                        rel={item.name === "Terminal" ? "noopener noreferrer" : undefined}
-                        onClick={toggleMenu}
-                        className="flex items-center space-x-4 text-white text-lg font-semibold hover:text-neutral-300 transition-colors"
-                      >
-                        <span className="w-6 flex items-center justify-center">
-                          {React.cloneElement(item.icon as any, {
-                            className: "h-5 w-5 text-white",
-                          })}
-                        </span>
-                        <span>{item.name}</span>
-                      </Link>
-                    )
-                  ))}
+                  {navItems.map((item, idx) => {
+                    const isActive = activeSection === item.link;
+                    return (
+                      (item as any).isDesktopOnly ? null : (
+                        <Link
+                          key={`link=${idx}`}
+                          href={item.link}
+                          target={item.name === "Terminal" ? "_blank" : undefined}
+                          rel={item.name === "Terminal" ? "noopener noreferrer" : undefined}
+                          onClick={toggleMenu}
+                          className={cn(
+                            "flex items-center space-x-4 text-lg font-semibold transition-colors",
+                            isActive ? "text-teal-400" : "text-white hover:text-neutral-300"
+                          )}
+                        >
+                          <span className="w-6 flex items-center justify-center">
+                            {React.cloneElement(item.icon as any, {
+                              className: cn("h-5 w-5", isActive ? "text-teal-400" : "text-white"),
+                            })}
+                          </span>
+                          <span>{item.name}</span>
+                        </Link>
+                      )
+                    );
+                  })}
                   <Link
                     href={resumeLink!}
                     target="_blank"
