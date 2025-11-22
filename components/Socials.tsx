@@ -3,6 +3,7 @@ import { socials } from "@/constants";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
 
 const MagneticIcon = ({ children, url }: { children: React.ReactNode; url: string }) => {
   const ref = useRef<HTMLDivElement>(null);
@@ -14,8 +15,6 @@ const MagneticIcon = ({ children, url }: { children: React.ReactNode; url: strin
     const middleX = clientX - (left + width / 2);
     const middleY = clientY - (top + height / 2);
 
-    // Move the icon slightly towards the mouse (magnetic effect)
-    // Factor 0.3 controls the "strength" of the magnet
     setPosition({ x: middleX * 0.3, y: middleY * 0.3 });
   };
 
@@ -43,9 +42,9 @@ const MagneticIcon = ({ children, url }: { children: React.ReactNode; url: strin
   );
 };
 
-const Socials = () => {
+const Socials = ({ className }: { className?: string }) => {
   return (
-    <div className="flex flex-wrap gap-4 items-center justify-center my-10 sm:my-14 px-4">
+    <div className={cn("flex flex-wrap gap-4", className)}>
       {socials.map((social) => {
         const Icon = social.icon as React.ComponentType<{ className?: string }>;
         return (
