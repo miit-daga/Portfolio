@@ -42,14 +42,11 @@
         .output {
             white-space: pre-wrap;
         }
-        /* Input Container for the Ghost Text Effect */
         .input-container {
             position: relative;
             flex-grow: 1;
-            height: 1.5em; /* Match line height */
+            height: 1.5em; 
         }
-        
-        /* Actual Input (Green, Transparent Background, On Top) */
         #input-line {
             position: absolute;
             top: 0;
@@ -64,8 +61,6 @@
             font-family: 'Roboto Mono', monospace;
             z-index: 10;
         }
-
-        /* Ghost Input (Gray, Behind) */
         #ghost-input {
             position: absolute;
             top: 0;
@@ -75,12 +70,11 @@
             background: transparent;
             border: none;
             outline: none;
-            color: #333; /* Dimmed Gray for suggestion */
+            color: #333; 
             font-family: 'Roboto Mono', monospace;
             z-index: 5;
-            pointer-events: none; /* Click through to real input */
+            pointer-events: none; 
         }
-
         .nav-link {
             color: #0ff;
             text-decoration: underline;
@@ -104,9 +98,33 @@
             margin-bottom: 1rem;
             line-height: 1.2;
         }
+        /* Overlay Style */
+        #start-overlay {
+            position: fixed;
+            inset: 0;
+            background: black;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-black text-green-400">
+
+    <!-- CLICK TO START OVERLAY -->
+    <div id="start-overlay">
+        <div class="text-xl md:text-2xl font-bold blink border border-green-500 p-4 rounded bg-green-900/20">
+            > CLICK TO INITIALIZE SYSTEM <
+        </div>
+    </div>
 
     <canvas id="matrix-canvas"></canvas>
 
@@ -115,15 +133,217 @@
         <div class="flex items-center">
             <span class="prompt"></span>
             <div class="input-container">
-                <!-- The Ghost Text Suggestion -->
                 <input type="text" id="ghost-input" disabled>
-                <!-- The Actual User Input -->
                 <input type="text" id="input-line" class="bg-transparent border-none outline-none text-green-400 flex-grow" autofocus autocomplete="off" spellcheck="false">
             </div>
         </div>
     </div>
 
     <script type="module">
+        // --- SOUND ENGINE ---
+        const SoundFX = {
+            ctx: null,
+            isMuted: false,
+            
+            init: function() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                } else if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            },
+
+            playTone: function(freq, type, duration, vol = 0.1) {
+                if (this.isMuted || !this.ctx || this.ctx.state !== 'running') return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.frequency.value = freq;
+                osc.type = type;
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                const now = this.ctx.currentTime;
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(vol, now + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+                
+                osc.start(now);
+                osc.stop(now + duration);
+            },
+
+            // --- USER TYPING SOUNDS ---
+            typing: function(key) {
+                if (this.isMuted) return;
+
+                let freq = 800;
+                let type = 'square';
+                let duration = 0.06;
+                let vol = 0.05;
+
+                if (key >= '0' && key <= '9') {
+                    const num = parseInt(key);
+                    freq = 1000 + (num * 100); 
+                    type = 'sine'; 
+                    duration = 0.08;
+                    vol = 0.08;
+                }
+                else if (key.length === 1 && key.match(/[a-z]/i)) {
+                    const code = key.toLowerCase().charCodeAt(0) - 97; 
+                    freq = 200 + (code * 15);
+                    type = 'square'; 
+                }
+                else if (key === ' ') {
+                    freq = 120;
+                    type = 'sawtooth';
+                    duration = 0.05;
+                    vol = 0.08;
+                }
+                else if (key === 'Backspace') {
+                    freq = 100;
+                    type = 'sawtooth';
+                    duration = 0.08;
+                }
+                else {
+                    freq = 800;
+                    type = 'triangle';
+                }
+
+                this.playTone(freq, type, duration, vol);
+            },
+
+            // --- SYSTEM SOUNDS ---
+            startup: function() {
+                if (this.isMuted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                const now = this.ctx.currentTime;
+                osc.frequency.setValueAtTime(100, now);
+                osc.frequency.exponentialRampToValueAtTime(1000, now + 2);
+                
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.1, now + 1);
+                gain.gain.linearRampToValueAtTime(0, now + 2);
+
+                osc.start(now);
+                osc.stop(now + 2);
+            },
+
+            dataBurst: function() {
+                if (this.isMuted || !this.ctx) return;
+                const count = 15;
+                for(let i=0; i<count; i++) {
+                    setTimeout(() => {
+                        this.playTone(400 + Math.random() * 800, 'square', 0.05, 0.03);
+                    }, i * 30);
+                }
+            },
+
+            compute: function() {
+                if (this.isMuted || !this.ctx) return;
+                this.playTone(200 + Math.random() * 50, 'sawtooth', 0.1, 0.05);
+            },
+
+            deleteProcess: function() {
+                // Low crunching/processing sound
+                if (this.isMuted || !this.ctx) return;
+                const count = 6;
+                for(let i=0; i<count; i++) {
+                    setTimeout(() => {
+                        this.playTone(100, 'square', 0.05, 0.05);
+                    }, i * 150);
+                }
+            },
+
+            funny: function() {
+                // A "slide whistle" / clown sound
+                if (this.isMuted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'triangle';
+                const now = this.ctx.currentTime;
+                
+                // Slide up then down
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+                osc.frequency.linearRampToValueAtTime(300, now + 0.4);
+
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0, now + 0.4);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+            },
+
+            successChime: function() {
+                if (this.isMuted || !this.ctx) return;
+                [440, 554, 659].forEach((freq, i) => { 
+                    setTimeout(() => {
+                        this.playTone(freq, 'sine', 0.6, 0.05);
+                    }, i * 100);
+                });
+            },
+
+            enter: function() {
+                if (this.isMuted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.1);
+            },
+
+            error: function() {
+                this.playTone(150, 'sawtooth', 0.2, 0.1);
+            },
+
+            meow: function() {
+                if (this.isMuted) return;
+                const audio = new Audio('meow.mp3'); 
+                audio.volume = 0.5;
+                audio.play().catch(e => console.log("Missing meow.mp3"));
+            },
+            
+            glitch: function() {
+                if (this.isMuted || !this.ctx) return;
+                const count = 10;
+                for(let i=0; i<count; i++) {
+                    setTimeout(() => {
+                        this.playTone(Math.random() * 1000, 'sawtooth', 0.05, 0.05);
+                    }, i * 30);
+                }
+            },
+
+            powerDown: function() {
+                if (this.isMuted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 1);
+                gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 1);
+            }
+        };
+
         // --- DATA ---
         const MOCK_DATA = {
           name: "Miit Daga",
@@ -160,11 +380,10 @@
             { title: "A Lightweight Ensemble Approach for Classification of DDoS Attacks in IoE Environments", link: "https://doi.org/10.1109/SENNET64220.2025.11136075" },
             { title: "Enhancing Cognitive Evaluation: A Thorough Examination of the Hong Kong Adaptation of the Montreal Cognitive Assessment (HK-MoCA) and Bayesian Integration", link: "https://rb.gy/0qoeij" }
           ],
-          // Extended command list for Easter Eggs
           commands: [
             "help", "about", "experience", "education", "skills", "projects", "publications", 
-            "contact", "socials", "resume", "clear", 
-            "sudo", "whoami", "date", "exit", "ls", "pwd", "vi", "vim", "cat", "rm", "mkdir", "reboot"
+            "contact", "socials", "resume", "clear", "mute",
+            "sudo", "whoami", "date", "exit", "ls", "pwd", "vim", "cat", "rm", "mkdir", "reboot"
           ]
         };
 
@@ -210,17 +429,15 @@
         const inputLine = document.getElementById('input-line');
         const ghostInput = document.getElementById('ghost-input');
         const terminal = document.getElementById('terminal');
+        const overlay = document.getElementById('start-overlay');
         let isTyping = false;
         let commandHistory = [];
         let historyIndex = -1;
 
-        // -- Autosuggestion Logic --
         inputLine.addEventListener('input', () => {
             const val = inputLine.value.toLowerCase();
-            ghostInput.value = ''; // Reset ghost
+            ghostInput.value = ''; 
             if (!val) return;
-
-            // Find the first command that starts with input
             const match = MOCK_DATA.commands.find(cmd => cmd.startsWith(val));
             if (match) {
                 ghostInput.value = match;
@@ -278,18 +495,21 @@
 
             addInputLine(command);
             inputLine.value = '';
-            ghostInput.value = ''; // Clear ghost
+            ghostInput.value = ''; 
             inputLine.disabled = true;
 
             switch(command.toLowerCase()) {
                 case 'help':
+                    SoundFX.enter();
                     await typeRaw(`<div class="section-title">Available Commands:</div>
 ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link" onclick="runCommandFromClick('${cmd}')">publications</span>` : `<span class="nav-link" onclick="runCommandFromClick('${cmd}')">${cmd}</span>`).join('  ')}`);
                     break;
                 case 'about':
+                    SoundFX.enter();
                     await typeLine(MOCK_DATA.about, 5);
                     break;
                 case 'experience':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Work Experience</div>');
                     for (const job of MOCK_DATA.experience) {
                         await typeLine(`\n[ ${job.role} @ ${job.company} ] - ${job.date}`, 5);
@@ -299,6 +519,7 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     }
                     break;
                 case 'education':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Education</div>');
                     for (const edu of MOCK_DATA.education) {
                         await typeLine(`\n[ ${edu.institution} ] - ${edu.date}`, 5);
@@ -307,6 +528,7 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     }
                     break;
                 case 'skills':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Skills</div>');
                     for (const [category, skills] of Object.entries(MOCK_DATA.skills)) {
                         await typeLine(`\n[ ${category} ]`, 5);
@@ -314,6 +536,7 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     }
                     break;
                 case 'projects':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Fetching GitHub Projects...</div>');
                     try {
                         const response = await fetch('/api/github-repos');
@@ -342,6 +565,7 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     }
                     break;
                 case 'publications':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Publications & Patents</div>');
                     for (const pub of MOCK_DATA.publications) {
                         await typeLine(`\n[ ${pub.title} ]`, 5);
@@ -353,77 +577,107 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     }
                     break;
                 case 'contact':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Contact</div>');
                     await typeLine(`Email: ${MOCK_DATA.email}`, 5);
                     await typeRaw(`  <a href="mailto:${MOCK_DATA.email}" class="nav-link">Send Email</a>`);
                     break;
                 case 'socials':
+                    SoundFX.enter();
                     await typeRaw('<div class="section-title">Socials</div>');
                     for (const social of MOCK_DATA.socials) {
                         await typeRaw(`[ ${social.name} ] <a href="${social.url}" target="_blank" class="nav-link">${social.url}</a>`);
                     }
                     break;
                 case 'resume':
+                    SoundFX.enter();
                     await typeLine("Accessing secure file...", 30);
                     await new Promise(r => setTimeout(r, 500));
                     await typeLine("Opening resume in new tab...", 30);
                     window.open(MOCK_DATA.resumeUrl, '_blank');
                     break;
                 case 'clear':
+                    SoundFX.enter();
                     outputContainer.innerHTML = '';
+                    break;
+                case 'mute':
+                    SoundFX.isMuted = !SoundFX.isMuted;
+                    SoundFX.enter();
+                    await typeLine(SoundFX.isMuted ? "Audio feedback disabled." : "Audio feedback enabled.", 10);
                     break;
 
                 // --- FUN EASTER EGGS ---
                 case 'sudo':
+                    SoundFX.deleteProcess(); // Play process sound
                     await typeLine("user is not in the sudoers file. This incident will be reported to Santa 🎅.", 10);
                     break;
                 case 'whoami':
+                    SoundFX.enter();
                     await typeLine("user", 5);
                     break;
                 case 'date':
+                    SoundFX.enter();
                     await typeLine(new Date().toString(), 5);
                     break;
                 case 'ls':
+                    SoundFX.enter();
                     await typeLine("Documents  Downloads  Music  Pictures  Videos  secret_plans.txt", 5);
                     break;
                 case 'pwd':
+                    SoundFX.enter();
                     await typeLine("/home/miit-daga", 5);
                     break;
                 case 'cat':
                 case 'cat secret_plans.txt':
+                    SoundFX.meow();
                     if(command === 'cat') await typeLine("Meow? 🐱", 5);
-                    else await typeLine("Error: Permission denied. You are not authorized to view world domination plans.", 10);
+                    else {
+                        SoundFX.error();
+                        await typeLine("Error: Permission denied. You are not authorized to view world domination plans.", 10);
+                    }
                     break;
-                case 'vi':
                 case 'vim':
+                    SoundFX.enter();
                     await typeLine("Entering Vim...", 20);
                     await new Promise(r => setTimeout(r, 1000));
+                    SoundFX.funny(); // Play funny sound
                     await typeLine("Just kidding. I don't want you to get stuck here forever.", 10);
                     break;
                 case 'rm':
                 case 'rm -rf':
                 case 'rm -rf /':
+                    SoundFX.deleteProcess(); // Suspense sound
                     await typeLine("Deleting system files...", 30);
                     await new Promise(r => setTimeout(r, 1500));
+                    SoundFX.error(); // Access Denied sound
                     await typeLine("Access Denied! Nice try though.", 10);
                     break;
                 case 'mkdir':
+                    SoundFX.error();
                     await typeLine("Error: Read-only file system.", 5);
                     break;
                 case 'reboot':
+                    SoundFX.glitch();
                     await typeLine("System rebooting...", 30);
                     await new Promise(r => setTimeout(r, 1000));
                     location.reload();
                     break;
                 case 'exit':
+                    SoundFX.powerDown();
                     await typeLine("Logging out...", 20);
-                    await new Promise(r => setTimeout(r, 500));
-                    window.close(); 
+                    await new Promise(r => setTimeout(r, 1000)); 
+                    
+                    // Force Close Trick
+                    window.opener = null;
+                    window.open('', '_self');
+                    window.close();
+                    
                     await typeLine("Session terminated. (You can close this tab)", 5);
                     break;
 
                 default:
                     if(command.trim() !== '') {
+                        SoundFX.error();
                         await typeLine(`Command not found: ${command}. Type 'help' for a list of available commands.`);
                     }
             }
@@ -437,10 +691,11 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
         window.runCommandFromClick = (command) => runCommand(command);
 
         inputLine.addEventListener('keydown', (e) => {
+            if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 || e.key === 'Backspace') {
+                SoundFX.typing(e.key);
+            }
+
             if (e.key === 'Enter') {
-                // If ghost has a value and user hits enter, assuming they meant the full command
-                // Or just run what's typed. Usually shells run what's typed.
-                // But if they hit Tab/Right Arrow, they accept suggestion.
                 runCommand(inputLine.value);
             } else if (e.key === 'Tab' || e.key === 'ArrowRight') {
                 if (ghostInput.value && ghostInput.value !== inputLine.value) {
@@ -452,7 +707,6 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                 if (historyIndex > 0) {
                     historyIndex--;
                     inputLine.value = commandHistory[historyIndex];
-                    // Simple ghost sync on history nav
                     ghostInput.value = inputLine.value;
                 }
             } else if (e.key === 'ArrowDown') {
@@ -472,30 +726,54 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
             }
         });
         
-        async function bootSequence() {
+        // --- BOOT SEQUENCE LOGIC ---
+        // We create a function to initialize the system after interaction
+        const startSystem = async () => {
+            // Remove the overlay
+            overlay.style.display = 'none';
+            
+            // Initialize Audio
+            SoundFX.init();
+            SoundFX.startup(); // Play startup sound
+
             isTyping = true;
             inputLine.disabled = true;
             await new Promise(r => setTimeout(r, 500));
             
-            // ASCII Art
+            SoundFX.dataBurst();
             await typeRaw(`<div class="ascii-art">${ASCII_ART}</div>`);
             
+            SoundFX.compute();
             await typeLine("Booting MIIT-DAGA-OS v1.0...", 30);
             await new Promise(r => setTimeout(r, 200));
+
+            SoundFX.dataBurst();
             await typeLine("Connecting to network...", 30);
             await new Promise(r => setTimeout(r, 300));
             await typeLine("Connection established.", 30);
             await new Promise(r => setTimeout(r, 100));
+
+            SoundFX.compute();
             await typeLine("Fetching user credentials...", 30);
             await new Promise(r => setTimeout(r, 400));
+            
+            SoundFX.successChime();
             await typeLine("Access granted. Welcome, user.", 30);
             await typeLine("\nType 'help' for a list of commands.", 30);
             inputLine.disabled = false;
             inputLine.focus();
             isTyping = false;
-        }
+        };
 
-        bootSequence();
+        // Attach event listener to overlay to start system on click/key
+        const handleStart = () => {
+            startSystem();
+            document.removeEventListener('keydown', handleStart);
+            document.removeEventListener('click', handleStart);
+        };
+
+        overlay.addEventListener('click', handleStart);
+        document.addEventListener('keydown', handleStart);
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
