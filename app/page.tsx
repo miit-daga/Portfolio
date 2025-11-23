@@ -27,18 +27,56 @@ import { ScrollProgress } from "@/components/ScrollProgress";
 import { BackToTop } from "@/components/BackToTop";
 
 const Home = () => {
-  // CHANGED: Default to false to prevent flash, controlled by useEffect
   const [showEnterScreen, setShowEnterScreen] = useState(false);
-  const [isLoaded, setIsLoaded] = useState(false); // To handle hydration
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // COSMIC EVENT STATE
+  const [isImploding, setIsImploding] = useState(false);
 
   useEffect(() => {
-    // Check session storage on mount to see if user already viewed intro
     const hasEntered = sessionStorage.getItem("hasEnteredCosmos");
     if (!hasEntered) {
       setShowEnterScreen(true);
     }
     setIsLoaded(true);
-  }, []);
+
+    // --- KONAMI CODE LOGIC ---
+    const konamiCode = ["arrowup", "arrowup", "arrowdown", "arrowdown", "arrowleft", "arrowright", "arrowleft", "arrowright", "b", "a"];
+    let keyHistory: string[] = [];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't register keys if we are already in the black hole
+      if (isImploding) return;
+
+      keyHistory.push(e.key.toLowerCase());
+      if (keyHistory.length > konamiCode.length) {
+        keyHistory.shift();
+      }
+
+      if (JSON.stringify(keyHistory) === JSON.stringify(konamiCode)) {
+        triggerCosmicReset();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImploding]);
+
+  const triggerCosmicReset = () => {
+    setIsImploding(true);
+
+    // 1. Wait for animation to finish (Black Hole Suck)
+    setTimeout(() => {
+      // 2. Clear Session Logic
+      sessionStorage.removeItem("hasEnteredCosmos");
+
+      // 3. Scroll to top instantly
+      window.scrollTo(0, 0);
+
+      // 4. Force Reload to Trigger Big Bang via EnterScreen
+      window.location.reload();
+    }, 2500); // 2.5s duration matches the sound effect
+  };
 
   const handleEnterComplete = () => {
     setShowEnterScreen(false);
@@ -89,13 +127,12 @@ const Home = () => {
     },
   ];
 
-  // Prevent hydration mismatch by waiting for client load
   if (!isLoaded) return null;
 
   return (
     <>
-      {/* Progress Bar - Always visible after enter screen */}
-      {!showEnterScreen && <ScrollProgress />}
+      {/* Progress Bar - Hide during implosion */}
+      {!showEnterScreen && !isImploding && <ScrollProgress />}
 
       <AnimatePresence>
         {showEnterScreen && (
@@ -105,52 +142,50 @@ const Home = () => {
 
       <AnimatePresence>
         {!showEnterScreen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.0 }}
-            className="overflow-hidden relative w-full"
-          >
-            <FloatingNav navItems={navItems} />
-            <Hero />
+          // Pass isImploding to background to control stars
+          <AnimatedBackground isImploding={isImploding}>
+            {/* This Motion Div handles the Spaghettification of the UI */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={isImploding ? {
+                scale: 0,
+                opacity: 0,
+                rotate: 720, // Spin into the void
+                filter: "blur(20px)", // Blur as it accelerates
+              } : {
+                opacity: 1,
+                scale: 1,
+                rotate: 0,
+                filter: "blur(0px)"
+              }}
+              transition={isImploding ? {
+                duration: 2,
+                ease: "anticipate" // Pull back then shoot
+              } : {
+                duration: 1.0
+              }}
+              className="overflow-hidden relative w-full origin-center"
+            >
+              <FloatingNav navItems={navItems} />
+              <Hero />
 
-            <AnimatedBackground>
               <div
                 id="about-me"
                 className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20"
               >
                 <Paragraph para={aboutme} />
               </div>
-            </AnimatedBackground>
 
-            <AnimatedBackground>
               <WorkExp />
-            </AnimatedBackground>
-
-            <AnimatedBackground>
               <Education />
-            </AnimatedBackground>
-
-            <AnimatedBackground>
               <SkillsAndAchievements />
-            </AnimatedBackground>
-
-            <AnimatedBackground>
               <Projects />
-            </AnimatedBackground>
-
-            <AnimatedBackground>
               <Publications />
-            </AnimatedBackground>
-
-            <AnimatedBackground>
               <Contact />
-            </AnimatedBackground>
 
-            {/* Back To Top Button */}
-            <BackToTop />
-          </motion.div>
+              <BackToTop />
+            </motion.div>
+          </AnimatedBackground>
         )}
       </AnimatePresence>
     </>

@@ -61,6 +61,15 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
 
     return (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-black">
+
+            {/* BIG BANG FLASH EFFECT */}
+            <motion.div
+                className="absolute inset-0 bg-white z-[10000] pointer-events-none"
+                initial={{ opacity: 1 }}
+                animate={{ opacity: 0 }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+            />
+
             {/* Animated starfield background */}
             <AnimatePresence>
                 <div className="absolute inset-0">
