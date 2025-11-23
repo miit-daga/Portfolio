@@ -21,13 +21,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    // FIX: Added suppressHydrationWarning to prevent next-themes mismatch errors
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="description" content="Code that powers the unseen" />
       </head>
       <body className={outfit.className}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+          {/* NEW: Noise Overlay Div */}
+          <div className="bg-noise" />
+
           {children}
           <CommandMenu />
           <Analytics />

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Hero from "@/components/Hero";
 import Paragraph from "@/components/Paragraph";
@@ -12,16 +12,38 @@ import { SkillsAndAchievements } from "@/components/SkillsAndAchievements";
 import { aboutme } from "@/constants";
 import { FloatingNav } from "@/components/ui/floating-navbar";
 import {
-  IconHome, IconCode, IconBook, IconBriefcase, IconAward, IconMail, IconSchool, IconTerminal,
+  IconHome,
+  IconCode,
+  IconBook,
+  IconBriefcase,
+  IconAward,
+  IconMail,
+  IconSchool,
+  IconTerminal,
 } from "@tabler/icons-react";
 import { AnimatedBackground } from "@/components/ui/animated-background";
 import { EnterScreen } from "@/components/EnterScreen";
-import { ScrollProgress } from "@/components/ScrollProgress"; // New Import
-import { BackToTop } from "@/components/BackToTop"; // New Import
-
+import { ScrollProgress } from "@/components/ScrollProgress";
+import { BackToTop } from "@/components/BackToTop";
 
 const Home = () => {
-  const [showEnterScreen, setShowEnterScreen] = useState(true);
+  // CHANGED: Default to false to prevent flash, controlled by useEffect
+  const [showEnterScreen, setShowEnterScreen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false); // To handle hydration
+
+  useEffect(() => {
+    // Check session storage on mount to see if user already viewed intro
+    const hasEntered = sessionStorage.getItem("hasEnteredCosmos");
+    if (!hasEntered) {
+      setShowEnterScreen(true);
+    }
+    setIsLoaded(true);
+  }, []);
+
+  const handleEnterComplete = () => {
+    setShowEnterScreen(false);
+    sessionStorage.setItem("hasEnteredCosmos", "true");
+  };
 
   const navItems = [
     {
@@ -67,6 +89,9 @@ const Home = () => {
     },
   ];
 
+  // Prevent hydration mismatch by waiting for client load
+  if (!isLoaded) return null;
+
   return (
     <>
       {/* Progress Bar - Always visible after enter screen */}
@@ -74,7 +99,7 @@ const Home = () => {
 
       <AnimatePresence>
         {showEnterScreen && (
-          <EnterScreen onAnimationComplete={() => setShowEnterScreen(false)} />
+          <EnterScreen onAnimationComplete={handleEnterComplete} />
         )}
       </AnimatePresence>
 
@@ -91,7 +116,10 @@ const Home = () => {
             <Hero />
 
             <AnimatedBackground>
-              <div id="about-me" className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20">
+              <div
+                id="about-me"
+                className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20"
+              >
                 <Paragraph para={aboutme} />
               </div>
             </AnimatedBackground>
@@ -122,7 +150,6 @@ const Home = () => {
 
             {/* Back To Top Button */}
             <BackToTop />
-
           </motion.div>
         )}
       </AnimatePresence>
