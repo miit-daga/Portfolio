@@ -151,7 +151,7 @@ export function Contact() {
                     title="Enter this code on your keyboard!"
                 >
                     <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest group-hover:text-teal-400 transition-colors">
-                        Initiate Warp Drive:
+                        Initiate Big Crunch:
                     </span>
                     <div className="flex gap-1.5">
                         <Kbd>↑</Kbd><Kbd>↑</Kbd>
