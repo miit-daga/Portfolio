@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createPortal } from "react-dom"; // IMPORTED PORTAL
+import { createPortal } from "react-dom";
 import Heading from "./Heading";
 import Socials from "./Socials";
 import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import { Constellation } from "./ui/constellation";
 import { motion, AnimatePresence } from "framer-motion";
+import { Galaxy } from "./ui/galaxy";
 
 type ContactType = "email" | "phone" | null;
 
@@ -18,12 +18,10 @@ export function Contact() {
     const [modalType, setModalType] = useState<ContactType>(null);
     const [mounted, setMounted] = useState(false);
 
-    // Ensure we only use portal after component mounts (client-side)
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    // --- EMAIL HANDLERS ---
     const copyEmail = () => {
         navigator.clipboard.writeText("miitcodes27@gmail.com");
         setEmailCopied(true);
@@ -32,12 +30,10 @@ export function Contact() {
 
     const handleEmailClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
         if (typeof window !== "undefined" && window.innerWidth < 768) {
-            // Mobile: Show Modal
             e.preventDefault();
             setModalType("email");
             setShowModal(true);
         }
-        // Desktop: Default mailto behavior (Left Click)
     };
 
     const handleEmailContextMenu = (e: React.MouseEvent) => {
@@ -45,7 +41,6 @@ export function Contact() {
         copyEmail();
     };
 
-    // --- PHONE HANDLERS ---
     const copyPhone = () => {
         navigator.clipboard.writeText("+917003816564");
         setPhoneCopied(true);
@@ -53,19 +48,15 @@ export function Contact() {
     };
 
     const handlePhoneClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-        e.preventDefault(); // Always prevent default initially to handle logic
-
+        e.preventDefault();
         if (typeof window !== "undefined" && window.innerWidth < 768) {
-            // Mobile: Show Modal
             setModalType("phone");
             setShowModal(true);
         } else {
-            // Desktop: Copy to clipboard immediately
             copyPhone();
         }
     };
 
-    // --- MODAL ACTION HANDLERS ---
     const handleModalPrimaryAction = () => {
         if (modalType === "email") {
             window.location.href = "mailto:miitcodes27@gmail.com";
@@ -111,7 +102,6 @@ export function Contact() {
                                 {emailCopied ? <IconCheck className="h-6 w-6" /> : <IconMail className="h-6 w-6 text-teal-400" />}
                                 <span>{emailCopied ? "Email Copied!" : "miitcodes27@gmail.com"}</span>
                             </a>
-                            {/* Desktop Tooltip */}
                             <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
                                 Left-click: Send • Right-click: Copy
                             </span>
@@ -130,7 +120,6 @@ export function Contact() {
                                 {phoneCopied ? <IconCheck className="h-6 w-6" /> : <IconPhone className="h-6 w-6 text-teal-400" />}
                                 <span>{phoneCopied ? "Number Copied!" : "+91 7003816564"}</span>
                             </a>
-                            {/* Desktop Tooltip */}
                             <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
                                 Click to Copy
                             </span>
@@ -143,10 +132,11 @@ export function Contact() {
                     </div>
                 </div>
 
-                {/* Right Side: Constellation */}
-                <div className="relative h-[400px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
-                    <div className="absolute inset-0 bg-gradient-to-r from-teal-500/10 to-blue-500/10 blur-3xl opacity-20 rounded-full" />
-                    <Constellation className="relative z-10" />
+                {/* Right Side: GALAXY */}
+                {/* Updated height for larger display on desktop */}
+                <div className="relative h-[400px] lg:h-[600px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
+                    <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-blue-500/5 blur-3xl opacity-20 rounded-full" />
+                    <Galaxy />
                 </div>
             </div>
 
@@ -156,7 +146,6 @@ export function Contact() {
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
 
-                {/* Konami Hint - Hidden on Mobile */}
                 <div
                     className="hidden md:flex group flex-col md:flex-row items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-500 cursor-help"
                     title="Enter this code on your keyboard!"
@@ -185,13 +174,10 @@ export function Contact() {
                             className="fixed inset-0 z-[99999] flex items-center justify-center px-4"
                             style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}
                         >
-                            {/* Backdrop */}
                             <div
                                 className="absolute inset-0 bg-black/90 backdrop-blur-md"
                                 onClick={() => setShowModal(false)}
                             />
-
-                            {/* Modal Content */}
                             <motion.div
                                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                                 animate={{ scale: 1, opacity: 1, y: 0 }}

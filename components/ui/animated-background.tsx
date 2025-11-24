@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils"
 interface AnimatedBackgroundProps {
   children: React.ReactNode
   className?: string
-  isImploding?: boolean // NEW: Prop to trigger black hole physics
+  isImploding?: boolean
 }
 
+// --- Types ---
 type Star = {
   x: number; y: number; size: number; brightness: number;
   color: { r: number; g: number; b: number };
@@ -19,7 +20,6 @@ type Star = {
   originalX: number;
   originalY: number;
   parallaxFactor: number;
-  // NEW: Velocity for implosion
   vx?: number;
   vy?: number;
 }
@@ -32,85 +32,53 @@ type ShootingStar = {
   size: number; distance: "near" | "medium" | "far";
 }
 
-// --- SOUND EFFECT GENERATOR ---
-const playWarpSound = (isEngaging: boolean) => {
-  if (typeof window === 'undefined') return;
-
-  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioContext) return;
-
-  const ctx = new AudioContext();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
-  const now = ctx.currentTime;
-
-  if (isEngaging) {
-    // Warp Up
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(100, now);
-    osc.frequency.exponentialRampToValueAtTime(800, now + 1.5);
-    gain.gain.setValueAtTime(0.05, now);
-    gain.gain.linearRampToValueAtTime(0, now + 1.5);
-    osc.start(now);
-    osc.stop(now + 1.5);
-  } else {
-    // Warp Down (Standard)
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, now);
-    osc.frequency.exponentialRampToValueAtTime(50, now + 1);
-    gain.gain.setValueAtTime(0.05, now);
-    gain.gain.linearRampToValueAtTime(0, now + 1);
-    osc.start(now);
-    osc.stop(now + 1);
-  }
+type Planet = {
+  x: number;
+  y: number;
+  radius: number;
+  originalRadius: number;
+  color: string;
+  hasRing: boolean;
+  ringColor: string;
+  ringAngle: number;
+  orbitAngle: number;
+  orbitSpeed: number;
+  distanceFromCenter: number;
+  originalDistance: number;
+  parallaxFactor: number; // NEW: Controls depth perception
 };
 
-// NEW: Black Hole Sound Generator
+// --- SOUND EFFECT GENERATORS (No changes here) ---
 const playBlackHoleSound = () => {
   if (typeof window === 'undefined') return;
   const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioContext) return;
   const ctx = new AudioContext();
 
-  // 1. Deep rumble (The suction)
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.connect(gain);
   gain.connect(ctx.destination);
-
   osc.type = 'sawtooth';
   const now = ctx.currentTime;
-
-  // Pitch drops deep into sub-bass
   osc.frequency.setValueAtTime(200, now);
   osc.frequency.exponentialRampToValueAtTime(10, now + 2.5);
-
-  // Volume swells then cuts
   gain.gain.setValueAtTime(0.1, now);
   gain.gain.linearRampToValueAtTime(0.3, now + 2);
   gain.gain.linearRampToValueAtTime(0, now + 2.5);
-
   osc.start(now);
   osc.stop(now + 2.5);
 
-  // 2. High pitch whine (The event horizon tension)
   const osc2 = ctx.createOscillator();
   const gain2 = ctx.createGain();
   osc2.connect(gain2);
   gain2.connect(ctx.destination);
   osc2.type = 'sine';
-
   osc2.frequency.setValueAtTime(1000, now);
   osc2.frequency.exponentialRampToValueAtTime(8000, now + 2);
-
   gain2.gain.setValueAtTime(0, now);
   gain2.gain.linearRampToValueAtTime(0.05, now + 1.5);
   gain2.gain.linearRampToValueAtTime(0, now + 2.5);
-
   osc2.start(now);
   osc2.stop(now + 2.5);
 };
@@ -130,7 +98,6 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const bgCtx = backgroundCanvas.getContext("2d")
     if (!ctx || !bgCtx) return
 
-    // Play sound once when implosion starts
     if (isImploding && !didPlayImplosionSound.current) {
       playBlackHoleSound();
       didPlayImplosionSound.current = true;
@@ -145,9 +112,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     window.addEventListener("mousemove", handleMouseMove);
 
     ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = "high"
     bgCtx.imageSmoothingEnabled = true
-    bgCtx.imageSmoothingQuality = "high"
 
     // --- Configuration ---
     const MAX_ACTIVE_TWINKLERS = 15
@@ -163,6 +128,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     let potentialTwinklers: Star[] = []
     let activeTwinklers: Star[] = []
     let shootingStars: ShootingStar[] = []
+    let planets: Planet[] = []
     let lastWidth = window.innerWidth;
 
     // --- Helper Functions ---
@@ -183,6 +149,41 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       return { r: 255, g: 180, b: 200 }
     }
 
+    // NEW: Create Planets
+    const createPlanets = () => {
+      planets = [];
+      const planetConfigs = [
+        // TEAL PLANET (Inner orbit)
+        // Kept roughly the same, slightly closer
+        { color: "#2dd4bf", ring: true, distMult: 0.22, size: 28, speed: 0.00015, parallax: 10 },
+
+        // VIOLET PLANET (Outer orbit)
+        // CHANGED: distMult reduced from 0.55 to 0.40. 
+        // This ensures it stays within the vertical bounds of a laptop screen (0.40 < 0.50).
+        { color: "#8b5cf6", ring: false, distMult: 0.40, size: 45, speed: 0.0002, parallax: 40 },
+      ];
+      planetConfigs.forEach((cfg, i) => {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.min(canvas.width, canvas.height) * cfg.distMult;
+
+        planets.push({
+          x: 0,
+          y: 0,
+          radius: cfg.size,
+          originalRadius: cfg.size,
+          color: cfg.color,
+          hasRing: cfg.ring,
+          ringColor: "rgba(255, 255, 255, 0.15)", // Slightly more transparent ring
+          ringAngle: Math.PI / 4,
+          orbitAngle: angle,
+          orbitSpeed: cfg.speed * (Math.random() > 0.5 ? 1 : -1),
+          distanceFromCenter: dist,
+          originalDistance: dist,
+          parallaxFactor: cfg.parallax // Store individual parallax
+        });
+      });
+    };
+
     const resizeCanvas = () => {
       const newWidth = window.innerWidth;
       const newHeight = window.innerHeight;
@@ -196,6 +197,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       potentialTwinklers = []
       activeTwinklers = []
 
+      // Generate Stars
       const starCount = Math.floor((canvas.width * canvas.height) / 2250)
       for (let i = 0; i < starCount; i++) {
         const canTwinkle = Math.random() < TWINKLE_CHANCE
@@ -204,23 +206,21 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         const size = Math.random() * 1.5 + 0.5;
 
         const star: Star = {
-          x,
-          y,
-          originalX: x,
-          originalY: y,
-          size,
+          x, y, originalX: x, originalY: y, size,
           brightness: 0.4 + Math.random() * 0.5,
           color: getStarColor(),
           canTwinkle,
           twinklePhase: canTwinkle ? Math.random() * Math.PI * 2 : 0,
           twinkleSpeed: canTwinkle ? 0.01 + Math.random() * 0.02 : 0,
           parallaxFactor: size * 15,
-          vx: 0,
-          vy: 0
+          vx: 0, vy: 0
         }
         stars.push(star)
         if (canTwinkle) potentialTwinklers.push(star)
       }
+
+      // Generate Planets
+      createPlanets();
     }
 
     const handleResize = () => {
@@ -233,7 +233,6 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
     const createShootingStar = () => {
       if (shootingStars.filter(s => s.active).length >= MAX_SHOOTING_STARS) return
-      // Don't create new shooting stars during implosion
       if (isImploding) return;
 
       const direction = Math.random() < 0.6 ? "horizontal" : "vertical"
@@ -268,16 +267,13 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     let shootingStarTimer = 0
     let shootingStarInterval = SHOOTING_STAR_INTERVAL_MIN + Math.random() * (SHOOTING_STAR_INTERVAL_MAX - SHOOTING_STAR_INTERVAL_MIN)
     let twinkleIntervalHandle: number
-
-    // Acceleration counter for black hole
     let implosionFrame = 0;
 
     const drawSpace = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      // If imploding, we want trails, so we fade the background instead of clearing it completely
       if (isImploding) {
-        bgCtx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // Trail effect
+        bgCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
         bgCtx.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
       } else {
         bgCtx.clearRect(0, 0, backgroundCanvas.width, backgroundCanvas.height)
@@ -289,61 +285,85 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
 
-      // 1. Draw Stars
+      // 1. Draw Planets (Behind Stars)
+      planets.forEach(planet => {
+        if (!isImploding) {
+          planet.orbitAngle += planet.orbitSpeed;
+        } else {
+          // SUCK IN LOGIC
+          planet.distanceFromCenter *= 0.96;
+          planet.orbitAngle += 0.05;
+          planet.radius *= 0.95;
+        }
+
+        // Calculate Position with INDIVIDUAL PARALLAX
+        const offsetX = mouseRef.current.x * planet.parallaxFactor;
+        const offsetY = mouseRef.current.y * planet.parallaxFactor;
+
+        planet.x = centerX + Math.cos(planet.orbitAngle) * planet.distanceFromCenter + offsetX;
+        planet.y = centerY + Math.sin(planet.orbitAngle) * planet.distanceFromCenter + offsetY;
+
+        // Draw only if visible
+        if (planet.radius > 0.5) {
+          const gradient = bgCtx.createRadialGradient(
+            planet.x - planet.radius / 3, planet.y - planet.radius / 3, planet.radius * 0.1,
+            planet.x, planet.y, planet.radius
+          );
+          gradient.addColorStop(0, planet.color);
+          gradient.addColorStop(1, "rgba(0,0,0,0)");
+
+          bgCtx.fillStyle = gradient;
+          bgCtx.beginPath();
+          bgCtx.arc(planet.x, planet.y, planet.radius, 0, Math.PI * 2);
+          bgCtx.fill();
+
+          if (planet.hasRing) {
+            bgCtx.save();
+            bgCtx.translate(planet.x, planet.y);
+            bgCtx.rotate(planet.ringAngle);
+            bgCtx.beginPath();
+            bgCtx.strokeStyle = planet.ringColor;
+            bgCtx.lineWidth = planet.radius * 0.15;
+            // Draw an ellipse
+            bgCtx.ellipse(0, 0, planet.radius * 1.8, planet.radius * 0.5, 0, 0, Math.PI * 2);
+            bgCtx.stroke();
+            bgCtx.restore();
+          }
+        }
+      });
+
+      // 2. Draw Stars
       stars.forEach((star) => {
         let x = star.originalX;
         let y = star.originalY;
 
         if (isImploding) {
-          // GRAVITY LOGIC
-          implosionFrame += 0.0001; // Global speed up
-
-          // Vector to center
+          implosionFrame += 0.0001;
           const dx = centerX - star.x;
           const dy = centerY - star.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-
-          // Normalize
           const ndx = dx / distance;
           const ndy = dy / distance;
-
-          // Spiral Tangent (perpendicular vector)
           const tx = -ndy;
           const ty = ndx;
-
-          // Acceleration increases as it gets closer (Gravitational pull)
-          // Prevent division by zero
           const pullStrength = 500 / (distance + 10);
           const speed = (1 + implosionFrame) * pullStrength;
 
-          // Initialize velocity if undefined
           if (star.vx === undefined) star.vx = 0;
           if (star.vy === undefined) star.vy = 0;
 
-          // Add forces: Pull towards center + Slight Spiral
           star.vx += (ndx * speed * 0.5) + (tx * speed * 0.2);
           star.vy += (ndy * speed * 0.5) + (ty * speed * 0.2);
-
-          // Apply friction/drag to prevent exploding out
           star.vx *= 0.95;
           star.vy *= 0.95;
-
-          // Update position
           star.x += star.vx;
           star.y += star.vy;
-
-          // Use updated position
           x = star.x;
           y = star.y;
 
-          // If very close to center, hide/reset
-          if (distance < 5) {
-            star.brightness = 0;
-          }
+          if (distance < 5) star.brightness = 0;
 
-          // Draw streak instead of dot for high speed
           const velocity = Math.sqrt(star.vx * star.vx + star.vy * star.vy);
-
           const { r, g, b } = star.color;
           bgCtx.lineWidth = star.size * (1 + velocity * 0.1);
           bgCtx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness})`;
@@ -353,18 +373,13 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
           bgCtx.stroke();
 
         } else {
-          // NORMAL LOGIC
-          // Apply parallax offset
+          // Parallax
           const offsetX = mouseRef.current.x * star.parallaxFactor;
           const offsetY = mouseRef.current.y * star.parallaxFactor;
           x = star.originalX + offsetX;
           y = star.originalY + offsetY;
+          star.x = x; star.y = y;
 
-          // Sync current position for smooth transition to implosion
-          star.x = x;
-          star.y = y;
-
-          // Only draw background stars here if they aren't currently twinkling
           if (!activeTwinklers.includes(star)) {
             const { r, g, b } = star.color
             bgCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
@@ -375,7 +390,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         }
       });
 
-      // 2. Twinkling (Only in Normal Mode)
+      // 3. Twinkling (Only in Normal Mode)
       if (!isImploding) {
         for (let i = activeTwinklers.length - 1; i >= 0; i--) {
           const star = activeTwinklers[i]
@@ -397,7 +412,6 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
           const baseIntensity = (Math.sin(star.twinklePhase) + 1) / 2
           const twinkleIntensity = MIN_TWINKLE_BRIGHTNESS + (baseIntensity * (1 - MIN_TWINKLE_BRIGHTNESS))
-
           const currentBrightness = star.brightness * twinkleIntensity
           const { r, g, b } = star.color
 
@@ -408,15 +422,14 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         }
       }
 
-      // 3. Draw Shooting Stars
+      // 4. Draw Shooting Stars
       for (let i = shootingStars.length - 1; i >= 0; i--) {
         const ss = shootingStars[i]
 
-        // If imploding, accelerate shooting stars randomly to chaos
         if (isImploding) {
           const dx = centerX - ss.x;
           const dy = centerY - ss.y;
-          ss.x += (dx * 0.05); // Suck in
+          ss.x += (dx * 0.05);
           ss.y += (dy * 0.05);
           ss.vx *= 0.9;
           ss.vy *= 0.9;
@@ -454,7 +467,6 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         if (!ss.active && ss.trail.length > 0 && ss.life % 2 === 0) ss.trail.shift()
       }
 
-      // 4. Create new shooting stars periodically (Only if not imploding)
       if (!isImploding) {
         shootingStarTimer += 1;
         if (shootingStarTimer > shootingStarInterval) {
@@ -469,7 +481,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     }
 
     const manageTwinkling = () => {
-      if (isImploding) return; // No new twinkles during doom
+      if (isImploding) return;
       if (activeTwinklers.length >= MAX_ACTIVE_TWINKLERS || potentialTwinklers.length === 0) return
       const starToActivate = potentialTwinklers[Math.floor(Math.random() * potentialTwinklers.length)]
       if (!activeTwinklers.includes(starToActivate)) {
@@ -488,7 +500,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       if (animationFrame) cancelAnimationFrame(animationFrame)
       if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)
     }
-  }, [isImploding]) // Re-run effect dependencies if Imploding changes
+  }, [isImploding])
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
