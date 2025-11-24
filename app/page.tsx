@@ -175,7 +175,9 @@ const Home = () => {
               }}
               className="overflow-hidden relative w-full origin-center"
             >
-              <FloatingNav navItems={navItems} />
+              {/* FIXED: Passing isImploding prop */}
+              <FloatingNav navItems={navItems} isImploding={isImploding} />
+
               <Hero />
 
               <div
@@ -192,7 +194,6 @@ const Home = () => {
               <Publications />
               <Contact />
 
-              {/* BackToTop was removed from here */}
             </motion.div>
           </AnimatedBackground>
         )}

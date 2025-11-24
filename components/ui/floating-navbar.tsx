@@ -16,6 +16,7 @@ import { MagneticWrapper } from "./magnetic-wrapper";
 export const FloatingNav = ({
   navItems,
   className,
+  isImploding = false, // Added Prop
 }: {
   navItems: {
     name: string;
@@ -23,6 +24,7 @@ export const FloatingNav = ({
     icon?: React.ReactElement;
   }[];
   className?: string;
+  isImploding?: boolean; // Added Type
 }) => {
   const { scrollY } = useScroll();
 
@@ -33,7 +35,6 @@ export const FloatingNav = ({
   const [mounted, setMounted] = useState(false);
 
   // Refs for logic
-  const lastScrollY = useRef(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -117,13 +118,16 @@ export const FloatingNav = ({
   const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK;
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
 
+  // COMBINED LOGIC: Show if scrolled up AND not currently imploding
+  const shouldShow = visible && !isImploding;
+
   const navContent = (
     <>
       <AnimatePresence mode="wait">
         <motion.div
           key="desktop-nav"
           initial={{ y: -100, opacity: 0 }}
-          animate={{ y: visible ? 0 : -100, opacity: visible ? 1 : 0 }}
+          animate={{ y: shouldShow ? 0 : -100, opacity: shouldShow ? 1 : 0 }}
           exit={{ y: -100, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
           className={cn(
@@ -193,7 +197,7 @@ export const FloatingNav = ({
         <motion.button
           key="mobile-nav-trigger"
           initial={{ y: -100, opacity: 0 }}
-          animate={{ y: visible ? 0 : -100, opacity: visible ? 1 : 0 }}
+          animate={{ y: shouldShow ? 0 : -100, opacity: shouldShow ? 1 : 0 }}
           exit={{ y: -100, opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeInOut" }}
           onClick={toggleMenu}
