@@ -1,20 +1,87 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom"; // IMPORTED PORTAL
 import Heading from "./Heading";
 import Socials from "./Socials";
-import { IconMail, IconPhone, IconCheck } from "@tabler/icons-react";
+import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Constellation } from "./ui/constellation";
+import { motion, AnimatePresence } from "framer-motion";
+
+type ContactType = "email" | "phone" | null;
 
 export function Contact() {
-    const [copied, setCopied] = useState(false);
+    const [emailCopied, setEmailCopied] = useState(false);
+    const [phoneCopied, setPhoneCopied] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [modalType, setModalType] = useState<ContactType>(null);
+    const [mounted, setMounted] = useState(false);
 
-    const handleContextMenu = (e: React.MouseEvent) => {
-        e.preventDefault();
+    // Ensure we only use portal after component mounts (client-side)
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // --- EMAIL HANDLERS ---
+    const copyEmail = () => {
         navigator.clipboard.writeText("miitcodes27@gmail.com");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setEmailCopied(true);
+        setTimeout(() => setEmailCopied(false), 2000);
+    };
+
+    const handleEmailClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+            // Mobile: Show Modal
+            e.preventDefault();
+            setModalType("email");
+            setShowModal(true);
+        }
+        // Desktop: Default mailto behavior (Left Click)
+    };
+
+    const handleEmailContextMenu = (e: React.MouseEvent) => {
+        e.preventDefault();
+        copyEmail();
+    };
+
+    // --- PHONE HANDLERS ---
+    const copyPhone = () => {
+        navigator.clipboard.writeText("+917003816564");
+        setPhoneCopied(true);
+        setTimeout(() => setPhoneCopied(false), 2000);
+    };
+
+    const handlePhoneClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+        e.preventDefault(); // Always prevent default initially to handle logic
+
+        if (typeof window !== "undefined" && window.innerWidth < 768) {
+            // Mobile: Show Modal
+            setModalType("phone");
+            setShowModal(true);
+        } else {
+            // Desktop: Copy to clipboard immediately
+            copyPhone();
+        }
+    };
+
+    // --- MODAL ACTION HANDLERS ---
+    const handleModalPrimaryAction = () => {
+        if (modalType === "email") {
+            window.location.href = "mailto:miitcodes27@gmail.com";
+        } else if (modalType === "phone") {
+            window.location.href = "tel:+917003816564";
+        }
+        setShowModal(false);
+    };
+
+    const handleModalCopyAction = () => {
+        if (modalType === "email") {
+            copyEmail();
+        } else if (modalType === "phone") {
+            copyPhone();
+        }
+        setShowModal(false);
     };
 
     return (
@@ -34,31 +101,43 @@ export function Contact() {
                         <div className="group relative w-fit">
                             <a
                                 href="mailto:miitcodes27@gmail.com"
-                                onContextMenu={handleContextMenu}
+                                onClick={handleEmailClick}
+                                onContextMenu={handleEmailContextMenu}
                                 className={cn(
                                     "flex items-center gap-4 text-xl font-semibold transition-all duration-300 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-teal-500/30",
-                                    copied ? "text-green-400" : "text-neutral-200"
+                                    emailCopied ? "text-green-400" : "text-neutral-200"
                                 )}
                             >
-                                {copied ? <IconCheck className="h-6 w-6" /> : <IconMail className="h-6 w-6 text-teal-400" />}
-                                <span>{copied ? "Email Copied!" : "miitcodes27@gmail.com"}</span>
+                                {emailCopied ? <IconCheck className="h-6 w-6" /> : <IconMail className="h-6 w-6 text-teal-400" />}
+                                <span>{emailCopied ? "Email Copied!" : "miitcodes27@gmail.com"}</span>
                             </a>
-                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            {/* Desktop Tooltip */}
+                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
                                 Left-click: Send • Right-click: Copy
                             </span>
                         </div>
 
                         {/* Phone */}
-                        <a
-                            href="tel:+917003816564"
-                            className="w-fit flex items-center gap-4 text-xl font-semibold text-neutral-200 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-teal-500/30 transition-all duration-300"
-                        >
-                            <IconPhone className="h-6 w-6 text-teal-400" />
-                            +91 7003816564
-                        </a>
+                        <div className="group relative w-fit">
+                            <a
+                                href="tel:+917003816564"
+                                onClick={handlePhoneClick}
+                                className={cn(
+                                    "flex items-center gap-4 text-xl font-semibold transition-all duration-300 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-teal-500/30",
+                                    phoneCopied ? "text-green-400" : "text-neutral-200"
+                                )}
+                            >
+                                {phoneCopied ? <IconCheck className="h-6 w-6" /> : <IconPhone className="h-6 w-6 text-teal-400" />}
+                                <span>{phoneCopied ? "Number Copied!" : "+91 7003816564"}</span>
+                            </a>
+                            {/* Desktop Tooltip */}
+                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
+                                Click to Copy
+                            </span>
+                        </div>
                     </div>
 
-                    {/* Socials - FIXED ALIGNMENT */}
+                    {/* Socials */}
                     <div className="mt-10 w-full">
                         <Socials className="justify-center lg:justify-start" />
                     </div>
@@ -76,8 +155,10 @@ export function Contact() {
                 <p className="text-neutral-500 text-sm">
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
+
+                {/* Konami Hint - Hidden on Mobile */}
                 <div
-                    className="group flex flex-col md:flex-row items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-500 cursor-help"
+                    className="hidden md:flex group flex-col md:flex-row items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-500 cursor-help"
                     title="Enter this code on your keyboard!"
                 >
                     <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest group-hover:text-teal-400 transition-colors">
@@ -92,6 +173,65 @@ export function Contact() {
                     </div>
                 </div>
             </div>
+
+            {/* PORTAL for Mobile Modals */}
+            {mounted && createPortal(
+                <AnimatePresence>
+                    {showModal && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[99999] flex items-center justify-center px-4"
+                            style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh' }}
+                        >
+                            {/* Backdrop */}
+                            <div
+                                className="absolute inset-0 bg-black/90 backdrop-blur-md"
+                                onClick={() => setShowModal(false)}
+                            />
+
+                            {/* Modal Content */}
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                animate={{ scale: 1, opacity: 1, y: 0 }}
+                                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                className="relative z-[999999] bg-neutral-900 border border-white/20 rounded-2xl p-6 w-full max-w-sm shadow-[0_0_30px_rgba(45,212,191,0.15)]"
+                            >
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className="absolute top-4 right-4 text-neutral-400 hover:text-white p-1"
+                                >
+                                    <IconX size={20} />
+                                </button>
+
+                                <h3 className="text-xl font-bold text-white mb-2">
+                                    {modalType === "email" ? "Email" : "Call"}
+                                </h3>
+                                <p className="text-neutral-400 text-sm mb-6">How would you like to proceed?</p>
+
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={handleModalPrimaryAction}
+                                        className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 font-medium hover:bg-teal-500/20 active:bg-teal-500/30 transition-colors"
+                                    >
+                                        {modalType === "email" ? <IconSend size={20} /> : <IconPhone size={20} />}
+                                        {modalType === "email" ? "Send Email" : "Call Now"}
+                                    </button>
+                                    <button
+                                        onClick={handleModalCopyAction}
+                                        className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-white/5 text-neutral-200 border border-white/10 font-medium hover:bg-white/10 active:bg-white/15 transition-colors"
+                                    >
+                                        <IconCopy size={20} />
+                                        {modalType === "email" ? "Copy Address" : "Copy Number"}
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 }

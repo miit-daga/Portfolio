@@ -144,6 +144,15 @@ const Home = () => {
         {!showEnterScreen && (
           // Pass isImploding to background to control stars
           <AnimatedBackground isImploding={isImploding}>
+
+            {/* 
+              FIX: BackToTop moved OUTSIDE the transformed motion.div so 'position: fixed' works correctly.
+              We add a transition wrapper so it still disappears during the black hole event.
+            */}
+            <div className={`relative z-50 transition-opacity duration-500 ${isImploding ? "opacity-0" : "opacity-100"}`}>
+              <BackToTop />
+            </div>
+
             {/* This Motion Div handles the Spaghettification of the UI */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -183,7 +192,7 @@ const Home = () => {
               <Publications />
               <Contact />
 
-              <BackToTop />
+              {/* BackToTop was removed from here */}
             </motion.div>
           </AnimatedBackground>
         )}

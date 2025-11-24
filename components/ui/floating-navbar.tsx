@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   motion,
   AnimatePresence,
@@ -23,35 +24,63 @@ export const FloatingNav = ({
   }[];
   className?: string;
 }) => {
-  const { scrollYProgress } = useScroll();
+  const { scrollY } = useScroll();
 
   const [visible, setVisible] = useState(true);
   const [isAtVeryTop, setIsAtVeryTop] = useState(true);
-  const [activeSection, setActiveSection] = useState(""); // Track active section
-  const lastScrollY = useRef(0);
+  const [activeSection, setActiveSection] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // --- Scroll Visibility & Active State Logic ---
-  useMotionValueEvent(scrollYProgress, "change", (current) => {
+  // Refs for logic
+  const lastScrollY = useRef(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => {
+      // Cleanup timer on unmount
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  // --- SCROLL LOGIC (Pixels + Auto-Hide Timer) ---
+  useMotionValueEvent(scrollY, "change", (current) => {
     if (typeof current === "number") {
-      const direction = current - lastScrollY.current;
-      const isCurrentlyAtTop = current < 0.05;
+      const previous = scrollY.getPrevious() ?? 0;
+      const direction = current - previous;
 
-      // Logic to show/hide navbar
-      if (isCurrentlyAtTop) {
+      // 50px threshold for "Very Top"
+      const isTop = current < 50;
+
+      // Always clear existing timer on any scroll event
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+
+      if (isTop) {
+        setIsAtVeryTop(true);
         setVisible(true);
-        // FIX: Force clear active section when at the Hero (top of page)
         setActiveSection("");
       } else {
+        setIsAtVeryTop(false);
+
         if (direction < 0) {
+          // Scrolling UP -> Show Immediately
           setVisible(true);
-        } else {
+
+          // Start Auto-Hide Timer (2.5s)
+          timerRef.current = setTimeout(() => {
+            setVisible(false);
+            setIsMenuOpen(false);
+          }, 2500);
+
+        } else if (direction > 0) {
+          // Scrolling DOWN -> Hide Immediately
           setVisible(false);
           setIsMenuOpen(false);
         }
       }
-      setIsAtVeryTop(isCurrentlyAtTop);
-      lastScrollY.current = current;
     }
   });
 
@@ -59,12 +88,11 @@ export const FloatingNav = ({
   useEffect(() => {
     const observerOptions = {
       root: null,
-      rootMargin: "-20% 0px -35% 0px", // Activates when section is near middle-top of screen
+      rootMargin: "-20% 0px -35% 0px",
       threshold: 0.1,
     };
 
     const observerCallback = (entries: IntersectionObserverEntry[]) => {
-      // Don't update via observer if we are at the very top (let the scroll listener handle that)
       if (window.scrollY < 100) return;
 
       entries.forEach((entry) => {
@@ -76,7 +104,6 @@ export const FloatingNav = ({
 
     const observer = new IntersectionObserver(observerCallback, observerOptions);
 
-    // Observe all sections defined in navItems (only those starting with #)
     navItems.forEach((item) => {
       if (item.link.startsWith("#")) {
         const element = document.getElementById(item.link.substring(1));
@@ -90,7 +117,7 @@ export const FloatingNav = ({
   const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK;
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
 
-  return (
+  const navContent = (
     <>
       <AnimatePresence mode="wait">
         <motion.div
@@ -107,6 +134,19 @@ export const FloatingNav = ({
               : "bg-black border border-white/[0.3]",
             className
           )}
+          // Optional: Pause auto-hide on hover
+          onMouseEnter={() => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+          }}
+          onMouseLeave={() => {
+            // Restart timer on leave if not at top
+            if (!isAtVeryTop && visible) {
+              timerRef.current = setTimeout(() => {
+                setVisible(false);
+                setIsMenuOpen(false);
+              }, 2500);
+            }
+          }}
         >
           {navItems.map((navItem: any) => {
             const isActive = activeSection === navItem.link;
@@ -246,4 +286,9 @@ export const FloatingNav = ({
       </div>
     </>
   );
+
+  // Only render via portal once mounted to avoid hydration mismatch
+  if (!mounted) return null;
+
+  return createPortal(navContent, document.body);
 };
