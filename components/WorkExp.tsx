@@ -128,6 +128,31 @@ const ExperienceCard = ({
 export function WorkExp() {
   const data = [
     {
+      title: "Full Stack Engineering Intern — Remote",
+      content: (
+        <ExperienceCard
+          company="Akatsuki AI Technologies"
+          role="Full Stack Engineering Intern"
+          date="[Oct 2025 – Present]"
+          points={[
+            "Selected for the CAIO Technical Unit, supporting technical research and system design under the CAIO's supervision.",
+            "Leading a team and coordinating development efforts alongside senior engineers.",
+            "Driving end-to-end feature development and aligning technical decisions across internal initiatives.",
+          ]}
+        >
+          <p>
+            Working as a Full Stack Engineering Intern at Akatsuki AI Technologies, directly assigned to the CAIO Technical Unit. Internally selected to support technical research, system design, and project level planning under the CAIO's supervision.
+          </p>
+          <p>
+            Currently leading a team and coordinating development efforts while working alongside senior engineers. Responsible for driving end-to-end feature development, aligning technical decisions, and ensuring timely execution across internal initiatives.
+          </p>
+          <p>
+            Responsibilities also include improving system reliability, contributing to architectural discussions, conducting technical investigations, documenting engineering processes, and supporting internal project management activities.
+          </p>
+        </ExperienceCard>
+      ),
+    },
+    {
       title: "Project Intern — Mumbai, India",
       content: (
         <ExperienceCard
