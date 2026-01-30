@@ -135,7 +135,7 @@ export function Education() {
                     degree="B.Tech in Information Technology"
                     date="Sep 2022 – Present"
                     points={[
-                        "Current CGPA: 9.16 / 10",
+                        "Current CGPA: 9.20 / 10",
                         "Focus Areas: Backend Development, DBMS, Cloud Computing, and AI/ML.",
                         "Active participant in Hackathons (Synapse, GraVITas) and Technical Clubs.",
                     ]}
