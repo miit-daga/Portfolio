@@ -6,6 +6,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { CommandMenu } from "@/components/ui/command-menu"
+import { StardustTrail } from "@/components/ui/stardust-trail"
 
 const outfit = Outfit({ subsets: ["latin"] })
 
@@ -29,6 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {/* NEW: Noise Overlay Div */}
           <div className="bg-noise" />
+          <StardustTrail />
 
           {children}
           <CommandMenu />

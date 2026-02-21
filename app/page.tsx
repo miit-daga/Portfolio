@@ -25,6 +25,7 @@ import { AnimatedBackground } from "@/components/ui/animated-background";
 import { EnterScreen } from "@/components/EnterScreen";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { BackToTop } from "@/components/BackToTop";
+import { SectionDivider } from "@/components/ui/section-divider";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -187,11 +188,17 @@ const Home = () => {
                 <Paragraph para={aboutme} />
               </div>
 
+              <SectionDivider />
               <WorkExp />
+              <SectionDivider />
               <Education />
+              <SectionDivider />
               <SkillsAndAchievements />
+              <SectionDivider />
               <Projects />
+              <SectionDivider />
               <Publications />
+              <SectionDivider />
               <Contact />
 
             </motion.div>

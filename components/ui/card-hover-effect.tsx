@@ -13,6 +13,7 @@ export const HoverEffect = ({
     title: string;
     description: string;
     link: string;
+    languages?: Record<string, number>;
   }[];
   className?: string;
   column?: 2 | 3;
@@ -45,7 +46,7 @@ const TiltCard = ({
   setHoveredIndex,
   column,
 }: {
-  item: { title: string; description: string; link: string };
+  item: { title: string; description: string; link: string; languages?: Record<string, number> };
   idx: number;
   hoveredIndex: number | null;
   setHoveredIndex: (idx: number | null) => void;
@@ -123,7 +124,7 @@ const TiltCard = ({
 
           {/* Card Content with Lift */}
           <div style={{ transform: "translateZ(20px)" }} className="h-full">
-            <Card className="w-full h-full" isHovered={hoveredIndex === idx}>
+            <Card className="w-full h-full" isHovered={hoveredIndex === idx} languages={item.languages}>
               <CardTitle>{item.title}</CardTitle>
               <CardDescription>{item.description}</CardDescription>
             </Card>
@@ -138,11 +139,18 @@ export const Card = ({
   className,
   children,
   isHovered = false,
+  languages,
 }: {
   className?: string;
   children: React.ReactNode;
   isHovered?: boolean;
+  languages?: Record<string, number>;
 }) => {
+  const langEntries = languages
+    ? Object.entries(languages).sort(([, a], [, b]) => b - a)
+    : [];
+  const totalBytes = langEntries.reduce((sum, [, bytes]) => sum + bytes, 0);
+
   return (
     <motion.div
       className={cn(
@@ -164,11 +172,103 @@ export const Card = ({
       }}
     >
       <div className="relative z-50">
-        <div className="p-4">{children}</div>
+        <div className="p-4">
+          {children}
+          {langEntries.length > 0 && (
+            <motion.div
+              className="mt-5 overflow-hidden"
+              animate={{
+                opacity: isHovered ? 1 : 0,
+                height: isHovered ? "auto" : 0,
+              }}
+              initial={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              {/* Signal frequency header */}
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="h-px flex-1 bg-gradient-to-r from-teal-500/40 to-transparent" />
+                <span className="text-[9px] uppercase tracking-[0.2em] text-teal-500/60 font-mono">Signal Freq</span>
+                <div className="h-px flex-1 bg-gradient-to-l from-teal-500/40 to-transparent" />
+              </div>
+              {/* Frequency rows */}
+              <div className="flex flex-col gap-1.5">
+                {langEntries.slice(0, 4).map(([lang, bytes], i) => {
+                  const pct = (bytes / totalBytes) * 100;
+                  const color = langColor(lang);
+                  return (
+                    <div key={lang} className="flex items-center gap-2">
+                      <span className="text-[9px] font-mono text-zinc-500 w-[52px] truncate flex-shrink-0">
+                        {lang}
+                      </span>
+                      {/* Signal bar track */}
+                      <div className="flex-1 h-[6px] rounded-sm overflow-hidden relative"
+                        style={{
+                          background: "repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 2px, transparent 2px, transparent 4px)",
+                        }}
+                      >
+                        {/* Filled signal bar */}
+                        <motion.div
+                          className="h-full rounded-sm relative"
+                          initial={{ width: 0 }}
+                          animate={{ width: isHovered ? `${Math.max(pct, 3)}%` : "0%" }}
+                          transition={{ duration: 0.4, delay: i * 0.06, ease: "easeOut" }}
+                          style={{
+                            background: `linear-gradient(90deg, ${color}cc, ${color})`,
+                            boxShadow: `0 0 8px ${color}80, 0 0 2px ${color}40`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[9px] font-mono text-zinc-500 w-[32px] text-right flex-shrink-0">
+                        {pct.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+                {langEntries.length > 4 && (
+                  <span className="text-[8px] font-mono text-zinc-600 text-right">
+                    +{langEntries.length - 4} more
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </div>
       </div>
     </motion.div>
   );
 };
+
+// GitHub-style language colors
+const LANG_COLORS: Record<string, string> = {
+  TypeScript: "#3178c6",
+  JavaScript: "#f1e05a",
+  Python: "#3572A5",
+  Java: "#b07219",
+  "C++": "#f34b7d",
+  C: "#555555",
+  "C#": "#178600",
+  Go: "#00ADD8",
+  Rust: "#dea584",
+  Ruby: "#701516",
+  PHP: "#4F5D95",
+  Swift: "#F05138",
+  Kotlin: "#A97BFF",
+  Dart: "#00B4AB",
+  HTML: "#e34c26",
+  CSS: "#563d7c",
+  SCSS: "#c6538c",
+  Shell: "#89e051",
+  Lua: "#000080",
+  "Vim Script": "#199f4b",
+  Dockerfile: "#384d54",
+  "Jupyter Notebook": "#DA5B0B",
+  Makefile: "#427819",
+  Nix: "#7e7eff",
+};
+
+function langColor(lang: string): string {
+  return LANG_COLORS[lang] || "#6e7681";
+}
 
 export const CardTitle = ({
   className,

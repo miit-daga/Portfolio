@@ -21,10 +21,26 @@ export async function GET() {
     const filteredRepos = response.data.filter((repo: { name: string; fork: boolean }) =>
       repo.name !== 'miit-daga' &&
       repo.name !== 'Portfolio' &&
-      (!repo.fork || repo.name === 'DisMan') // Exclude forked repositories except DisMan
+      (!repo.fork || repo.name === 'DisMan')
     );
 
-    return NextResponse.json(filteredRepos); // Return the filtered list
+    // Fetch language breakdowns for each repo in parallel
+    const reposWithLanguages = await Promise.all(
+      filteredRepos.map(async (repo: { full_name: string }) => {
+        try {
+          const langResponse = await octokit.request('GET /repos/{owner}/{repo}/languages', {
+            owner: 'miit-daga',
+            repo: repo.full_name.split('/')[1],
+            headers: { 'X-GitHub-Api-Version': '2022-11-28' },
+          });
+          return { ...repo, languages: langResponse.data };
+        } catch {
+          return { ...repo, languages: {} };
+        }
+      })
+    );
+
+    return NextResponse.json(reposWithLanguages);
 
   } catch (error) {
     console.error('Error fetching repositories:', error);

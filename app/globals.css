@@ -44,3 +44,43 @@ button, a, [role="button"], [onclick] {
 html {
   scroll-behavior: smooth;
 }
+
+/* Hologram glitch effect */
+@keyframes hologramGlitch {
+  0% { transform: translate(0, 0) skewX(0deg); opacity: 1; clip-path: inset(0 0 0 0); filter: hue-rotate(0deg); }
+  10% { transform: translate(-8px, 2px) skewX(-2deg); opacity: 0.7; clip-path: inset(15% 0 60% 0); filter: hue-rotate(90deg); }
+  20% { transform: translate(6px, -3px) skewX(1deg); opacity: 0.9; clip-path: inset(0 0 0 0); filter: hue-rotate(0deg); }
+  30% { transform: translate(-4px, 0) skewX(0deg); opacity: 0.6; clip-path: inset(40% 0 20% 0); filter: hue-rotate(-60deg); }
+  40% { transform: translate(10px, 1px) skewX(3deg); opacity: 0.8; clip-path: inset(0 0 0 0); filter: hue-rotate(0deg); }
+  50% { transform: translate(-2px, -2px) skewX(-1deg); opacity: 0.5; clip-path: inset(60% 0 5% 0); filter: hue-rotate(120deg); }
+  60% { transform: translate(5px, 3px) skewX(0deg); opacity: 0.85; clip-path: inset(0 0 0 0); filter: hue-rotate(0deg); }
+  70% { transform: translate(-7px, 0) skewX(2deg); opacity: 0.65; clip-path: inset(10% 0 50% 0); filter: hue-rotate(-90deg); }
+  80% { transform: translate(3px, -1px) skewX(0deg); opacity: 0.9; clip-path: inset(0 0 0 0); filter: hue-rotate(0deg); }
+  90% { transform: translate(-5px, 2px) skewX(-1deg); opacity: 0.7; clip-path: inset(30% 0 30% 0); filter: hue-rotate(60deg); }
+  100% { transform: translate(0, 0) skewX(0deg); opacity: 1; clip-path: inset(0 0 0 0); filter: hue-rotate(0deg); }
+}
+
+.hologram-glitch {
+  animation: hologramGlitch 300ms steps(6) 1;
+}
+
+/* Text glitch effect — clip-path slicing + RGB split */
+@keyframes textGlitch {
+  0% { transform: translate(0, 0); opacity: 1; clip-path: inset(0 0 0 0); text-shadow: none; }
+  8% { transform: translate(-2px, 0); opacity: 0.8; clip-path: inset(20% 0 55% 0); text-shadow: 2px 0 #0ff, -2px 0 #f0f; }
+  16% { transform: translate(2px, 0); opacity: 1; clip-path: inset(0 0 0 0); text-shadow: none; }
+  24% { transform: translate(0, 0); opacity: 0.6; clip-path: inset(50% 0 10% 0); text-shadow: -3px 0 #0ff, 3px 0 #f0f; }
+  32% { transform: translate(-3px, 0); opacity: 0.9; clip-path: inset(0 0 0 0); text-shadow: none; }
+  40% { transform: translate(1px, 0); opacity: 0.7; clip-path: inset(10% 0 45% 0); text-shadow: 2px 0 #0ff, -2px 0 #f0f; }
+  48% { transform: translate(0, 0); opacity: 1; clip-path: inset(0 0 0 0); text-shadow: none; }
+  56% { transform: translate(3px, 0); opacity: 0.65; clip-path: inset(35% 0 25% 0); text-shadow: -2px 0 #0ff, 2px 0 #f0f; }
+  64% { transform: translate(-1px, 0); opacity: 0.85; clip-path: inset(0 0 0 0); text-shadow: none; }
+  72% { transform: translate(0, 0); opacity: 0.5; clip-path: inset(60% 0 5% 0); text-shadow: 3px 0 #0ff, -3px 0 #f0f; }
+  80% { transform: translate(-2px, 0); opacity: 0.9; clip-path: inset(0 0 0 0); text-shadow: none; }
+  88% { transform: translate(1px, 0); opacity: 0.7; clip-path: inset(15% 0 60% 0); text-shadow: -2px 0 #0ff, 2px 0 #f0f; }
+  100% { transform: translate(0, 0); opacity: 1; clip-path: inset(0 0 0 0); text-shadow: none; }
+}
+
+.text-glitch {
+  animation: textGlitch 300ms steps(8) 1;
+}

@@ -1,9 +1,11 @@
 "use client"
-import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { motion, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion"
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { Terminal } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
+import { cn } from "@/lib/utils"
 import Image from "next/image"
 
 const Hero = () => {
@@ -11,6 +13,52 @@ const Hero = () => {
   const shouldReduceMotion = useReducedMotion()
   const scrollOpacity = useTransform(scrollY, [0, 600], [1, 0])
   const opacity = shouldReduceMotion ? 1 : scrollOpacity
+
+  // Glitch effect state
+  const [isGlitching, setIsGlitching] = useState(false)
+
+  const triggerGlitch = useCallback(() => {
+    setIsGlitching(true)
+    setTimeout(() => setIsGlitching(false), 300)
+  }, [])
+
+  useEffect(() => {
+    if (shouldReduceMotion) return
+
+    const scheduleGlitch = () => {
+      const delay = 10000 + Math.random() * 5000 // 10-15s
+      return setTimeout(() => {
+        triggerGlitch()
+        timerId = scheduleGlitch()
+      }, delay)
+    }
+
+    let timerId = scheduleGlitch()
+    return () => clearTimeout(timerId)
+  }, [triggerGlitch, shouldReduceMotion])
+
+  // Hologram tilt effect
+  const hologramRef = useRef<HTMLDivElement>(null)
+  const tiltX = useMotionValue(0)
+  const tiltY = useMotionValue(0)
+  const tiltXSpring = useSpring(tiltX, { stiffness: 150, damping: 20 })
+  const tiltYSpring = useSpring(tiltY, { stiffness: 150, damping: 20 })
+  const hologramRotateX = useTransform(tiltYSpring, [-0.5, 0.5], ["5deg", "-5deg"])
+  const hologramRotateY = useTransform(tiltXSpring, [-0.5, 0.5], ["-5deg", "5deg"])
+
+  const handleHologramMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!hologramRef.current) return
+    const rect = hologramRef.current.getBoundingClientRect()
+    const xPct = (e.clientX - rect.left) / rect.width - 0.5
+    const yPct = (e.clientY - rect.top) / rect.height - 0.5
+    tiltX.set(xPct)
+    tiltY.set(yPct)
+  }, [tiltX, tiltY])
+
+  const handleHologramMouseLeave = useCallback(() => {
+    tiltX.set(0)
+    tiltY.set(0)
+  }, [tiltX, tiltY])
 
   // --- CONFIGURATION ---
   // Set to TRUE for the Hologram look
@@ -27,7 +75,7 @@ const Hero = () => {
 
           {/* --- LEFT SIDE: TEXT CONTENT --- */}
           <div className="flex flex-col items-center lg:items-end text-center lg:text-right z-10 order-2 lg:order-1 lg:w-1/2">
-            <h1 className="bg-clip-text text-transparent text-6xl md:text-8xl lg:text-9xl drop-shadow-2xl text-white tracking-tighter font-extrabold">
+            <h1 className={cn("bg-clip-text text-transparent text-6xl md:text-8xl lg:text-9xl drop-shadow-2xl text-white tracking-tighter font-extrabold", isGlitching && "text-glitch")}>
               Miit Daga
             </h1>
 
@@ -43,6 +91,7 @@ const Hero = () => {
                 className="text-xl md:text-2xl lg:text-4xl font-light"
                 cursorClassName="bg-teal-400"
                 repeatDelay={5000}
+                isGlitching={isGlitching}
               />
             </div>
           </div>
@@ -53,10 +102,17 @@ const Hero = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.2 }}
             className="relative order-1 lg:order-2 flex items-center justify-center lg:w-1/2 pointer-events-auto"
+            style={{ perspective: 1000 }}
           >
             {isTransparentCutout ? (
               // === PATH A: HOLOGRAM (Hover: Materialize) ===
-              <div className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer">
+              <motion.div
+                ref={hologramRef}
+                onMouseMove={handleHologramMouseMove}
+                onMouseLeave={handleHologramMouseLeave}
+                style={{ rotateX: hologramRotateX, rotateY: hologramRotateY, transformStyle: "preserve-3d" }}
+                className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer"
+              >
                 <motion.div
                   animate={{ y: [-15, 15, -15] }}
                   transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -64,7 +120,7 @@ const Hero = () => {
                 >
                   {/* 1. The Image */}
                   {/* Transition removes filters on hover to show "Real" colors */}
-                  <div className="relative w-full h-full grayscale-[50%] sepia-[50%] hue-rotate-[160deg] brightness-110 contrast-125 z-10 mix-blend-hard-light transition-all duration-700 ease-out group-hover:grayscale-0 group-hover:sepia-0 group-hover:hue-rotate-0 group-hover:brightness-100 group-hover:contrast-100 group-hover:mix-blend-normal">
+                  <div className={cn("relative w-full h-full grayscale-[50%] sepia-[50%] hue-rotate-[160deg] brightness-110 contrast-125 z-10 mix-blend-hard-light transition-all duration-700 ease-out group-hover:grayscale-0 group-hover:sepia-0 group-hover:hue-rotate-0 group-hover:brightness-100 group-hover:contrast-100 group-hover:mix-blend-normal", isGlitching && "hologram-glitch")}>
                     <Image
                       src="/nobg.png"
                       alt="Hologram"
@@ -95,7 +151,7 @@ const Hero = () => {
 
                 {/* 4. Glowing Base Platform (Changes color on hover) */}
                 <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-[80%] h-12 bg-teal-500/40 blur-[40px] rounded-full transition-colors duration-700 group-hover:bg-blue-500/50" />
-              </div>
+              </motion.div>
             ) : (
               // === PATH B: CLEAN PORTAL (Hover: Focus & Expand) ===
               <div className="relative w-64 h-64 md:w-72 md:h-72 lg:w-[400px] lg:h-[400px] group cursor-pointer">

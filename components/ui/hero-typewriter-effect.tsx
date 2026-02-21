@@ -9,6 +9,7 @@ export const HeroTypewriterEffect = ({
     className,
     cursorClassName,
     repeatDelay = 5000,
+    isGlitching = false,
 }: {
     words: {
         text: string
@@ -17,6 +18,7 @@ export const HeroTypewriterEffect = ({
     className?: string
     cursorClassName?: string
     repeatDelay?: number
+    isGlitching?: boolean
 }) => {
     const wordsArray = words.map((word) => ({
         ...word,
@@ -114,7 +116,7 @@ export const HeroTypewriterEffect = ({
     }, [])
 
     return (
-        <div className={cn("text-base sm:text-xl md:text-3xl lg:text-5xl font-bold text-center relative", className)}>
+        <div className={cn("text-base sm:text-xl md:text-3xl lg:text-5xl font-bold text-center relative", className, isGlitching && "text-glitch")}>
             <div className="inline-flex items-center justify-center">
                 <motion.div ref={scope} className="inline">
                     {wordsArray.map((word, idx) => (
