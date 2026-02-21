@@ -35,7 +35,7 @@
             display: none; /* Safari and Chrome */
         }
         .prompt::before {
-            content: 'user@miit-daga:~$ \00a0';
+            content: 'intruder@miit-daga:~$ \00a0';
             color: #0F0;
             font-weight: 700;
         }
@@ -94,9 +94,28 @@
         .ascii-art {
             white-space: pre;
             font-weight: 700;
-            color: #0F0;
             margin-bottom: 1rem;
             line-height: 1.2;
+            color: #0F0;
+        }
+        .highlight-name { color: #fff; font-weight: 700; }
+        .highlight-date { color: #888; }
+        .highlight-dim { color: #6a6; }
+        .highlight-value { color: #0ff; }
+        .help-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.25rem 2rem;
+            margin-top: 0.5rem;
+        }
+        .help-category {
+            color: #888;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.8em;
+            margin-top: 0.75rem;
+            margin-bottom: 0.25rem;
+            letter-spacing: 0.1em;
         }
         /* Overlay Style */
         #start-overlay {
@@ -361,7 +380,7 @@
             { company: "Seculinx", role: "Backend Intern — Vellore, India", date: "Sep 2024 – Jan 2025", points: ["Developed the company's website backend from the ground up, designing the database schema and implementing REST APIs.", "Managed the complete deployment on AWS, ensuring high availability (~ 99.9% uptime) and consistent performance."] }
           ],
           education: [
-            { institution: "Vellore Institute of Technology", degree: "B.Tech, Information Technology", date: "2022 – Present", note: "CGPA: 9.16 / 10" },
+            { institution: "Vellore Institute of Technology", degree: "B.Tech, Information Technology", date: "2022 – Present", note: "CGPA:9.20 / 10" },
             { institution: "Swami Vivekananda Vidyamandir", degree: "Higher Secondary Education (Class XII)", date: "2020 – 2022", note: "Percentage: 92%" },
             { institution: "St. Helen's School", degree: "Primary & Secondary Education (Class X)", date: "Apr 2008 – Jul 2020", note: "Percentage: 91.6%" },
           ],
@@ -384,7 +403,7 @@
           commands: [
             "help", "about", "experience", "education", "skills", "projects", "publications", 
             "contact", "socials", "resume", "clear", "mute",
-            "sudo", "whoami", "date", "exit", "ls", "pwd", "vim", "cat", "rm", "mkdir", "reboot"
+            "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "cat", "rm", "mkdir", "reboot", "history"
           ]
         };
 
@@ -477,6 +496,55 @@
             });
         }
         
+        function typeProgressBar(steps = 20, duration = 1200) {
+            return new Promise(resolve => {
+                const p = document.createElement('div');
+                p.className = 'output';
+                outputContainer.appendChild(p);
+                let i = 0;
+                const interval = duration / steps;
+                function update() {
+                    if (i <= steps) {
+                        const filled = '█'.repeat(i);
+                        const empty = '░'.repeat(steps - i);
+                        const pct = Math.round((i / steps) * 100);
+                        p.innerHTML = `  [${filled}${empty}] ${pct}%`;
+                        terminal.scrollTop = terminal.scrollHeight;
+                        i++;
+                        setTimeout(update, interval);
+                    } else {
+                        resolve();
+                    }
+                }
+                update();
+            });
+        }
+
+        function typeSpinner(text, duration = 1000) {
+            return new Promise(resolve => {
+                const p = document.createElement('div');
+                p.className = 'output';
+                outputContainer.appendChild(p);
+                const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+                let i = 0;
+                const interval = 80;
+                const start = Date.now();
+                function update() {
+                    if (Date.now() - start < duration) {
+                        p.innerHTML = `  ${frames[i % frames.length]} ${text}`;
+                        i++;
+                        terminal.scrollTop = terminal.scrollHeight;
+                        setTimeout(update, interval);
+                    } else {
+                        p.innerHTML = `  <span style="color:#0f0">✓</span> ${text}`;
+                        terminal.scrollTop = terminal.scrollHeight;
+                        resolve();
+                    }
+                }
+                update();
+            });
+        }
+
         function addInputLine(command) {
             const div = document.createElement('div');
             div.className = 'output';
@@ -499,11 +567,149 @@
             ghostInput.value = ''; 
             inputLine.disabled = true;
 
-            switch(command.toLowerCase()) {
+            const cmd = command.toLowerCase();
+
+            // Handle cat commands before the switch
+            if (cmd === 'cat' || cmd.startsWith('cat ')) {
+                if (cmd === 'cat') {
+                    SoundFX.meow();
+                    await typeLine("Meow? 🐱", 5);
+                } else if (cmd === 'cat secret_plans.txt') {
+                    SoundFX.error();
+                    await typeLine("Accessing classified file...", 30);
+                    await new Promise(r => setTimeout(r, 600));
+                    SoundFX.glitch();
+                    await typeLine("Error: Permission denied. You are not authorized to view world domination plans. 😈", 10);
+                    await typeLine("This incident has been reported to the Council of Cats. 🐱", 10);
+                } else {
+                    const filename = command.substring(4);
+                    SoundFX.error();
+                    await typeLine(`cat: ${filename}: No such file or directory`, 5);
+                    await new Promise(r => setTimeout(r, 300));
+                    SoundFX.meow();
+                    await typeLine("Psst... did you mean 'cat' without args? That one actually meows. 🐱", 5);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            // Handle cd commands before the switch
+            if (cmd === 'cd' || cmd.startsWith('cd ')) {
+                const target = command.substring(2).trim();
+                const dirResponses = {
+                    'documents': "📄 Nothing but unfinished to-do lists in there. Trust me.",
+                    'downloads': "📦 Just 47 copies of the same file named 'final_FINAL_v3(2).zip'.",
+                    'music': "🎵 It's just lo-fi beats on repeat. You're not missing much.",
+                    'pictures': "📸 Mostly screenshots of error messages. Dark times.",
+                    'videos': "🎬 Nothing but screen recordings of bugs being 'fixed'.",
+                };
+                if (!target || target === '~' || target === '/home/miit-daga') {
+                    SoundFX.enter();
+                    await typeLine("Already home. No place like /home. 🏠", 10);
+                } else if (target === '..') {
+                    SoundFX.error();
+                    await typeLine("Nice try. There's no escaping this terminal. 🔒", 10);
+                } else if (target === '/') {
+                    SoundFX.error();
+                    await typeLine("Root access? In this economy? 💸", 10);
+                } else if (dirResponses[target.toLowerCase()]) {
+                    SoundFX.funny();
+                    await typeLine(`Peeking into ${target}...`, 20);
+                    await new Promise(r => setTimeout(r, 400));
+                    await typeLine(dirResponses[target.toLowerCase()], 10);
+                    await typeLine("Backing out slowly... you saw nothing. 👀", 10);
+                } else {
+                    SoundFX.error();
+                    await typeLine(`cd: ${target}: No such file or directory`, 5);
+                    await typeLine("You're stuck here. Might as well type 'help'. 😏", 10);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            // Handle rm commands before the switch
+            if (cmd === 'rm' || cmd.startsWith('rm ')) {
+                if (cmd === 'rm') {
+                    SoundFX.error();
+                    await typeLine("rm: missing operand", 5);
+                } else if (cmd === 'rm -rf /' || cmd === 'rm -rf /*') {
+                    SoundFX.deleteProcess();
+                    await typeLine("Initiating total system purge...", 30);
+                    await new Promise(r => setTimeout(r, 500));
+                    const fakeFiles = ['Deleting /usr/bin/...', 'Deleting /etc/config/...', 'Deleting /home/miit-daga/...', 'Deleting /var/log/...', 'Deleting /System/core/...'];
+                    for (const f of fakeFiles) {
+                        await typeLine(f, 15);
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                    await new Promise(r => setTimeout(r, 300));
+                    SoundFX.glitch();
+                    await typeLine("Just kidding. Did you really think that would work? 😏", 10);
+                    await typeLine("Your heart rate definitely spiked. I saw it.", 10);
+                } else if (cmd === 'rm -rf' || cmd === 'rm -r') {
+                    SoundFX.error();
+                    await typeLine("rm: missing operand", 5);
+                    await typeLine("Try 'rm -rf /' if you're feeling brave. (Don't.) 😈", 10);
+                } else if (cmd.includes('secret_plans.txt')) {
+                    SoundFX.error();
+                    await typeLine("rm: cannot remove 'secret_plans.txt': Operation not permitted", 5);
+                    await typeLine("The Council of Cats has placed this file under eternal protection. 🐱", 10);
+                } else {
+                    const target = command.substring(3).trim();
+                    SoundFX.error();
+                    await typeLine(`rm: cannot remove '${target}': Permission denied`, 5);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            // Handle mkdir commands before the switch
+            if (cmd === 'mkdir' || cmd.startsWith('mkdir ')) {
+                if (cmd === 'mkdir') {
+                    SoundFX.error();
+                    await typeLine("mkdir: missing operand", 5);
+                } else {
+                    const dirname = command.substring(6).trim();
+                    SoundFX.compute();
+                    await typeLine(`Creating directory '${dirname}'...`, 20);
+                    await new Promise(r => setTimeout(r, 500));
+                    SoundFX.error();
+                    await typeLine(`mkdir: cannot create directory '${dirname}': Read-only file system`, 5);
+                    await typeLine("This terminal is a museum, not a workshop. Look, don't touch. 🏛️", 10);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            switch(cmd) {
                 case 'help':
                     SoundFX.enter();
-                    await typeRaw(`<div class="section-title">Available Commands:</div>
-${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link" onclick="runCommandFromClick('${cmd}')">publications</span>` : `<span class="nav-link" onclick="runCommandFromClick('${cmd}')">${cmd}</span>`).join('  ')}`);
+                    const helpCategories = {
+                        'Profile': ['about', 'experience', 'education', 'skills', 'publications'],
+                        'Connect': ['contact', 'socials', 'projects', 'resume'],
+                        'System': ['clear', 'mute', 'history', 'date', 'exit', 'reboot'],
+                        'Shell': ['sudo', 'whoami', 'ls', 'pwd', 'cd', 'vim', 'cat', 'rm', 'mkdir'],
+                    };
+                    let helpHtml = '<div class="section-title">Available Commands</div>';
+                    helpHtml += '<div class="help-grid">';
+                    for (const [category, cmds] of Object.entries(helpCategories)) {
+                        helpHtml += `<div><div class="help-category">${category}</div>`;
+                        helpHtml += cmds.map(c => `<span class="nav-link" onclick="runCommandFromClick('${c}')">${c}</span>`).join('  ');
+                        helpHtml += '</div>';
+                    }
+                    helpHtml += '</div>';
+                    await typeRaw(helpHtml);
                     break;
                 case 'about':
                     SoundFX.enter();
@@ -513,9 +719,9 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     SoundFX.enter();
                     await typeRaw('<div class="section-title">Work Experience</div>');
                     for (const job of MOCK_DATA.experience) {
-                        await typeLine(`\n[ ${job.role} @ ${job.company} ] - ${job.date}`, 5);
+                        await typeRaw(`\n<span class="highlight-name">${job.role}</span> @ <span class="highlight-value">${job.company}</span> <span class="highlight-date">— ${job.date}</span>`);
                         for(const point of job.points) {
-                            await typeLine(`  - ${point}`, 2);
+                            await typeRaw(`  <span class="highlight-dim">-</span> ${point}`);
                         }
                     }
                     break;
@@ -523,17 +729,17 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     SoundFX.enter();
                     await typeRaw('<div class="section-title">Education</div>');
                     for (const edu of MOCK_DATA.education) {
-                        await typeLine(`\n[ ${edu.institution} ] - ${edu.date}`, 5);
-                        await typeLine(`  ${edu.degree}`, 5);
-                        await typeLine(`  ${edu.note}`, 5);
+                        await typeRaw(`\n<span class="highlight-name">${edu.institution}</span> <span class="highlight-date">— ${edu.date}</span>`);
+                        await typeRaw(`  ${edu.degree}`);
+                        await typeRaw(`  <span class="highlight-value">${edu.note}</span>`);
                     }
                     break;
                 case 'skills':
                     SoundFX.enter();
                     await typeRaw('<div class="section-title">Skills</div>');
                     for (const [category, skills] of Object.entries(MOCK_DATA.skills)) {
-                        await typeLine(`\n[ ${category} ]`, 5);
-                        await typeLine(`  ${skills.join(', ')}`, 5);
+                        await typeRaw(`\n<span class="highlight-name">[ ${category} ]</span>`);
+                        await typeRaw(`  <span class="highlight-value">${skills.join('</span> <span class="highlight-dim">|</span> <span class="highlight-value">')}</span>`);
                     }
                     break;
                 case 'projects':
@@ -614,11 +820,21 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     break;
                 case 'whoami':
                     SoundFX.enter();
-                    await typeLine("user", 5);
+                    await typeLine("intruder — but a welcome one. Make yourself at home. 🛋️", 10);
                     break;
                 case 'date':
                     SoundFX.enter();
                     await typeLine(new Date().toString(), 5);
+                    break;
+                case 'history':
+                    SoundFX.enter();
+                    if (commandHistory.length <= 1) {
+                        await typeLine("No commands in history.", 5);
+                    } else {
+                        for (let i = 0; i < commandHistory.length - 1; i++) {
+                            await typeLine(`  ${i + 1}  ${commandHistory[i]}`, 2);
+                        }
+                    }
                     break;
                 case 'ls':
                     SoundFX.enter();
@@ -628,34 +844,12 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
                     SoundFX.enter();
                     await typeLine("/home/miit-daga", 5);
                     break;
-                case 'cat':
-                case 'cat secret_plans.txt':
-                    SoundFX.meow();
-                    if(command === 'cat') await typeLine("Meow? 🐱", 5);
-                    else {
-                        SoundFX.error();
-                        await typeLine("Error: Permission denied. You are not authorized to view world domination plans.", 10);
-                    }
-                    break;
                 case 'vim':
                     SoundFX.enter();
                     await typeLine("Entering Vim...", 20);
                     await new Promise(r => setTimeout(r, 1000));
                     SoundFX.funny(); // Play funny sound
                     await typeLine("Just kidding. I don't want you to get stuck here forever.", 10);
-                    break;
-                case 'rm':
-                case 'rm -rf':
-                case 'rm -rf /':
-                    SoundFX.deleteProcess(); // Suspense sound
-                    await typeLine("Deleting system files...", 30);
-                    await new Promise(r => setTimeout(r, 1500));
-                    SoundFX.error(); // Access Denied sound
-                    await typeLine("Access Denied! Nice try though.", 10);
-                    break;
-                case 'mkdir':
-                    SoundFX.error();
-                    await typeLine("Error: Read-only file system.", 5);
                     break;
                 case 'reboot':
                     SoundFX.glitch();
@@ -746,20 +940,24 @@ ${MOCK_DATA.commands.map(cmd => cmd === 'publications' ? `<span class="nav-link"
             
             SoundFX.compute();
             await typeLine("Booting MIIT-DAGA-OS v1.0...", 30);
-            await new Promise(r => setTimeout(r, 200));
+            await typeProgressBar(20, 1000);
+            await new Promise(r => setTimeout(r, 100));
 
             SoundFX.dataBurst();
             await typeLine("Connecting to network...", 30);
-            await new Promise(r => setTimeout(r, 300));
-            await typeLine("Connection established.", 30);
+            await typeSpinner("Resolving DNS...", 600);
+            await typeSpinner("Establishing secure tunnel...", 800);
+            await typeLine("Connection established. ✓", 20);
             await new Promise(r => setTimeout(r, 100));
 
             SoundFX.compute();
-            await typeLine("Fetching user credentials...", 30);
-            await new Promise(r => setTimeout(r, 400));
-            
+            await typeLine("Authenticating user...", 30);
+            await typeSpinner("Verifying identity", 400);
+            await typeSpinner("Checking permissions", 300);
+            await typeSpinner("Loading profile", 500);
+
             SoundFX.successChime();
-            await typeLine("Access granted. Welcome, user.", 30);
+            await typeLine("Access granted. Welcome, intruder.", 30);
             await typeLine("\nType 'help' for a list of commands.", 30);
             inputLine.disabled = false;
             inputLine.focus();

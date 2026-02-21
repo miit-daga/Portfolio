@@ -5,7 +5,7 @@ import { Octokit } from "@octokit/core";
 export const revalidate = 10;
 
 export async function GET() {
-  const token = process.env.NEXT_PUBLIC_GITHUB_API_TOKEN;
+  const token = process.env.GITHUB_API_TOKEN;
   const octokit = new Octokit({
     auth: token
   });

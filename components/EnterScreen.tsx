@@ -16,11 +16,23 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
     }, [])
 
     const handleEnterClick = useCallback(() => {
+        if (isTransitioning) return
         setIsTransitioning(true)
         setTimeout(() => {
             onAnimationComplete()
         }, 1500)
-    }, [onAnimationComplete])
+    }, [onAnimationComplete, isTransitioning])
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.key === "Enter" || e.key === " ") && isLoaded && !isTransitioning) {
+                e.preventDefault()
+                handleEnterClick()
+            }
+        }
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [isLoaded, isTransitioning, handleEnterClick])
 
     // Fixed star positions to avoid hydration mismatch
     const stars = useMemo(
@@ -61,14 +73,6 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
 
     return (
         <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-slate-900 via-slate-800 to-black">
-
-            {/* BIG BANG FLASH EFFECT */}
-            <motion.div
-                className="absolute inset-0 bg-white z-[10000] pointer-events-none"
-                initial={{ opacity: 1 }}
-                animate={{ opacity: 0 }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-            />
 
             {/* Animated starfield background */}
             <AnimatePresence>
@@ -151,56 +155,89 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
                                       ease-in-out" />
                     </button>
                 </motion.div>
-
-                {/* Professional Progress Indicator */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: isLoaded && !isTransitioning ? 0.5 : 0 }}
-                    transition={{ delay: 1, duration: 0.5 }}
-                    className="absolute bottom-20 left-1/2 transform -translate-x-1/2"
-                >
-                    <div className="flex space-x-1">
-                        {[0, 1, 2].map((i) => (
-                            <motion.div
-                                key={i}
-                                className="w-1 h-1 bg-white/40 rounded-full"
-                                animate={{
-                                    scale: [1, 1.5, 1],
-                                    opacity: [0.4, 1, 0.4],
-                                }}
-                                transition={{
-                                    duration: 2,
-                                    repeat: Infinity,
-                                    delay: i * 0.3,
-                                    ease: "easeInOut",
-                                }}
-                            />
-                        ))}
-                    </div>
-                </motion.div>
             </div>
 
-            {/* Smooth transition overlay */}
+            {/* Transition overlay */}
             <AnimatePresence>
                 {isTransitioning && (
                     <motion.div
-                        className="absolute inset-0 bg-black z-10 pointer-events-none"
+                        className="absolute inset-0 z-10 pointer-events-none overflow-hidden"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
                     >
+                        {/* Deep space background */}
+                        <div className="absolute inset-0 bg-black" />
+
+                        {/* Twinkling stars */}
+                        {[
+                            { x: 10, y: 15, s: 3 }, { x: 85, y: 10, s: 2.5 },
+                            { x: 25, y: 80, s: 2 }, { x: 70, y: 70, s: 3 },
+                            { x: 50, y: 5, s: 2.5 }, { x: 90, y: 50, s: 2 },
+                            { x: 5, y: 45, s: 3 }, { x: 40, y: 90, s: 2.5 },
+                            { x: 65, y: 30, s: 2 }, { x: 30, y: 55, s: 3 },
+                            { x: 78, y: 88, s: 2 }, { x: 15, y: 25, s: 2.5 },
+                            { x: 55, y: 42, s: 2 }, { x: 95, y: 75, s: 3 },
+                            { x: 35, y: 12, s: 2.5 }, { x: 82, y: 35, s: 2 },
+                        ].map((star, i) => (
+                            <motion.div
+                                key={i}
+                                className="absolute rounded-full bg-white"
+                                style={{ left: `${star.x}%`, top: `${star.y}%`, width: star.s, height: star.s }}
+                                initial={{ opacity: 0.7 }}
+                                animate={{ opacity: [0.7, 0.2, 0.7] }}
+                                transition={{ duration: 0.8 + (i % 4) * 0.3, repeat: Infinity, delay: i * 0.05, ease: "easeInOut" }}
+                            />
+                        ))}
+
+                        {/* Expanding ring */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <motion.div
+                                className="rounded-full border border-blue-400/30"
+                                initial={{ width: 0, height: 0, opacity: 0.6 }}
+                                animate={{ width: 600, height: 600, opacity: 0 }}
+                                transition={{ duration: 1.4, ease: "easeOut", delay: 0.2 }}
+                            />
+                        </div>
+
+                        {/* Glow behind text */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <motion.div
+                                className="absolute rounded-full"
+                                style={{
+                                    width: 300,
+                                    height: 300,
+                                    background: "radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)",
+                                }}
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: [0.8, 1.1, 0.9], opacity: [0, 0.8, 0.6] }}
+                                transition={{ duration: 1.2, ease: "easeOut" }}
+                            />
+                        </div>
+
+                        {/* Text content */}
                         <div className="absolute inset-0 flex items-center justify-center">
                             <motion.div
                                 initial={{ scale: 0.8, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
-                                transition={{ duration: 0.4, delay: 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
+                                transition={{ duration: 0.5, delay: 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
                                 className="text-center"
                             >
-                                <h2 className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-4">
+                                <motion.h2
+                                    className="text-2xl sm:text-3xl md:text-4xl font-light text-white mb-4 tracking-wider"
+                                    initial={{ letterSpacing: "0.05em" }}
+                                    animate={{ letterSpacing: "0.15em" }}
+                                    transition={{ duration: 1, delay: 0.3, ease: "easeOut" }}
+                                >
                                     Entering the cosmos
-                                </h2>
-                                <div className="w-64 h-px bg-gradient-to-r from-transparent via-blue-400 to-transparent mx-auto"></div>
+                                </motion.h2>
+                                <motion.div
+                                    className="h-px bg-gradient-to-r from-transparent via-blue-400 to-transparent mx-auto"
+                                    initial={{ width: 0 }}
+                                    animate={{ width: 256 }}
+                                    transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+                                />
                             </motion.div>
                         </div>
                     </motion.div>
