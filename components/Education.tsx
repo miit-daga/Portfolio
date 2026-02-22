@@ -64,8 +64,8 @@ const EducationCard = ({
                 transformStyle: "preserve-3d",
             }}
             className={cn(
-                "group relative overflow-hidden rounded-xl border border-white/10 bg-neutral-900/40 backdrop-blur-sm transition-colors duration-300 hover:bg-neutral-900/60 hover:border-white/20 p-5 md:p-6 perspective-1000",
-                isOpen ? "bg-neutral-900/60 border-white/20" : ""
+                "group relative overflow-hidden rounded-xl bg-neutral-900/40 backdrop-blur-sm transition-colors duration-300 hover:bg-neutral-900/60 p-5 md:p-6 perspective-1000 meteor-border",
+                isOpen ? "bg-neutral-900/60 meteor-active" : ""
             )}
         >
             {/* Content Container with slight Z lift */}

@@ -34,7 +34,7 @@ const MagneticIcon = ({ children, url }: { children: React.ReactNode; url: strin
         href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="relative flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-teal-500/50 transition-colors group"
+        className="relative flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 hover:bg-white/10 transition-colors group pulse-border"
       >
         {children}
       </Link>

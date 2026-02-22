@@ -84,3 +84,82 @@ html {
 .text-glitch {
   animation: textGlitch 300ms steps(8) 1;
 }
+
+/* Meteor / Energy Beam spinning border */
+@property --meteor-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes meteor-spin {
+  from { --meteor-angle: 0deg; }
+  to { --meteor-angle: 360deg; }
+}
+
+.meteor-border {
+  position: relative;
+}
+
+.meteor-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--meteor-angle),
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(45, 212, 191, 0.7) 5%,
+    rgba(59, 130, 246, 0.5) 10%,
+    rgba(255, 255, 255, 0.08) 15%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: meteor-spin 4s linear infinite;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  transition: opacity 0.3s ease;
+}
+
+.meteor-border:hover::before,
+.meteor-border.meteor-active::before {
+  opacity: 1;
+}
+
+/* Pulse / Breathe glow border */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.7; }
+}
+
+.pulse-border {
+  position: relative;
+}
+
+.pulse-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.5), rgba(59, 130, 246, 0.3));
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pulse-glow 3.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pulse-border:hover::before {
+  animation: none;
+  opacity: 1;
+}

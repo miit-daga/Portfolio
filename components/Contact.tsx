@@ -95,7 +95,7 @@ export function Contact() {
                                 onClick={handleEmailClick}
                                 onContextMenu={handleEmailContextMenu}
                                 className={cn(
-                                    "flex items-center gap-4 text-xl font-semibold transition-all duration-300 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-teal-500/30",
+                                    "flex items-center gap-4 text-xl font-semibold transition-all duration-300 p-4 rounded-xl bg-white/5 hover:bg-white/10 pulse-border",
                                     emailCopied ? "text-green-400" : "text-neutral-200"
                                 )}
                             >
@@ -113,7 +113,7 @@ export function Contact() {
                                 href="tel:+917003816564"
                                 onClick={handlePhoneClick}
                                 className={cn(
-                                    "flex items-center gap-4 text-xl font-semibold transition-all duration-300 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-teal-500/30",
+                                    "flex items-center gap-4 text-xl font-semibold transition-all duration-300 p-4 rounded-xl bg-white/5 hover:bg-white/10 pulse-border",
                                     phoneCopied ? "text-green-400" : "text-neutral-200"
                                 )}
                             >

@@ -155,7 +155,8 @@ export const Card = ({
   return (
     <motion.div
       className={cn(
-        "rounded-2xl h-full p-4 overflow-hidden border relative z-20",
+        "rounded-2xl h-full p-4 overflow-hidden relative z-20 meteor-border",
+        isHovered && "meteor-active",
         className
       )}
       style={{
@@ -164,7 +165,6 @@ export const Card = ({
         background: "rgba(0, 0, 0, 0.6)",
       }}
       animate={{
-        borderColor: isHovered ? "rgba(148, 163, 184, 0.7)" : "rgba(255, 255, 255, 0.15)",
         scale: isHovered ? 1.02 : 1,
       }}
       transition={{
