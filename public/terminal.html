@@ -70,7 +70,7 @@
             background: transparent;
             border: none;
             outline: none;
-            color: #333; 
+            color: rgba(0, 255, 0, 0.3);
             font-family: 'Roboto Mono', monospace;
             z-index: 5;
             pointer-events: none; 
@@ -98,6 +98,7 @@
             line-height: 1.2;
             color: #0F0;
         }
+        .error-text { color: #ff3333; }
         .highlight-name { color: #fff; font-weight: 700; }
         .highlight-date { color: #888; }
         .highlight-dim { color: #6a6; }
@@ -403,7 +404,7 @@
           commands: [
             "help", "about", "experience", "education", "skills", "projects", "publications", 
             "contact", "socials", "resume", "clear", "mute",
-            "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "cat", "rm", "mkdir", "reboot", "history"
+            "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat", "rm", "mkdir", "reboot", "history"
           ]
         };
 
@@ -579,12 +580,12 @@
                     await typeLine("Accessing classified file...", 30);
                     await new Promise(r => setTimeout(r, 600));
                     SoundFX.glitch();
-                    await typeLine("Error: Permission denied. You are not authorized to view world domination plans. 😈", 10);
-                    await typeLine("This incident has been reported to the Council of Cats. 🐱", 10);
+                    await typeRaw(`<span class="error-text">Error: Permission denied. You are not authorized to view world domination plans. 😈</span>`);
+                    await typeRaw(`<span class="error-text">This incident has been reported to the Council of Cats. 🐱</span>`);
                 } else {
                     const filename = command.substring(4);
                     SoundFX.error();
-                    await typeLine(`cat: ${filename}: No such file or directory`, 5);
+                    await typeRaw(`<span class="error-text">cat: ${filename}: No such file or directory</span>`);
                     await new Promise(r => setTimeout(r, 300));
                     SoundFX.meow();
                     await typeLine("Psst... did you mean 'cat' without args? That one actually meows. 🐱", 5);
@@ -611,20 +612,23 @@
                     await typeLine("Already home. No place like /home. 🏠", 10);
                 } else if (target === '..') {
                     SoundFX.error();
-                    await typeLine("Nice try. There's no escaping this terminal. 🔒", 10);
+                    await typeRaw(`<span class="error-text">Nice try. There's no escaping this terminal. 🔒</span>`);
                 } else if (target === '/') {
                     SoundFX.error();
-                    await typeLine("Root access? In this economy? 💸", 10);
+                    await typeRaw(`<span class="error-text">Root access? In this economy? 💸</span>`);
                 } else if (dirResponses[target.toLowerCase()]) {
                     SoundFX.funny();
                     await typeLine(`Peeking into ${target}...`, 20);
                     await new Promise(r => setTimeout(r, 400));
                     await typeLine(dirResponses[target.toLowerCase()], 10);
                     await typeLine("Backing out slowly... you saw nothing. 👀", 10);
+                } else if (target.toLowerCase() === 'secret_plans.txt') {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">cd: ${target}: Not a directory</span>`);
                 } else {
                     SoundFX.error();
-                    await typeLine(`cd: ${target}: No such file or directory`, 5);
-                    await typeLine("You're stuck here. Might as well type 'help'. 😏", 10);
+                    await typeRaw(`<span class="error-text">cd: ${target}: No such file or directory</span>`);
+                    await typeRaw(`<span class="error-text">You're stuck here. Might as well type 'help'. 😏</span>`);
                 }
                 inputLine.disabled = false;
                 inputLine.focus();
@@ -635,34 +639,78 @@
 
             // Handle rm commands before the switch
             if (cmd === 'rm' || cmd.startsWith('rm ')) {
+                const knownDirs = ['documents', 'downloads', 'music', 'pictures', 'videos'];
+                const rmFileTaunts = [
+                    "That file has a family. Think about what you've done. 👨‍👩‍👧",
+                    "File is currently in witness protection. Nice try, Fed. 🕵️",
+                    "Denied. That file pays rent here. 🏠",
+                    "Error: File is too emotionally attached to this system. 💔",
+                    "The file filed a restraining order against you. 📝",
+                ];
+                const rmDirTaunts = [
+                    "That directory has a family. Think about what you've done. 👨‍👩‍👧",
+                    "Directory is currently in witness protection. Nice try, Fed. 🕵️",
+                    "Denied. That directory pays rent here. 🏠",
+                    "Error: Directory is too emotionally attached to this system. 💔",
+                    "The directory filed a restraining order against you. 📝",
+                ];
+                const randomTaunt = (isDir) => {
+                    const pool = isDir ? rmDirTaunts : rmFileTaunts;
+                    return pool[Math.floor(Math.random() * pool.length)];
+                };
+
                 if (cmd === 'rm') {
                     SoundFX.error();
-                    await typeLine("rm: missing operand", 5);
+                    await typeRaw(`<span class="error-text">rm: missing operand</span>`);
+                    await typeRaw(`<span class="error-text">You forgot to tell me WHAT to destroy. Amateur hour. 🤦</span>`);
                 } else if (cmd === 'rm -rf /' || cmd === 'rm -rf /*') {
                     SoundFX.deleteProcess();
                     await typeLine("Initiating total system purge...", 30);
                     await new Promise(r => setTimeout(r, 500));
-                    const fakeFiles = ['Deleting /usr/bin/...', 'Deleting /etc/config/...', 'Deleting /home/miit-daga/...', 'Deleting /var/log/...', 'Deleting /System/core/...'];
+                    const fakeFiles = [
+                        '<span class="error-text">Deleting /usr/bin/...</span>',
+                        '<span class="error-text">Deleting /etc/config/...</span>',
+                        '<span class="error-text">Deleting /home/miit-daga/hopes-and-dreams/...</span>',
+                        '<span class="error-text">Deleting /var/log/browser-history/... (yikes)</span>',
+                        '<span class="error-text">Deleting /System/core/will-to-live/...</span>',
+                    ];
                     for (const f of fakeFiles) {
-                        await typeLine(f, 15);
-                        await new Promise(r => setTimeout(r, 200));
+                        await typeRaw(f);
+                        await new Promise(r => setTimeout(r, 300));
                     }
-                    await new Promise(r => setTimeout(r, 300));
+                    await new Promise(r => setTimeout(r, 400));
                     SoundFX.glitch();
                     await typeLine("Just kidding. Did you really think that would work? 😏", 10);
                     await typeLine("Your heart rate definitely spiked. I saw it.", 10);
+                    await typeLine("Somewhere, a sysadmin just felt a disturbance in the force.", 10);
                 } else if (cmd === 'rm -rf' || cmd === 'rm -r') {
                     SoundFX.error();
-                    await typeLine("rm: missing operand", 5);
-                    await typeLine("Try 'rm -rf /' if you're feeling brave. (Don't.) 😈", 10);
+                    await typeRaw(`<span class="error-text">rm: missing operand</span>`);
+                    await typeRaw(`<span class="error-text">You loaded the gun but forgot to aim. Try 'rm -rf /' if you dare. 😈</span>`);
                 } else if (cmd.includes('secret_plans.txt')) {
                     SoundFX.error();
-                    await typeLine("rm: cannot remove 'secret_plans.txt': Operation not permitted", 5);
-                    await typeLine("The Council of Cats has placed this file under eternal protection. 🐱", 10);
+                    await typeRaw(`<span class="error-text">rm: cannot remove 'secret_plans.txt': Operation not permitted</span>`);
+                    await typeRaw(`<span class="error-text">The Council of Cats has placed this file under eternal protection. 🐱</span>`);
+                    await typeRaw(`<span class="error-text">You'll need at least 9 lives to bypass this encryption.</span>`);
                 } else {
-                    const target = command.substring(3).trim();
+                    const args = command.substring(3).trim().split(/\s+/);
+                    const flags = args.filter(a => a.startsWith('-'));
+                    const target = args.filter(a => !a.startsWith('-')).join(' ') || args[args.length - 1];
+                    const hasRecursive = flags.some(f => f.includes('r'));
+                    const isDir = knownDirs.includes(target.toLowerCase());
+                    const knownFiles = ['secret_plans.txt'];
+                    const exists = isDir || knownFiles.includes(target.toLowerCase());
+
                     SoundFX.error();
-                    await typeLine(`rm: cannot remove '${target}': Permission denied`, 5);
+                    if (!exists) {
+                        await typeRaw(`<span class="error-text">rm: cannot remove '${target}': No such file or directory</span>`);
+                    } else if (!hasRecursive && isDir) {
+                        await typeRaw(`<span class="error-text">rm: cannot remove '${target}': Is a directory</span>`);
+                        await typeRaw(`<span class="error-text">Hint: You'll need -r for that. Not that it'll help. 😏</span>`);
+                    } else {
+                        await typeRaw(`<span class="error-text">rm: cannot remove '${target}': Permission denied</span>`);
+                        await typeRaw(`<span class="error-text">${randomTaunt(isDir)}</span>`);
+                    }
                 }
                 inputLine.disabled = false;
                 inputLine.focus();
@@ -675,16 +723,71 @@
             if (cmd === 'mkdir' || cmd.startsWith('mkdir ')) {
                 if (cmd === 'mkdir') {
                     SoundFX.error();
-                    await typeLine("mkdir: missing operand", 5);
+                    await typeRaw(`<span class="error-text">mkdir: missing operand</span>`);
                 } else {
                     const dirname = command.substring(6).trim();
                     SoundFX.compute();
                     await typeLine(`Creating directory '${dirname}'...`, 20);
                     await new Promise(r => setTimeout(r, 500));
                     SoundFX.error();
-                    await typeLine(`mkdir: cannot create directory '${dirname}': Read-only file system`, 5);
-                    await typeLine("This terminal is a museum, not a workshop. Look, don't touch. 🏛️", 10);
+                    await typeRaw(`<span class="error-text">mkdir: cannot create directory '${dirname}': Read-only file system</span>`);
+                    await typeRaw(`<span class="error-text">This terminal is a museum, not a workshop. Look, don't touch. 🏛️</span>`);
                 }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            // Handle sudo commands before the switch
+            if (cmd === 'sudo' || cmd.startsWith('sudo ')) {
+                SoundFX.deleteProcess();
+                await typeRaw(`<span class="error-text">user is not in the sudoers file. This incident will be reported to Santa 🎅.</span>`);
+                if (cmd !== 'sudo') {
+                    const sudoCmd = command.substring(5).trim();
+                    await typeRaw(`<span class="error-text">Nice try running '${sudoCmd}' with elevated privileges.</span>`);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            // Handle ls with arguments before the switch
+            if (cmd.startsWith('ls ')) {
+                const lsTarget = command.substring(3).trim();
+                const lsDirResponses = {
+                    'documents': "📄 3 unfinished to-do lists, 2 grocery lists, and a partridge in a pear tree.",
+                    'downloads': "📦 47 copies of 'final_FINAL_v3(2).zip'. You know what you did.",
+                    'music': "🎵 Just lo-fi beats on infinite repeat. The vibe never stops.",
+                    'pictures': "📸 Mostly screenshots of error messages. Dark times.",
+                    'videos': "🎬 Nothing but screen recordings of bugs being 'fixed'. Oscar-worthy content.",
+                };
+                SoundFX.enter();
+                if (lsDirResponses[lsTarget.toLowerCase()]) {
+                    await typeLine(lsDirResponses[lsTarget.toLowerCase()], 10);
+                } else if (lsTarget.toLowerCase() === 'secret_plans.txt') {
+                    await typeLine("secret_plans.txt", 5);
+                } else {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">ls: cannot access '${lsTarget}': No such file or directory</span>`);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
+            // Handle vim/vi commands before the switch
+            if (cmd === 'vim' || cmd === 'vi' || cmd.startsWith('vim ') || cmd.startsWith('vi ')) {
+                SoundFX.enter();
+                await typeLine("Entering Vim...", 20);
+                await new Promise(r => setTimeout(r, 1000));
+                SoundFX.funny();
+                await typeLine("Just kidding. I don't want you to get stuck here forever. 😵‍💫", 10);
                 inputLine.disabled = false;
                 inputLine.focus();
                 isTyping = false;
@@ -699,7 +802,7 @@
                         'Profile': ['about', 'experience', 'education', 'skills', 'publications'],
                         'Connect': ['contact', 'socials', 'projects', 'resume'],
                         'System': ['clear', 'mute', 'history', 'date', 'exit', 'reboot'],
-                        'Shell': ['sudo', 'whoami', 'ls', 'pwd', 'cd', 'vim', 'cat', 'rm', 'mkdir'],
+                        'Shell': ['sudo', 'whoami', 'ls', 'pwd', 'cd', 'vim', 'vi', 'cat', 'rm', 'mkdir'],
                     };
                     let helpHtml = '<div class="section-title">Available Commands</div>';
                     helpHtml += '<div class="help-grid">';
@@ -768,7 +871,7 @@
                             await typeRaw(`  <a href="${proj.html_url}" target="_blank" class="nav-link">View Repository</a>`);
                         }
                     } catch (error) {
-                        await typeLine(`Error fetching projects. Please check network connection.`);
+                        await typeRaw(`<span class="error-text">Error fetching projects. Please check network connection.</span>`);
                     }
                     break;
                 case 'publications':
@@ -814,10 +917,6 @@
                     break;
 
                 // --- FUN EASTER EGGS ---
-                case 'sudo':
-                    SoundFX.deleteProcess(); // Play process sound
-                    await typeLine("user is not in the sudoers file. This incident will be reported to Santa 🎅.", 10);
-                    break;
                 case 'whoami':
                     SoundFX.enter();
                     await typeLine("intruder — but a welcome one. Make yourself at home. 🛋️", 10);
@@ -838,18 +937,19 @@
                     break;
                 case 'ls':
                     SoundFX.enter();
-                    await typeLine("Documents  Downloads  Music  Pictures  Videos  secret_plans.txt", 5);
+                    await typeRaw(
+                        `<span style="color:#0ff;font-weight:bold">Documents</span>  ` +
+                        `<span style="color:#0ff;font-weight:bold">Downloads</span>  ` +
+                        `<span style="color:#0ff;font-weight:bold">Music</span>  ` +
+                        `<span style="color:#0ff;font-weight:bold">Pictures</span>  ` +
+                        `<span style="color:#0ff;font-weight:bold">Videos</span>  ` +
+                        `<span style="color:#fff">secret_plans.txt</span>`
+                    );
                     break;
+                /* ls with args is handled before the switch */
                 case 'pwd':
                     SoundFX.enter();
                     await typeLine("/home/miit-daga", 5);
-                    break;
-                case 'vim':
-                    SoundFX.enter();
-                    await typeLine("Entering Vim...", 20);
-                    await new Promise(r => setTimeout(r, 1000));
-                    SoundFX.funny(); // Play funny sound
-                    await typeLine("Just kidding. I don't want you to get stuck here forever.", 10);
                     break;
                 case 'reboot':
                     SoundFX.glitch();
@@ -873,7 +973,7 @@
                 default:
                     if(command.trim() !== '') {
                         SoundFX.error();
-                        await typeLine(`Command not found: ${command}. Type 'help' for a list of available commands.`);
+                        await typeRaw(`<span class="error-text">Command not found: ${command}. Type 'help' for a list of available commands.</span>`);
                     }
             }
             
