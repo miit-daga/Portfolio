@@ -84,7 +84,7 @@ export function Contact() {
                 {/* Left Side: Text */}
                 <div className="flex flex-col items-center lg:items-start text-center lg:text-left z-20 order-2 lg:order-1">
                     <p className="text-base md:text-lg text-neutral-300 max-w-lg leading-relaxed">
-                        I am currently open to new opportunities. Whether you have a question about my research, a project proposal, or just want to discuss the cosmos of code, my frequencies are open.
+                        If something I’m building resonates with you, let’s connect. Whether it’s a question about my research, a project idea, or a conversation in the cosmos of code, my frequencies are open.
                     </p>
 
                     <div className="flex flex-col gap-6 mt-10 w-full items-center lg:items-start">
