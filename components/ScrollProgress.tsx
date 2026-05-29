@@ -147,7 +147,11 @@ export const ScrollProgress = () => {
     // Live section label under the rocket — based on which section is centred in
     // the viewport (so it flips as a section reaches mid-screen, not its end).
     const [label, setLabel] = useState("About");
+    // Hide the tag while the hero (top of page) is on screen; reveal it once
+    // scrolled past the hero into the actual sections.
+    const [showLabel, setShowLabel] = useState(false);
     useMotionValueEvent(scrollYProgress, "change", () => {
+        setShowLabel(window.scrollY > window.innerHeight * 0.85);
         if (!checkpoints.length) return;
         const center = window.scrollY + window.innerHeight / 2;
         let current = checkpoints[0].label;
@@ -217,8 +221,14 @@ export const ScrollProgress = () => {
                 </>
             )}
 
-            {/* Live section label riding along with the rocket */}
-            <motion.div className="absolute z-20" style={{ left: labelLeft, top: 12 }}>
+            {/* Live section label riding along with the rocket (hidden over the hero) */}
+            <motion.div
+                className="absolute z-20"
+                style={{ left: labelLeft, top: 12 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: showLabel ? 1 : 0 }}
+                transition={{ duration: 0.2 }}
+            >
                 <span
                     className="block -translate-x-1/2 whitespace-nowrap rounded-full border border-teal-400/40 bg-black/70 px-2 py-0.5 text-[10px] font-medium tracking-wide text-teal-200 backdrop-blur-sm"
                 >
