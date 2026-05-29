@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion"
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
-import { Terminal } from "lucide-react"
+import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
@@ -71,7 +71,7 @@ const Hero = () => {
       className="h-screen relative overflow-hidden"
     >
       <BackgroundGradientAnimation>
-        <div className="absolute z-50 inset-0 flex flex-col lg:flex-row items-center justify-center text-white font-bold px-4 pointer-events-none w-full h-full gap-10 lg:gap-24">
+        <div className="absolute z-50 inset-0 flex flex-col lg:flex-row items-center justify-center text-white font-bold px-4 pt-16 pb-24 lg:py-0 pointer-events-none w-full h-full gap-6 sm:gap-10 lg:gap-24">
 
           {/* --- LEFT SIDE: TEXT CONTENT --- */}
           <div className="flex flex-col items-center lg:items-end text-center lg:text-right z-10 order-2 lg:order-1 lg:w-1/2">
@@ -213,6 +213,20 @@ const Hero = () => {
               </kbd>
             </div>
           </div>
+
+          {/* --- MOBILE SCROLL CUE --- */}
+          <motion.a
+            href="#about-me"
+            aria-label="Scroll to content"
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-teal-300/90 pointer-events-auto lg:hidden"
+            animate={shouldReduceMotion ? undefined : { y: [0, 10, 0] }}
+            transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+          >
+            <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Scroll</span>
+            <span className="flex items-center justify-center h-9 w-9 rounded-full border border-teal-400/40 bg-teal-500/10 backdrop-blur-sm">
+              <ChevronDown className="h-5 w-5" />
+            </span>
+          </motion.a>
 
         </div>
       </BackgroundGradientAnimation>

@@ -26,6 +26,7 @@ import { EnterScreen } from "@/components/EnterScreen";
 import { ScrollProgress } from "@/components/ScrollProgress";
 import { BackToTop } from "@/components/BackToTop";
 import { SectionDivider } from "@/components/ui/section-divider";
+import { Reveal } from "@/components/ui/reveal";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -181,25 +182,39 @@ const Home = () => {
 
               <Hero />
 
-              <div
-                id="about-me"
-                className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20"
-              >
-                <Paragraph para={aboutme} />
-              </div>
+              <Reveal>
+                <div
+                  id="about-me"
+                  className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20"
+                >
+                  <Paragraph para={aboutme} />
+                </div>
+              </Reveal>
 
               <SectionDivider />
-              <WorkExp />
+              <Reveal>
+                <WorkExp />
+              </Reveal>
               <SectionDivider />
-              <Education />
+              <Reveal>
+                <Education />
+              </Reveal>
               <SectionDivider />
-              <SkillsAndAchievements />
+              <Reveal>
+                <SkillsAndAchievements />
+              </Reveal>
               <SectionDivider />
-              <Projects />
+              <Reveal>
+                <Projects />
+              </Reveal>
               <SectionDivider />
-              <Publications />
+              <Reveal>
+                <Publications />
+              </Reveal>
               <SectionDivider />
-              <Contact />
+              <Reveal>
+                <Contact />
+              </Reveal>
 
             </motion.div>
           </AnimatedBackground>

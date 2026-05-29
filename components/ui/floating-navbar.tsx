@@ -87,29 +87,51 @@ export const FloatingNav = ({
 
   // --- Intersection Observer for Sections ---
   useEffect(() => {
+    const sectionLinks = navItems.filter((item) => item.link.startsWith("#"));
+    const lastSectionLink = sectionLinks[sectionLinks.length - 1]?.link;
+
+    // Track each section's current visibility so we can pick the most-visible one.
+    const ratios = new Map<string, number>();
+
     const observerOptions = {
       root: null,
       rootMargin: "-20% 0px -35% 0px",
-      threshold: 0.1,
+      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
     };
 
     const observerCallback = (entries: IntersectionObserverEntry[]) => {
       if (window.scrollY < 100) return;
 
       entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          setActiveSection(`#${entry.target.id}`);
+        ratios.set(`#${entry.target.id}`, entry.isIntersecting ? entry.intersectionRatio : 0);
+      });
+
+      // Bottom-of-page guard: short final sections can't reach the center band,
+      // so force-highlight the last section once we're near the bottom.
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      if (nearBottom && lastSectionLink) {
+        setActiveSection(lastSectionLink);
+        return;
+      }
+
+      // Otherwise pick whichever observed section is most visible.
+      let best = "";
+      let bestRatio = 0;
+      ratios.forEach((ratio, link) => {
+        if (ratio > bestRatio) {
+          bestRatio = ratio;
+          best = link;
         }
       });
+      if (best) setActiveSection(best);
     };
 
     const observer = new IntersectionObserver(observerCallback, observerOptions);
 
-    navItems.forEach((item) => {
-      if (item.link.startsWith("#")) {
-        const element = document.getElementById(item.link.substring(1));
-        if (element) observer.observe(element);
-      }
+    sectionLinks.forEach((item) => {
+      const element = document.getElementById(item.link.substring(1));
+      if (element) observer.observe(element);
     });
 
     return () => observer.disconnect();
@@ -162,11 +184,18 @@ export const FloatingNav = ({
                   target={navItem.name === "Terminal" ? "_blank" : undefined}
                   rel={navItem.name === "Terminal" ? "noopener noreferrer" : undefined}
                   className={cn(
-                    "relative items-center flex space-x-1 hidden lg:flex px-2 py-1 transition-colors duration-300",
+                    "relative items-center flex space-x-1 hidden lg:flex px-3 py-1 transition-colors duration-300",
                     isActive ? "text-teal-400" : "text-white hover:text-neutral-300"
                   )}
                 >
-                  <span className="text-sm font-bold">
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="absolute inset-0 z-0 rounded-full bg-teal-500/10 border border-teal-500/30"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  <span className="relative z-10 text-sm font-bold">
                     {navItem.name}
                   </span>
                 </Link>

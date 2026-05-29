@@ -9,9 +9,15 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            /* Default theme: teal (matches the portfolio's cosmic palette) */
+            --term-primary: #2dd4bf;
+            --term-accent: #67e8f9;
+            --term-ghost: rgba(45, 212, 191, 0.3);
+        }
         body {
             background-color: #000;
-            color: #0F0;
+            color: var(--term-primary);
             font-family: 'Roboto Mono', monospace;
             overflow: hidden;
         }
@@ -36,7 +42,7 @@
         }
         .prompt::before {
             content: 'intruder@miit-daga:~$ \00a0';
-            color: #0F0;
+            color: var(--term-primary);
             font-weight: 700;
         }
         .output {
@@ -53,11 +59,11 @@
             left: 0;
             width: 100%;
             height: 100%;
-            caret-color: #0F0;
+            caret-color: var(--term-primary);
             background: transparent;
             border: none;
             outline: none;
-            color: #0F0;
+            color: var(--term-primary);
             font-family: 'Roboto Mono', monospace;
             z-index: 10;
         }
@@ -70,22 +76,22 @@
             background: transparent;
             border: none;
             outline: none;
-            color: rgba(0, 255, 0, 0.3);
+            color: var(--term-ghost);
             font-family: 'Roboto Mono', monospace;
             z-index: 5;
-            pointer-events: none; 
+            pointer-events: none;
         }
         .nav-link {
-            color: #0ff;
+            color: var(--term-accent);
             text-decoration: underline;
             cursor: pointer;
         }
         .nav-link:hover {
-            background-color: #0ff;
+            background-color: var(--term-accent);
             color: #000;
         }
         .section-title {
-            color: #0ff;
+            color: var(--term-accent);
             font-weight: 700;
             text-transform: uppercase;
             margin-top: 1rem;
@@ -96,13 +102,13 @@
             font-weight: 700;
             margin-bottom: 1rem;
             line-height: 1.2;
-            color: #0F0;
+            color: var(--term-primary);
         }
         .error-text { color: #ff3333; }
         .highlight-name { color: #fff; font-weight: 700; }
         .highlight-date { color: #888; }
         .highlight-dim { color: #6a6; }
-        .highlight-value { color: #0ff; }
+        .highlight-value { color: var(--term-accent); }
         .help-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -137,11 +143,11 @@
         }
     </style>
 </head>
-<body class="bg-black text-green-400">
+<body class="bg-black">
 
     <!-- CLICK TO START OVERLAY -->
     <div id="start-overlay">
-        <div class="text-xl md:text-2xl font-bold blink border border-green-500 p-4 rounded bg-green-900/20">
+        <div class="text-xl md:text-2xl font-bold blink border border-teal-500 p-4 rounded bg-teal-900/20">
             > CLICK TO INITIALIZE SYSTEM <
         </div>
     </div>
@@ -154,7 +160,7 @@
             <span class="prompt"></span>
             <div class="input-container">
                 <input type="text" id="ghost-input" disabled>
-                <input type="text" id="input-line" class="bg-transparent border-none outline-none text-green-400 flex-grow" autofocus autocomplete="off" spellcheck="false">
+                <input type="text" id="input-line" class="bg-transparent border-none outline-none flex-grow" autofocus autocomplete="off" spellcheck="false">
             </div>
         </div>
     </div>
@@ -402,8 +408,8 @@
             { title: "A Lightweight Ensemble Approach for Classification of DDoS Attacks in IoE Environments", link: "https://doi.org/10.1109/SENNET64220.2025.11136075" }
           ],
           commands: [
-            "help", "about", "experience", "education", "skills", "projects", "publications", 
-            "contact", "socials", "resume", "clear", "mute",
+            "help", "about", "experience", "education", "skills", "projects", "publications",
+            "contact", "socials", "resume", "clear", "mute", "theme", "home", "back", "neofetch",
             "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat", "rm", "mkdir", "reboot", "history"
           ]
         };
@@ -431,10 +437,13 @@
         const columns = canvas.width / fontSize;
         const drops = Array(Math.floor(columns)).fill(1);
 
+        // Drives the matrix rain colour; updated by the `theme` command.
+        let matrixColor = '#2dd4bf';
+
         function drawMatrix() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#0F0';
+            ctx.fillStyle = matrixColor;
             ctx.font = fontSize + 'px "Roboto Mono"';
             for(let i = 0; i < drops.length; i++) {
                 const text = characters[Math.floor(Math.random() * characters.length)];
@@ -443,8 +452,91 @@
                 drops[i]++;
             }
         }
-        setInterval(drawMatrix, 40);
+
+        // Pause the rain while the tab is hidden to save CPU/battery.
+        let matrixTimer = setInterval(drawMatrix, 40);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearInterval(matrixTimer);
+                matrixTimer = null;
+            } else if (!matrixTimer) {
+                matrixTimer = setInterval(drawMatrix, 40);
+            }
+        });
         
+        // --- THEME SYSTEM ---
+        const THEMES = {
+            teal:  { primary: '#2dd4bf', accent: '#67e8f9', ghost: 'rgba(45, 212, 191, 0.3)' },
+            green: { primary: '#00ff00', accent: '#00ffff', ghost: 'rgba(0, 255, 0, 0.3)' },
+            amber: { primary: '#ffb000', accent: '#ffd479', ghost: 'rgba(255, 176, 0, 0.3)' },
+            cyan:  { primary: '#22d3ee', accent: '#a5f3fc', ghost: 'rgba(34, 211, 238, 0.3)' },
+        };
+
+        // Resolve any CSS color (named / hex / rgb / hsl) to {r,g,b}, or null if invalid.
+        function resolveColor(input) {
+            if (!input || !window.CSS || !CSS.supports('color', input)) return null;
+            const el = document.createElement('span');
+            el.style.color = input;
+            el.style.display = 'none';
+            document.body.appendChild(el);
+            const computed = getComputedStyle(el).color;
+            document.body.removeChild(el);
+            const m = computed.match(/\d+(\.\d+)?/g);
+            if (!m || m.length < 3) return null;
+            return { r: +m[0], g: +m[1], b: +m[2] };
+        }
+
+        function applyTheme(name) {
+            name = (name || '').toLowerCase().trim();
+            let primary, accent, ghost;
+
+            if (THEMES[name]) {
+                ({ primary, accent, ghost } = THEMES[name]);
+            } else {
+                // Treat the argument as an arbitrary CSS colour.
+                const c = resolveColor(name);
+                if (!c) return false;
+                const lighten = (v) => Math.round(v + (255 - v) * 0.45);
+                primary = `rgb(${c.r}, ${c.g}, ${c.b})`;
+                accent = `rgb(${lighten(c.r)}, ${lighten(c.g)}, ${lighten(c.b)})`;
+                ghost = `rgba(${c.r}, ${c.g}, ${c.b}, 0.3)`;
+            }
+
+            const root = document.documentElement.style;
+            root.setProperty('--term-primary', primary);
+            root.setProperty('--term-accent', accent);
+            root.setProperty('--term-ghost', ghost);
+            matrixColor = primary;
+            try { localStorage.setItem('term-theme', name); } catch (e) {}
+            return true;
+        }
+
+        // Restore the saved theme (defaults to teal).
+        try { applyTheme(localStorage.getItem('term-theme') || 'teal'); } catch (e) { applyTheme('teal'); }
+
+        // --- "Did you mean?" via Levenshtein distance ---
+        function levenshtein(a, b) {
+            const m = a.length, n = b.length;
+            const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+                }
+            }
+            return dp[m][n];
+        }
+
+        function closestCommand(input) {
+            let best = null, bestDist = Infinity;
+            for (const cmd of MOCK_DATA.commands) {
+                const d = levenshtein(input, cmd);
+                if (d < bestDist) { bestDist = d; best = cmd; }
+            }
+            return bestDist <= 3 ? best : null;
+        }
+
         // --- TERMINAL LOGIC ---
         const outputContainer = document.getElementById('output-container');
         const inputLine = document.getElementById('input-line');
@@ -453,7 +545,8 @@
         const overlay = document.getElementById('start-overlay');
         let isTyping = false;
         let commandHistory = [];
-        let historyIndex = -1;
+        try { commandHistory = JSON.parse(localStorage.getItem('term-history') || '[]'); } catch (e) {}
+        let historyIndex = commandHistory.length;
 
         inputLine.addEventListener('input', () => {
             const val = inputLine.value.toLowerCase();
@@ -537,7 +630,7 @@
                         terminal.scrollTop = terminal.scrollHeight;
                         setTimeout(update, interval);
                     } else {
-                        p.innerHTML = `  <span style="color:#0f0">✓</span> ${text}`;
+                        p.innerHTML = `  <span style="color:var(--term-primary)">✓</span> ${text}`;
                         terminal.scrollTop = terminal.scrollHeight;
                         resolve();
                     }
@@ -560,7 +653,9 @@
 
             if (command) {
                 commandHistory.push(command);
+                if (commandHistory.length > 100) commandHistory.shift();
                 historyIndex = commandHistory.length;
+                try { localStorage.setItem('term-history', JSON.stringify(commandHistory)); } catch (e) {}
             }
 
             addInputLine(command);
@@ -795,13 +890,37 @@
                 return;
             }
 
+            // Handle theme command (takes an argument) before the switch
+            if (cmd === 'theme' || cmd.startsWith('theme ')) {
+                const arg = command.substring(5).trim().toLowerCase();
+                const names = Object.keys(THEMES);
+                if (!arg) {
+                    SoundFX.enter();
+                    await typeRaw('<div class="section-title">Themes</div>');
+                    await typeRaw(`Usage: theme &lt;color&gt;`);
+                    await typeRaw('Presets: ' + names.map(n => `<span class="nav-link" onclick="runCommandFromClick('theme ${n}')">${n}</span>`).join('  '));
+                    await typeRaw(`Or use <span class="highlight-value">any</span> CSS colour — a name (<span class="highlight-value">tomato</span>, <span class="highlight-value">violet</span>, <span class="highlight-value">gold</span>), a hex (<span class="highlight-value">#ff6600</span>), or rgb()/hsl().`);
+                } else if (applyTheme(arg)) {
+                    SoundFX.successChime();
+                    await typeLine(`Theme set to '${arg}'. ✨`, 10);
+                } else {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">theme: '${arg}' isn't a valid colour. Try a preset (${names.join(', ')}) or any CSS colour like 'tomato' or '#ff6600'.</span>`);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
             switch(cmd) {
                 case 'help':
                     SoundFX.enter();
                     const helpCategories = {
                         'Profile': ['about', 'experience', 'education', 'skills', 'publications'],
-                        'Connect': ['contact', 'socials', 'projects', 'resume'],
-                        'System': ['clear', 'mute', 'history', 'date', 'exit', 'reboot'],
+                        'Connect': ['contact', 'socials', 'projects', 'resume', 'home'],
+                        'System': ['clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'pwd', 'cd', 'vim', 'vi', 'cat', 'rm', 'mkdir'],
                     };
                     let helpHtml = '<div class="section-title">Available Commands</div>';
@@ -915,6 +1034,39 @@
                     SoundFX.enter();
                     await typeLine(SoundFX.isMuted ? "Audio feedback disabled." : "Audio feedback enabled.", 10);
                     break;
+                case 'home':
+                case 'back':
+                    SoundFX.powerDown();
+                    await typeLine("Closing terminal — back to the portfolio. 🚀", 20);
+                    await new Promise(r => setTimeout(r, 900));
+
+                    // Force-close trick (terminal opens in a new tab)
+                    window.opener = null;
+                    window.open('', '_self');
+                    window.close();
+
+                    await typeLine("If the tab didn't close, just switch back to your portfolio tab. ✨", 5);
+                    break;
+                case 'neofetch': {
+                    SoundFX.dataBurst();
+                    let themeName = 'teal';
+                    try { themeName = localStorage.getItem('term-theme') || 'teal'; } catch (e) {}
+                    await typeRaw(
+                        `<div style="white-space:pre">` +
+                        `<span class="highlight-value">intruder</span>@<span class="highlight-value">miit-daga</span>\n` +
+                        `-----------------------------\n` +
+                        `<span class="highlight-value">OS</span>:       MIIT-DAGA-OS v1.0\n` +
+                        `<span class="highlight-value">Host</span>:     Portfolio Terminal\n` +
+                        `<span class="highlight-value">Kernel</span>:   cosmic-6.6.6\n` +
+                        `<span class="highlight-value">Shell</span>:    miitsh 9.0\n` +
+                        `<span class="highlight-value">Role</span>:     Full Stack Engineer\n` +
+                        `<span class="highlight-value">Stack</span>:    Node · Next · Postgres · AWS\n` +
+                        `<span class="highlight-value">Status</span>:   final-year B.Tech IT\n` +
+                        `<span class="highlight-value">Theme</span>:    ${themeName}\n` +
+                        `</div>`
+                    );
+                    break;
+                }
 
                 // --- FUN EASTER EGGS ---
                 case 'whoami':
@@ -938,11 +1090,11 @@
                 case 'ls':
                     SoundFX.enter();
                     await typeRaw(
-                        `<span style="color:#0ff;font-weight:bold">Documents</span>  ` +
-                        `<span style="color:#0ff;font-weight:bold">Downloads</span>  ` +
-                        `<span style="color:#0ff;font-weight:bold">Music</span>  ` +
-                        `<span style="color:#0ff;font-weight:bold">Pictures</span>  ` +
-                        `<span style="color:#0ff;font-weight:bold">Videos</span>  ` +
+                        `<span style="color:var(--term-accent);font-weight:bold">Documents</span>  ` +
+                        `<span style="color:var(--term-accent);font-weight:bold">Downloads</span>  ` +
+                        `<span style="color:var(--term-accent);font-weight:bold">Music</span>  ` +
+                        `<span style="color:var(--term-accent);font-weight:bold">Pictures</span>  ` +
+                        `<span style="color:var(--term-accent);font-weight:bold">Videos</span>  ` +
                         `<span style="color:#fff">secret_plans.txt</span>`
                     );
                     break;
@@ -974,6 +1126,10 @@
                     if(command.trim() !== '') {
                         SoundFX.error();
                         await typeRaw(`<span class="error-text">Command not found: ${command}. Type 'help' for a list of available commands.</span>`);
+                        const suggestion = closestCommand(cmd);
+                        if (suggestion) {
+                            await typeRaw(`Did you mean '<span class="nav-link" onclick="runCommandFromClick('${suggestion}')">${suggestion}</span>'?`);
+                        }
                     }
             }
             
@@ -992,10 +1148,30 @@
 
             if (e.key === 'Enter') {
                 runCommand(inputLine.value);
-            } else if (e.key === 'Tab' || e.key === 'ArrowRight') {
+            } else if (e.key === 'ArrowRight') {
                 if (ghostInput.value && ghostInput.value !== inputLine.value) {
                     e.preventDefault();
                     inputLine.value = ghostInput.value;
+                }
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                const val = inputLine.value.toLowerCase().trim();
+                if (!val) return;
+                const matches = MOCK_DATA.commands.filter(c => c.startsWith(val));
+                if (matches.length === 1) {
+                    inputLine.value = matches[0];
+                    ghostInput.value = matches[0];
+                } else if (matches.length > 1) {
+                    // Complete to the longest common prefix shared by all matches...
+                    let prefix = matches[0];
+                    for (const m of matches) {
+                        while (!m.startsWith(prefix)) prefix = prefix.slice(0, -1);
+                    }
+                    inputLine.value = prefix;
+                    ghostInput.value = '';
+                    // ...then list the candidates (bash-style).
+                    typeRaw(matches.map(m => `<span class="nav-link" onclick="runCommandFromClick('${m}')">${m}</span>`).join('  '));
+                    terminal.scrollTop = terminal.scrollHeight;
                 }
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
