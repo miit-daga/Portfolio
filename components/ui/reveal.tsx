@@ -1,6 +1,6 @@
 "use client";
 import { motion, useReducedMotion } from "framer-motion";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 export const Reveal = ({
   children,
@@ -12,14 +12,28 @@ export const Reveal = ({
   className?: string;
 }) => {
   const shouldReduceMotion = useReducedMotion();
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  // Only run the scroll-reveal on laptop-and-up. On smaller screens sections
+  // stack into a tall single column, where `whileInView` can fail to fire and
+  // leave a section stuck invisible/blank — so there we render it plainly.
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  if (!isDesktop || shouldReduceMotion) {
+    return <div className={className}>{children}</div>;
+  }
 
   return (
     <motion.div
       className={className}
-      initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 60 }}
+      initial={{ opacity: 0, y: 60 }}
       whileInView={{ opacity: 1, y: 0 }}
-      // Fire once ~25% of the section is actually on screen, so the rise plays
-      // while it's in the reading zone (not while it's still off the bottom edge).
       viewport={{ once: true, amount: 0.25 }}
       transition={{
         duration: 0.8,
