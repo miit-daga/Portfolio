@@ -1,235 +1,309 @@
 "use client"
-import { useScroll, useTransform, motion, useMotionValueEvent } from "framer-motion"
+import {
+  useScroll,
+  motion,
+  useMotionValue,
+  useMotionValueEvent,
+  useSpring,
+  useReducedMotion,
+} from "framer-motion"
 import type React from "react"
-import { useEffect, useRef, useState, useCallback } from "react"
-import { cn } from "@/utils/cn"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { RocketIcon } from "./rocket"
 
 interface TimelineEntry {
   title: string
   content: React.ReactNode
 }
 
-const lineGlowHotspotColor = "#99F6E4"
-const lineGlowMainColor = "#14B8A6"
-const lineDimTrailColor = "rgba(20, 184, 166, 0.25)"
+// --- Flight-path geometry (left rail, in pixels) ---
+const RAIL_W = 60
+const MID_X = 30
+const AMP = 15
+const SAMPLES = 140
 
-const ballGlowShadow = `0 0 12px 4px rgba(20, 184, 166, 0.7)`
-const hotspotRadiusPx = 15
-
-const formatGradientString = (points: { p: number; color: string }[]): string => {
-  if (!points || points.length === 0) return "transparent"
-  if (points.length === 1) return points[0].color
-  return points.map((s) => `${s.color} ${s.p.toFixed(2)}%`).join(", ")
-}
+const ROCKET_W = 30
+const ROCKET_H = 36
 
 export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const pathRef = useRef<SVGPathElement>(null)
+  const shouldReduceMotion = useReducedMotion()
+
   const [height, setHeight] = useState(0)
-
-  const itemStickyDivRefs = useRef<(HTMLDivElement | null)[]>([])
-  const [ballOffsets, setBallOffsets] = useState<number[]>([])
+  const [pathLength, setPathLength] = useState(0)
+  const [ballYs, setBallYs] = useState<number[]>([])
   const [glowingBalls, setGlowingBalls] = useState<Set<number>>(new Set())
-  const [dynamicLineGradient, setDynamicLineGradient] = useState("")
 
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const setItemRef = useCallback((el: HTMLDivElement | null, index: number) => {
-    itemStickyDivRefs.current[index] = el
+    itemRefs.current[index] = el
   }, [])
 
-  useEffect(() => {
-    if (itemStickyDivRefs.current.length !== data.length) {
-      itemStickyDivRefs.current = Array(data.length).fill(null)
-    }
-  }, [data.length])
+  // One sine bump roughly per item so the rocket weaves down the rail.
+  const periods = Math.max(2, data.length * 0.75)
 
-  useEffect(() => {
-    if (ref.current) {
-      const rect = ref.current.getBoundingClientRect()
-      setHeight(rect.height)
+  const pathPoint = useCallback(
+    (t: number) => ({
+      x: MID_X + AMP * Math.sin(t * periods * 2 * Math.PI),
+      y: t * height,
+    }),
+    [height, periods],
+  )
+
+  const pathD = useMemo(() => {
+    if (height <= 0) return `M ${MID_X} 0`
+    let d = ""
+    for (let i = 0; i <= SAMPLES; i++) {
+      const { x, y } = pathPoint(i / SAMPLES)
+      d += `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)} `
     }
+    return d.trim()
+  }, [height, pathPoint])
+
+  // Measure overall height
+  useEffect(() => {
+    const measure = () => {
+      if (ref.current) setHeight(ref.current.getBoundingClientRect().height)
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
   }, [data])
 
+  // Measure the path length once it's drawn
   useEffect(() => {
-    const calculateOffsets = () => {
-      if (ref.current && itemStickyDivRefs.current.length === data.length) {
-        const offsets = itemStickyDivRefs.current.map((itemRef) => {
-          if (itemRef) {
-            return itemRef.offsetTop + 5
-          }
-          return 0
-        })
-        if (offsets.some((o) => o > 0) && offsets.some((o, i) => o !== ballOffsets[i])) {
-          setBallOffsets(offsets.filter((o) => o > 0))
-        } else if (offsets.every((o) => o === 0) && ballOffsets.length > 0) {
-          setBallOffsets([])
-        }
-      }
+    if (pathRef.current && height > 0) {
+      const len = pathRef.current.getTotalLength()
+      setPathLength(len)
+      // Start the glowing path fully hidden to avoid a one-frame flash
+      if (!shouldReduceMotion) revealOffset.set(len)
     }
-    calculateOffsets()
-    window.addEventListener("resize", calculateOffsets)
-    return () => {
-      window.removeEventListener("resize", calculateOffsets)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathD, height, shouldReduceMotion])
+
+  // Measure each milestone's vertical centre (breakpoint-agnostic)
+  useEffect(() => {
+    const measureBalls = () => {
+      const ys = itemRefs.current.map((el) =>
+        el ? el.offsetTop + el.offsetHeight / 2 : 0,
+      )
+      setBallYs((prev) =>
+        ys.length === prev.length && ys.every((y, i) => Math.abs(y - prev[i]) < 1)
+          ? prev
+          : ys,
+      )
     }
-  }, [data, height, ballOffsets])
+    measureBalls()
+    window.addEventListener("resize", measureBalls)
+    return () => window.removeEventListener("resize", measureBalls)
+  }, [data, height])
 
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start 10%", "end 50%"],
   })
 
-  const heightTransform = useTransform(scrollYProgress, [0, 1], [0, height])
-  const opacityTransform = useTransform(scrollYProgress, [0, 0.1], [0, 1])
+  // Rocket transform + trail (motion values, no re-renders)
+  const rocketX = useMotionValue(MID_X - ROCKET_W / 2)
+  const rocketY = useMotionValue(-ROCKET_H)
+  const rocketRot = useMotionValue(180)
+  const rocketRotSpring = useSpring(rocketRot, { stiffness: 120, damping: 16 })
+  const rocketCX = useMotionValue(MID_X)
+  const rocketCY = useMotionValue(0)
+  const revealOffset = useMotionValue(0)
 
-  useMotionValueEvent(heightTransform, "change", (latestAnimatedLineHeight) => {
-    const newGlowing = new Set<number>()
-    let lastLitBallIndex = -1
-    ballOffsets.forEach((offset, index) => {
-      if (latestAnimatedLineHeight >= offset) {
-        newGlowing.add(index)
-        if (index > lastLitBallIndex) {
-          lastLitBallIndex = index
+  // Track scroll direction so the rocket flips to face the way it travels
+  const prevProgress = useRef(0)
+  const travelDir = useRef(1) // 1 = down, -1 = up
+
+  // Exhaust particles lag behind the rocket via chained springs
+  const t1x = useSpring(rocketCX, { stiffness: 200, damping: 22 })
+  const t1y = useSpring(rocketCY, { stiffness: 200, damping: 22 })
+  const t2x = useSpring(t1x, { stiffness: 170, damping: 24 })
+  const t2y = useSpring(t1y, { stiffness: 170, damping: 24 })
+  const t3x = useSpring(t2x, { stiffness: 150, damping: 26 })
+  const t3y = useSpring(t2y, { stiffness: 150, damping: 26 })
+
+  const applyProgress = useCallback(
+    (latest: number, dir = 1) => {
+      if (!pathRef.current || pathLength <= 0) return
+      const p = Math.max(0, Math.min(1, latest))
+      const l = p * pathLength
+      const pt = pathRef.current.getPointAtLength(l)
+      const pt2 = pathRef.current.getPointAtLength(Math.min(pathLength, l + 1))
+      const theta = (Math.atan2(pt2.y - pt.y, pt2.x - pt.x) * 180) / Math.PI
+
+      rocketCX.set(pt.x)
+      rocketCY.set(pt.y)
+      rocketX.set(pt.x - ROCKET_W / 2)
+      rocketY.set(pt.y - ROCKET_H / 2)
+      // Face down the path when scrolling down, flip 180° when scrolling up
+      rocketRot.set(theta + 90 + (dir < 0 ? 180 : 0))
+      revealOffset.set(pathLength * (1 - p))
+
+      setGlowingBalls((prev) => {
+        const next = new Set<number>()
+        ballYs.forEach((y, i) => {
+          if (pt.y >= y - 4) next.add(i)
+        })
+        if (next.size === prev.size && Array.from(next).every((v) => prev.has(v))) {
+          return prev
         }
-      }
-    })
+        return next
+      })
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pathLength, ballYs],
+  )
 
-    setGlowingBalls((prev) => {
-      if (newGlowing.size !== prev.size || !Array.from(newGlowing).every((val) => prev.has(val))) {
-        return newGlowing
-      }
-      return prev
-    })
-
-    if (latestAnimatedLineHeight <= 1) {
-      setDynamicLineGradient("transparent")
-      return
+  useMotionValueEvent(scrollYProgress, "change", (latest) => {
+    if (shouldReduceMotion) return
+    const delta = latest - prevProgress.current
+    // Deadzone avoids flicker from tiny scroll jitters
+    if (Math.abs(delta) > 0.0005) {
+      travelDir.current = delta < 0 ? -1 : 1
     }
-
-    let gradientPointsDefinition: { px: number; color: string }[] = []
-
-    if (lastLitBallIndex === -1 || ballOffsets.length === 0) {
-      const tipPx = latestAnimatedLineHeight
-      const mainColorStartPx = Math.max(0, tipPx - hotspotRadiusPx)
-
-      gradientPointsDefinition = [
-        { px: 0, color: lineDimTrailColor },
-        { px: mainColorStartPx, color: lineGlowMainColor },
-        { px: tipPx, color: lineGlowHotspotColor },
-      ]
-    } else {
-      const hotspotCenterPx = ballOffsets[lastLitBallIndex]
-      const hs_center_clamped = Math.max(0, Math.min(latestAnimatedLineHeight, hotspotCenterPx))
-      const hs_start_clamped = Math.max(0, Math.min(latestAnimatedLineHeight, hotspotCenterPx - hotspotRadiusPx))
-      const hs_end_clamped = Math.max(0, Math.min(latestAnimatedLineHeight, hotspotCenterPx + hotspotRadiusPx))
-
-      const trailFadeDistance = Math.max(30, (latestAnimatedLineHeight - hs_end_clamped) * 0.3)
-      const trailFadeStartPx = Math.min(latestAnimatedLineHeight, hs_end_clamped + trailFadeDistance * 0.2)
-
-      gradientPointsDefinition = [
-        { px: 0, color: lineDimTrailColor },
-        { px: hs_start_clamped, color: lineGlowMainColor },
-        { px: hs_center_clamped, color: lineGlowHotspotColor },
-        { px: hs_end_clamped, color: lineGlowMainColor },
-        { px: trailFadeStartPx, color: lineDimTrailColor },
-        { px: latestAnimatedLineHeight, color: lineDimTrailColor },
-      ]
-    }
-
-    let percentagePoints = gradientPointsDefinition.map((point) => ({
-      p: (point.px / latestAnimatedLineHeight) * 100,
-      color: point.color,
-    }))
-
-    percentagePoints = percentagePoints
-      .map((point) => ({ ...point, p: Math.max(0, Math.min(100, point.p)) }))
-      .sort((a, b) => a.p - b.p)
-
-    const finalUniquePoints: { p: number; color: string }[] = []
-    if (percentagePoints.length > 0) {
-      finalUniquePoints.push(percentagePoints[0])
-      for (let i = 1; i < percentagePoints.length; i++) {
-        const prev = finalUniquePoints[finalUniquePoints.length - 1]
-        const curr = percentagePoints[i]
-        if (curr.p > prev.p) {
-          finalUniquePoints.push(curr)
-        } else {
-          finalUniquePoints[finalUniquePoints.length - 1] = curr
-        }
-      }
-    }
-
-    if (finalUniquePoints.length === 0) {
-      setDynamicLineGradient(lineDimTrailColor)
-      return
-    }
-    if (finalUniquePoints[0].p !== 0) {
-      finalUniquePoints.unshift({ p: 0, color: finalUniquePoints[0].color })
-    }
-    if (finalUniquePoints[finalUniquePoints.length - 1].p !== 100) {
-      finalUniquePoints.push({ p: 100, color: finalUniquePoints[finalUniquePoints.length - 1].color })
-    }
-    const trulyFinalPoints: { p: number; color: string }[] = []
-    if (finalUniquePoints.length > 0) {
-      trulyFinalPoints.push(finalUniquePoints[0])
-      for (let i = 1; i < finalUniquePoints.length; i++) {
-        if (finalUniquePoints[i].p > trulyFinalPoints[trulyFinalPoints.length - 1].p) {
-          trulyFinalPoints.push(finalUniquePoints[i])
-        } else {
-          trulyFinalPoints[trulyFinalPoints.length - 1] = finalUniquePoints[i]
-        }
-      }
-    }
-
-    const gradientParamsStr = formatGradientString(trulyFinalPoints)
-    setDynamicLineGradient(`linear-gradient(to bottom, ${gradientParamsStr})`)
+    prevProgress.current = latest
+    applyProgress(latest, travelDir.current)
   })
+
+  // Apply the correct initial state once measured (and handle reduced motion)
+  useEffect(() => {
+    if (pathLength <= 0) return
+    if (shouldReduceMotion) {
+      revealOffset.set(0)
+      setGlowingBalls(new Set(ballYs.map((_, i) => i)))
+    } else {
+      applyProgress(scrollYProgress.get())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applyProgress, shouldReduceMotion, pathLength, ballYs])
+
+  const planets = ballYs.map((y) => pathPoint(height > 0 ? y / height : 0))
+  const tealGlow = "drop-shadow(0 0 5px rgba(45, 212, 191, 0.85))"
 
   return (
     <div className="w-full font-sans md:px-10 mb-20 -mt-10" ref={containerRef}>
       <div ref={ref} className="relative max-w-7xl mx-auto pb-20">
         {data.map((item, index) => (
-          <div key={item.title + index} className="flex justify-start pt-10 md:pt-20 md:gap-10">
+          <div
+            key={item.title + index}
+            className="flex flex-col md:flex-row justify-start pt-10 md:pt-20 md:gap-10"
+          >
             <div
               ref={(el) => setItemRef(el, index)}
-              className="sticky flex flex-col md:flex-row z-10 items-center top-40 self-start max-w-xs lg:max-w-sm md:w-1/3"
+              className="flex items-center md:w-1/3 pl-20 mb-4 md:mb-0"
             >
-              <div className="h-10 absolute left-[3px] md:left-[3px] w-10 rounded-full bg-black flex items-center justify-center">
-                <div
-                  className={cn(
-                    "h-4 w-4 rounded-full bg-neutral-800 border border-neutral-700 p-2",
-                    "transition-all duration-300 ease-in-out",
-                  )}
-                  style={
-                    glowingBalls.has(index)
-                      ? {
-                          backgroundColor: lineGlowMainColor,
-                          borderColor: lineGlowHotspotColor,
-                          boxShadow: ballGlowShadow,
-                        }
-                      : {}
-                  }
-                />
-              </div>
-              <h3 className="hidden md:block text-xl md:pl-20 lg:text-2xl font-bold text-neutral-400 ">{item.title}</h3>
+              <h3 className="text-xl lg:text-2xl font-bold text-neutral-400 md:pl-4">
+                {item.title}
+              </h3>
             </div>
-            <div className="relative pl-20 pr-4 md:pl-4 w-full md:w-2/3">
-              <h3 className="md:hidden block text-2xl mb-4 text-left font-bold text-neutral-400">{item.title}</h3>
+            <div className="relative w-full md:w-2/3 pl-20 md:pl-0 pr-4">
               {item.content}
             </div>
           </div>
         ))}
-        <div
-          style={{ height: height + "px" }}
-          className="absolute md:left-[22px] left-[22px] top-0 overflow-hidden w-[2px] bg-[linear-gradient(to_bottom,var(--tw-gradient-stops))] from-transparent from-[0%] via-neutral-700 to-transparent to-[99%] [mask-image:linear-gradient(to_bottom,transparent_0%,black_10%,black_90%,transparent_100%)]"
+
+        {/* --- Flight path + milestones --- */}
+        <svg
+          className="absolute left-0 top-0 pointer-events-none"
+          width={RAIL_W}
+          height={height}
+          style={{ overflow: "visible" }}
+          aria-hidden
         >
-          <motion.div
-            style={{
-              height: heightTransform,
-              opacity: opacityTransform,
-              backgroundImage: dynamicLineGradient,
-            }}
-            className="absolute inset-x-0 top-0 w-[2px] rounded-full"
+          {/* Dim dashed trajectory */}
+          <path
+            ref={pathRef}
+            d={pathD}
+            fill="none"
+            stroke="rgba(148, 163, 184, 0.25)"
+            strokeWidth={2}
+            strokeDasharray="2 7"
+            strokeLinecap="round"
           />
-        </div>
+          {/* Glowing flown path (revealed up to the rocket) */}
+          {pathLength > 0 && (
+            <motion.path
+              d={pathD}
+              fill="none"
+              stroke="#2dd4bf"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              style={{
+                strokeDasharray: pathLength,
+                strokeDashoffset: revealOffset,
+                filter: tealGlow,
+              }}
+            />
+          )}
+          {/* Milestone planets */}
+          {planets.map((pt, i) => {
+            const lit = glowingBalls.has(i)
+            return (
+              <g key={i} transform={`translate(${pt.x} ${pt.y})`}>
+                <circle
+                  r={6}
+                  fill={lit ? "#14b8a6" : "#1f2937"}
+                  stroke={lit ? "#99f6e4" : "#475569"}
+                  strokeWidth={1.5}
+                  style={{
+                    filter: lit ? "drop-shadow(0 0 6px rgba(20,184,166,0.95))" : "none",
+                    transition: "fill 0.3s, stroke 0.3s, filter 0.3s",
+                  }}
+                />
+                {lit && !shouldReduceMotion && (
+                  <motion.circle
+                    r={6}
+                    fill="none"
+                    stroke="#99f6e4"
+                    strokeWidth={1.5}
+                    initial={{ scale: 1, opacity: 0.8 }}
+                    animate={{ scale: 3.2, opacity: 0 }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                  />
+                )}
+              </g>
+            )
+          })}
+        </svg>
+
+        {/* --- Exhaust particles --- */}
+        {!shouldReduceMotion && (
+          <>
+            <motion.div
+              className="absolute left-0 top-0 h-2.5 w-2.5 rounded-full bg-teal-300/70 blur-[1px] pointer-events-none"
+              style={{ x: t1x, y: t1y, marginLeft: -5, marginTop: -5 }}
+            />
+            <motion.div
+              className="absolute left-0 top-0 h-2 w-2 rounded-full bg-teal-400/50 blur-[1px] pointer-events-none"
+              style={{ x: t2x, y: t2y, marginLeft: -4, marginTop: -4 }}
+            />
+            <motion.div
+              className="absolute left-0 top-0 h-1.5 w-1.5 rounded-full bg-cyan-400/40 blur-[2px] pointer-events-none"
+              style={{ x: t3x, y: t3y, marginLeft: -3, marginTop: -3 }}
+            />
+          </>
+        )}
+
+        {/* --- The rocket --- */}
+        {!shouldReduceMotion && (
+          <motion.div
+            className="absolute left-0 top-0 z-10 pointer-events-none"
+            style={{ x: rocketX, y: rocketY, rotate: rocketRotSpring }}
+          >
+            <RocketIcon
+              isIgnited
+              style={{
+                width: ROCKET_W,
+                height: ROCKET_H,
+                filter: "drop-shadow(0 0 6px rgba(45,212,191,0.5))",
+              }}
+            />
+          </motion.div>
+        )}
       </div>
     </div>
   )

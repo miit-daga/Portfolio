@@ -133,18 +133,18 @@ export function Education() {
                 <EducationCard
                     institution="Vellore Institute of Technology"
                     degree="B.Tech in Information Technology"
-                    date="Sep 2022 – Present"
+                    date="2022 – 2026"
                     points={[
-                        "Current CGPA: 9.20 / 10",
+                        "CGPA: 9.22 / 10",
                         "Focus Areas: Backend Development, DBMS, Cloud Computing, and AI/ML.",
-                        "Active participant in Hackathons (Synapse, GraVITas) and Technical Clubs.",
+                        "Participated in Hackathons (Synapse, GraVITas) and Technical Clubs.",
                     ]}
                 >
                     <p>
-                        Currently pursuing a B.Tech in Information Technology, maintaining a consistent academic record. The curriculum has provided a strong foundation in core computing concepts, including Operating Systems, Computer Networks, and Cloud Computing.
+                        Completed a B.Tech in Information Technology with a consistent academic record. The curriculum provided a strong foundation in core computing concepts, including Operating Systems, Computer Networks, and Cloud Computing.
                     </p>
                     <p>
-                        Beyond the classroom, I actively apply this knowledge in competitive hackathons and practical projects, bridging the gap between theoretical concepts and real-world software engineering challenges.
+                        Beyond the classroom, I actively applied this knowledge in competitive hackathons and practical projects, bridging the gap between theoretical concepts and real-world software engineering challenges.
                     </p>
                 </EducationCard>
             ),
@@ -155,7 +155,7 @@ export function Education() {
                 <EducationCard
                     institution="Swami Vivekananda Vidyamandir"
                     degree="Higher Secondary (Science Stream)"
-                    date="May 2020 – Jun 2022"
+                    date="2020 – 2022"
                     points={[
                         "Secured 92% in Board Examinations.",
                         "Specialization: Physics, Chemistry, Mathematics, and Computer Science.",
@@ -177,7 +177,7 @@ export function Education() {
                 <EducationCard
                     institution="St. Helen's School"
                     degree="ICSE Board"
-                    date="Apr 2008 – Jul 2020"
+                    date="2008 – 2020"
                     points={[
                         "Achieved 91.6% in Board Examinations.",
                         "Learned Java and Object-Oriented Programming (OOP) concepts.",

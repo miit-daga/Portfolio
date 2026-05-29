@@ -191,27 +191,27 @@ const Home = () => {
                 </div>
               </Reveal>
 
-              <SectionDivider />
+              <SectionDivider variant="comet" />
               <Reveal>
                 <WorkExp />
               </Reveal>
-              <SectionDivider />
+              <SectionDivider variant="planet" />
               <Reveal>
                 <Education />
               </Reveal>
-              <SectionDivider />
+              <SectionDivider variant="constellation" />
               <Reveal>
                 <SkillsAndAchievements />
               </Reveal>
-              <SectionDivider />
+              <SectionDivider variant="nova" />
               <Reveal>
                 <Projects />
               </Reveal>
-              <SectionDivider />
+              <SectionDivider variant="galaxy" />
               <Reveal>
                 <Publications />
               </Reveal>
-              <SectionDivider />
+              <SectionDivider variant="rocket" />
               <Reveal>
                 <Contact />
               </Reveal>

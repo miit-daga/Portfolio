@@ -29,8 +29,18 @@ const config: Config = {
         eighth: "moveVertical 22s ease infinite",
         ninth: "moveInCircle 25s linear infinite",
         tenth: "moveHorizontal 17s reverse infinite",
+        shimmer: "shimmer 3s linear infinite",
+        sheen: "sheen 5s ease-in-out infinite",
       },
       keyframes: {
+        shimmer: {
+          "0%": { backgroundPosition: "200% 0" },
+          "100%": { backgroundPosition: "-200% 0" },
+        },
+        sheen: {
+          "0%, 55%": { backgroundPosition: "150% 0" },
+          "100%": { backgroundPosition: "-150% 0" },
+        },
         moveHorizontal: {
           "0%": {
             transform: "translateX(-50%) translateY(-10%)",

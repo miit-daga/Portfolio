@@ -8,8 +8,13 @@ body {
 }
 
 /* Different cursor for interactive elements */
-button, a, [role="button"], [onclick] {
+button, a, [role="button"], [onclick], .cursor-pointer {
   cursor: url('/sun-cursor.svg'), pointer;
+}
+
+/* Images should inherit the themed cursor instead of reverting to default */
+img {
+  cursor: inherit;
 }
 
 :root {

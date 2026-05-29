@@ -137,8 +137,61 @@ export const FloatingNav = ({
     return () => observer.disconnect();
   }, [navItems]);
 
+  // Keep the URL hash in sync with the section in view. Debounced so the
+  // history write happens only after scrolling settles — calling replaceState
+  // mid-scroll interrupts momentum and makes scrolling feel jaggy/sticky.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = activeSection
+      ? activeSection
+      : window.location.pathname + window.location.search;
+    const id = setTimeout(() => history.replaceState(null, "", url), 250);
+    return () => clearTimeout(id);
+  }, [activeSection]);
+
   const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK;
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
+
+  // In-page links: scroll the WINDOW to the element's absolute position. Using
+  // window.scrollTo (not scrollIntoView) avoids scrolling the overflow-hidden
+  // wrapper, which the reveal transforms turn into a nested scroll container and
+  // which made the page "stick" at the Projects grid. A second pass re-aligns
+  // after any late layout shift (e.g. the async GitHub projects loading).
+  const handleNavClick = (e: React.MouseEvent, link: string) => {
+    if (!link.startsWith("#")) return; // external / terminal — let it behave normally
+    e.preventDefault();
+    const el = document.getElementById(link.substring(1));
+    if (!el) return;
+    setIsMenuOpen(false);
+    history.replaceState(null, "", link); // reflect the section in the URL
+
+    // Disable pointer events so content sliding under the cursor can't trigger
+    // hover-driven layout shifts (e.g. project cards expanding) mid-scroll.
+    document.body.style.pointerEvents = "none";
+
+    // Fixed-duration eased scroll that re-reads the target's LIVE position each
+    // frame, so it's a visible smooth glide that still follows any layout shift
+    // (sections revealing below) without the settle-then-jump of a fixed target.
+    const getTop = () => Math.max(0, el.getBoundingClientRect().top + window.scrollY - 16);
+    const startY = window.scrollY;
+    const duration = 750;
+    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    let startTime: number | null = null;
+
+    const step = (now: number) => {
+      if (startTime === null) startTime = now;
+      const t = Math.min(1, (now - startTime) / duration);
+      const y = startY + (getTop() - startY) * easeInOut(t);
+      window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        window.scrollTo({ top: getTop(), behavior: "instant" as ScrollBehavior });
+        document.body.style.pointerEvents = "";
+      }
+    };
+    requestAnimationFrame(step);
+  };
 
   // COMBINED LOGIC: Show if scrolled up AND not currently imploding
   const shouldShow = visible && !isImploding;
@@ -181,6 +234,7 @@ export const FloatingNav = ({
               <MagneticWrapper key={navItem.link} strength={0.2}>
                 <Link
                   href={navItem.link}
+                  onClick={(e) => handleNavClick(e, navItem.link)}
                   target={navItem.name === "Terminal" ? "_blank" : undefined}
                   rel={navItem.name === "Terminal" ? "noopener noreferrer" : undefined}
                   className={cn(
@@ -283,7 +337,7 @@ export const FloatingNav = ({
                           href={item.link}
                           target={item.name === "Terminal" ? "_blank" : undefined}
                           rel={item.name === "Terminal" ? "noopener noreferrer" : undefined}
-                          onClick={toggleMenu}
+                          onClick={(e) => { handleNavClick(e, item.link); toggleMenu(); }}
                           className={cn(
                             "flex items-center space-x-4 text-lg font-semibold transition-colors",
                             isActive ? "text-teal-400" : "text-white hover:text-neutral-300"

@@ -46,6 +46,19 @@ type Planet = {
   distanceFromCenter: number;
   originalDistance: number;
   parallaxFactor: number; // NEW: Controls depth perception
+  moon?: boolean; // has a small orbiting satellite-moon
+  moonAngle?: number;
+};
+
+type Satellite = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  blink: number;
+  active: boolean;
 };
 
 // --- SOUND EFFECT GENERATORS (No changes here) ---
@@ -81,6 +94,201 @@ const playBlackHoleSound = () => {
   gain2.gain.linearRampToValueAtTime(0, now + 2.5);
   osc2.start(now);
   osc2.stop(now + 2.5);
+};
+
+// --- Colour helpers for spherical planet shading ---
+const hexToRgb = (hex: string) => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+};
+const shadeRgb = (c: { r: number; g: number; b: number }, f: number) => {
+  const m = (v: number) => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f));
+  return { r: m(c.r), g: m(c.g), b: m(c.b) };
+};
+
+// Concentric ring bands (radius multiple, width, opacity) — note the faint
+// band ~1.6 acts as a Cassini-style gap between the two bright bands.
+const RING_BANDS = [
+  { rad: 1.34, w: 0.05, a: 0.22 },
+  { rad: 1.48, w: 0.11, a: 0.5 },
+  { rad: 1.62, w: 0.04, a: 0.12 },
+  { rad: 1.78, w: 0.13, a: 0.55 },
+  { rad: 1.96, w: 0.06, a: 0.28 },
+];
+
+const drawRing = (ctx: CanvasRenderingContext2D, p: Planet, half: "front" | "back") => {
+  const r = p.radius;
+  const base = hexToRgb(p.color);
+  const tint = shadeRgb(base, 0.65); // icy, light-tinted ring
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.ringAngle);
+  const start = half === "front" ? 0 : Math.PI;
+  const end = half === "front" ? Math.PI : Math.PI * 2;
+  RING_BANDS.forEach((b) => {
+    const a = half === "back" ? b.a * 0.4 : b.a; // back half is dimmer
+    ctx.lineWidth = r * b.w;
+    ctx.strokeStyle = `rgba(${tint.r}, ${tint.g}, ${tint.b}, ${a})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * b.rad, r * b.rad * 0.32, 0, start, end);
+    ctx.stroke();
+  });
+  ctx.restore();
+};
+
+const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
+  const r = p.radius;
+  if (r <= 0.5) return;
+
+  const base = hexToRgb(p.color);
+  const light = shadeRgb(base, 0.55);
+  const dark = shadeRgb(base, -0.62);
+  const lx = p.x - r * 0.4; // light source (upper-left)
+  const ly = p.y - r * 0.4;
+
+  // 1. Atmospheric halo
+  const halo = ctx.createRadialGradient(p.x, p.y, r * 0.85, p.x, p.y, r * 1.95);
+  halo.addColorStop(0, `rgba(${base.r}, ${base.g}, ${base.b}, 0.22)`);
+  halo.addColorStop(1, `rgba(${base.r}, ${base.g}, ${base.b}, 0)`);
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r * 1.95, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Ring — back half (behind body)
+  if (p.hasRing) drawRing(ctx, p, "back");
+
+  // Orbiting moon — the far (upper) half is drawn behind the body for occlusion
+  const drawMoon = () => {
+    const a = p.moonAngle ?? 0;
+    const md = r * 1.9;
+    const mx = p.x + Math.cos(a) * md;
+    const my = p.y + Math.sin(a) * md * 0.4;
+    const mr = Math.max(1.6, r * 0.18);
+    const mg = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.35, mr * 0.1, mx, my, mr);
+    mg.addColorStop(0, "#e0e7ff"); // icy alien moon — periwinkle highlight
+    mg.addColorStop(0.6, "#818cf8");
+    mg.addColorStop(1, "#312e81"); // deep indigo shadow
+    ctx.fillStyle = mg;
+    ctx.beginPath();
+    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const moonIsFront = Math.sin(p.moonAngle ?? 0) >= 0;
+  if (p.moon && !moonIsFront) drawMoon(); // behind — the body fill below will occlude it
+
+  // 3. Body — clipped sphere with bands, terminator, ring-shadow & highlight
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  const body = ctx.createRadialGradient(lx, ly, r * 0.1, p.x, p.y, r * 1.15);
+  body.addColorStop(0, `rgb(${light.r}, ${light.g}, ${light.b})`);
+  body.addColorStop(0.5, `rgb(${base.r}, ${base.g}, ${base.b})`);
+  body.addColorStop(1, `rgb(${dark.r}, ${dark.g}, ${dark.b})`);
+  ctx.fillStyle = body;
+  ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+
+  // Cloud bands, parallel to the ring plane
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(p.ringAngle);
+  const bandCount = 7;
+  for (let i = 0; i < bandCount; i++) {
+    const t = i / (bandCount - 1);
+    const by = (t - 0.5) * 2 * r;
+    const bh = r * (0.09 + 0.05 * Math.sin(i * 1.7));
+    const tint = i % 2 === 0 ? shadeRgb(base, 0.2) : shadeRgb(base, -0.24);
+    ctx.fillStyle = `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0.18)`;
+    ctx.beginPath();
+    ctx.ellipse(0, by, r * 1.25, bh, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  // Deepen the terminator (shaded lower-right)
+  const term = ctx.createRadialGradient(lx, ly, r * 0.2, p.x + r * 0.35, p.y + r * 0.35, r * 1.45);
+  term.addColorStop(0, "rgba(0, 0, 0, 0)");
+  term.addColorStop(0.65, "rgba(0, 0, 0, 0)");
+  term.addColorStop(1, "rgba(0, 0, 0, 0.55)");
+  ctx.fillStyle = term;
+  ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+
+  // Specular sheen near the light source
+  const spec = ctx.createRadialGradient(lx, ly, 0, lx, ly, r * 0.75);
+  spec.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+  spec.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.fillStyle = spec;
+  ctx.beginPath();
+  ctx.arc(lx, ly, r * 0.75, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore(); // unclip
+
+  // 4. Rim light along the lit limb
+  ctx.save();
+  ctx.lineWidth = Math.max(1, r * 0.05);
+  const rim = ctx.createLinearGradient(p.x - r, p.y - r, p.x + r, p.y + r);
+  rim.addColorStop(0, `rgba(${light.r}, ${light.g}, ${light.b}, 0.85)`);
+  rim.addColorStop(0.55, `rgba(${light.r}, ${light.g}, ${light.b}, 0)`);
+  ctx.strokeStyle = rim;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r - ctx.lineWidth * 0.4, Math.PI * 0.85, Math.PI * 1.95);
+  ctx.stroke();
+  ctx.restore();
+
+  // 5. Ring — front half (over body)
+  if (p.hasRing) drawRing(ctx, p, "front");
+
+  // 6. Orbiting moon — near (lower) half drawn over the body
+  if (p.moon && moonIsFront) drawMoon();
+};
+
+// Realistic ISS: central truss, solar-array wings, modules — small & oriented to travel
+const drawISS = (ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) => {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.scale(1.9, 1.9); // overall ISS size
+
+  // Main truss
+  ctx.strokeStyle = "rgba(205, 215, 235, 0.75)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-9, 0);
+  ctx.lineTo(9, 0);
+  ctx.stroke();
+
+  // Four solar-array wings (perpendicular to the truss)
+  ctx.fillStyle = "rgba(70, 110, 175, 0.7)";
+  for (const cx of [-7.5, -4.5, 4.5, 7.5]) {
+    ctx.fillRect(cx - 1, -4, 2, 8);
+  }
+  // Faint array sheen
+  ctx.strokeStyle = "rgba(150, 185, 230, 0.4)";
+  ctx.lineWidth = 0.4;
+  for (const cx of [-7.5, -4.5, 4.5, 7.5]) {
+    ctx.beginPath();
+    ctx.moveTo(cx, -4);
+    ctx.lineTo(cx, 4);
+    ctx.stroke();
+  }
+
+  // Central modules
+  ctx.fillStyle = "rgba(225, 230, 240, 0.9)";
+  ctx.fillRect(-3, -1.4, 6, 2.8);
+  // Radiator
+  ctx.fillStyle = "rgba(180, 190, 205, 0.6)";
+  ctx.fillRect(-1.2, -3, 2.4, 6);
+
+  // Specular glint
+  ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+  ctx.beginPath();
+  ctx.arc(-1.5, -0.6, 0.7, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
 };
 
 export const AnimatedBackground = ({ children, className, isImploding = false }: AnimatedBackgroundProps) => {
@@ -129,6 +337,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     let activeTwinklers: Star[] = []
     let shootingStars: ShootingStar[] = []
     let planets: Planet[] = []
+    let satellites: Satellite[] = []
     let lastWidth = window.innerWidth;
 
     // --- Helper Functions ---
@@ -153,14 +362,13 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const createPlanets = () => {
       planets = [];
       const planetConfigs = [
-        // TEAL PLANET (Inner orbit)
-        // Kept roughly the same, slightly closer
-        { color: "#2dd4bf", ring: true, distMult: 0.22, size: 28, speed: 0.00015, parallax: 10 },
+        // AMBER GAS-GIANT (Inner orbit) — warm tone, distinct from the teal UI/dividers
+        { color: "#f59e0b", ring: true, distMult: 0.22, size: 28, speed: 0.00015, parallax: 10, moon: true },
 
         // VIOLET PLANET (Outer orbit)
-        // CHANGED: distMult reduced from 0.55 to 0.40. 
+        // CHANGED: distMult reduced from 0.55 to 0.40.
         // This ensures it stays within the vertical bounds of a laptop screen (0.40 < 0.50).
-        { color: "#8b5cf6", ring: false, distMult: 0.40, size: 45, speed: 0.0002, parallax: 40 },
+        { color: "#8b5cf6", ring: false, distMult: 0.40, size: 45, speed: 0.0002, parallax: 40, moon: false },
       ];
       planetConfigs.forEach((cfg, i) => {
         const angle = Math.random() * Math.PI * 2;
@@ -179,7 +387,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
           orbitSpeed: cfg.speed * (Math.random() > 0.5 ? 1 : -1),
           distanceFromCenter: dist,
           originalDistance: dist,
-          parallaxFactor: cfg.parallax // Store individual parallax
+          parallaxFactor: cfg.parallax, // Store individual parallax
+          moon: cfg.moon,
+          moonAngle: Math.random() * Math.PI * 2,
         });
       });
     };
@@ -262,10 +472,34 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       })
     }
 
+    // Occasional artificial satellite drifting slowly across the sky
+    const createSatellite = () => {
+      if (isImploding) return
+      if (satellites.filter((s) => s.active).length >= 1) return
+      const fromLeft = Math.random() < 0.5
+      const startX = fromLeft ? -20 : canvas.width + 20
+      const startY = canvas.height * 0.05 + Math.random() * canvas.height * 0.55
+      const speed = 0.4 + Math.random() * 0.35
+      const vx = (fromLeft ? 1 : -1) * speed
+      const vy = (Math.random() - 0.5) * 0.2
+      satellites.push({
+        x: startX,
+        y: startY,
+        vx,
+        vy,
+        life: 0,
+        maxLife: (canvas.width + 80) / Math.abs(vx),
+        blink: Math.random() * Math.PI * 2,
+        active: true,
+      })
+    }
+
     // --- Animation Logic ---
     let animationFrame: number
     let shootingStarTimer = 0
     let shootingStarInterval = SHOOTING_STAR_INTERVAL_MIN + Math.random() * (SHOOTING_STAR_INTERVAL_MAX - SHOOTING_STAR_INTERVAL_MIN)
+    let satelliteTimer = 0
+    let satelliteInterval = 1500 + Math.random() * 2500
     let twinkleIntervalHandle: number
     let implosionFrame = 0;
 
@@ -289,6 +523,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       planets.forEach(planet => {
         if (!isImploding) {
           planet.orbitAngle += planet.orbitSpeed;
+          if (planet.moon) planet.moonAngle = (planet.moonAngle ?? 0) + 0.012;
         } else {
           // SUCK IN LOGIC
           planet.distanceFromCenter *= 0.96;
@@ -303,33 +538,8 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         planet.x = centerX + Math.cos(planet.orbitAngle) * planet.distanceFromCenter + offsetX;
         planet.y = centerY + Math.sin(planet.orbitAngle) * planet.distanceFromCenter + offsetY;
 
-        // Draw only if visible
-        if (planet.radius > 0.5) {
-          const gradient = bgCtx.createRadialGradient(
-            planet.x - planet.radius / 3, planet.y - planet.radius / 3, planet.radius * 0.1,
-            planet.x, planet.y, planet.radius
-          );
-          gradient.addColorStop(0, planet.color);
-          gradient.addColorStop(1, "rgba(0,0,0,0)");
-
-          bgCtx.fillStyle = gradient;
-          bgCtx.beginPath();
-          bgCtx.arc(planet.x, planet.y, planet.radius, 0, Math.PI * 2);
-          bgCtx.fill();
-
-          if (planet.hasRing) {
-            bgCtx.save();
-            bgCtx.translate(planet.x, planet.y);
-            bgCtx.rotate(planet.ringAngle);
-            bgCtx.beginPath();
-            bgCtx.strokeStyle = planet.ringColor;
-            bgCtx.lineWidth = planet.radius * 0.15;
-            // Draw an ellipse
-            bgCtx.ellipse(0, 0, planet.radius * 1.8, planet.radius * 0.5, 0, 0, Math.PI * 2);
-            bgCtx.stroke();
-            bgCtx.restore();
-          }
-        }
+        // Draw the planet (shaded body, cloud bands, ring system)
+        drawPlanet(bgCtx, planet);
       });
 
       // 2. Draw Stars
@@ -476,6 +686,24 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         }
       }
 
+      // 5. ISS — drifts slowly and steadily across the sky, no trail
+      if (!isImploding) {
+        satelliteTimer += 1;
+        if (satelliteTimer > satelliteInterval) {
+          createSatellite()
+          satelliteTimer = 0
+          satelliteInterval = 1500 + Math.random() * 2500
+        }
+      }
+      for (let i = satellites.length - 1; i >= 0; i--) {
+        const sat = satellites[i]
+        sat.x += sat.vx
+        sat.y += sat.vy
+        sat.life++
+        drawISS(ctx, sat.x, sat.y, Math.atan2(sat.vy, sat.vx))
+        if (sat.life > sat.maxLife) satellites.splice(i, 1)
+      }
+
       ctx.shadowColor = "transparent"; ctx.shadowBlur = 0
       animationFrame = requestAnimationFrame(drawSpace)
     }
@@ -489,6 +717,16 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       }
     }
 
+    // Pause the twinkle timer while the tab is hidden (rAF already auto-pauses)
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)
+      } else {
+        twinkleIntervalHandle = window.setInterval(manageTwinkling, TWINKLE_INTERVAL)
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibility)
+
     resizeCanvas()
     drawSpace()
     twinkleIntervalHandle = window.setInterval(manageTwinkling, TWINKLE_INTERVAL)
@@ -497,6 +735,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     return () => {
       window.removeEventListener("resize", handleResize)
       window.removeEventListener("mousemove", handleMouseMove)
+      document.removeEventListener("visibilitychange", handleVisibility)
       if (animationFrame) cancelAnimationFrame(animationFrame)
       if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)
     }
