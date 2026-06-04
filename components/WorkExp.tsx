@@ -144,7 +144,7 @@ export function WorkExp() {
             Full-time Software Development Engineer (remote), building and shipping full-stack features across internal products and owning work from specification and design through to production deployment.
           </p>
           <p>
-            Partner with senior engineers to plan and deliver technical initiatives, shape architecture and design decisions, debug production issues, and steadily improve performance and stability.
+            Working closely with senior engineers to plan and deliver technical initiatives — helping shape architecture and design decisions, resolving production issues, and steadily improving performance and stability.
           </p>
         </ExperienceCard>
       ),
