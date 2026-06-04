@@ -128,26 +128,48 @@ const ExperienceCard = ({
 export function WorkExp() {
   const data = [
     {
+      title: "Software Development Engineer — Remote",
+      content: (
+        <ExperienceCard
+          company="Talendy Holdings (via Tech Japan Labs)"
+          role="Software Development Engineer"
+          date="[June 2026 – Present]"
+          points={[
+            "Build and ship full-stack features across internal products — from spec and design through to production.",
+            "Own technical workstreams and partner with senior engineers to deliver on schedule.",
+            "Shape architecture and design decisions, debug production issues, and tighten performance and stability.",
+          ]}
+        >
+          <p>
+            Full-time Software Development Engineer (remote), building and shipping full-stack features across internal products and owning work from specification and design through to production deployment.
+          </p>
+          <p>
+            Partner with senior engineers to plan and deliver technical initiatives, shape architecture and design decisions, debug production issues, and steadily improve performance and stability.
+          </p>
+        </ExperienceCard>
+      ),
+    },
+    {
       title: "Full Stack Engineering Intern — Remote",
       content: (
         <ExperienceCard
           company="Akatsuki AI Technologies"
           role="Full Stack Engineering Intern"
-          date="[Oct 2025 – Present]"
+          date="[Oct 2025 – May 2026]"
           points={[
-            "Selected for the CAIO Technical Unit, supporting technical research and system design under the CAIO's supervision.",
-            "Leading a team and coordinating development efforts alongside senior engineers.",
-            "Driving end-to-end feature development and aligning technical decisions across internal initiatives.",
+            "Selected for the CAIO Technical Unit; supported technical research and system design under the CAIO's supervision.",
+            "Led a team and coordinated development efforts alongside senior engineers.",
+            "Drove end-to-end feature development and aligned technical decisions across internal initiatives.",
           ]}
         >
           <p>
-            Working as a Full Stack Engineering Intern at Akatsuki AI Technologies, directly assigned to the CAIO Technical Unit. Internally selected to support technical research, system design, and project level planning under the CAIO's supervision.
+            Worked as a Full Stack Engineering Intern at Akatsuki AI Technologies, directly assigned to the CAIO Technical Unit. Internally selected to support technical research, system design, and project-level planning under the CAIO's supervision.
           </p>
           <p>
-            Currently leading a team and coordinating development efforts while working alongside senior engineers. Responsible for driving end-to-end feature development, aligning technical decisions, and ensuring timely execution across internal initiatives.
+            Led a team and coordinated development efforts while working alongside senior engineers. Responsible for driving end-to-end feature development, aligning technical decisions, and ensuring timely execution across internal initiatives.
           </p>
           <p>
-            Responsibilities also include improving system reliability, contributing to architectural discussions, conducting technical investigations, documenting engineering processes, and supporting internal project management activities.
+            Responsibilities also included improving system reliability, contributing to architectural discussions, conducting technical investigations, documenting engineering processes, and supporting internal project management activities.
           </p>
         </ExperienceCard>
       ),

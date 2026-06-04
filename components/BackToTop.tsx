@@ -82,30 +82,41 @@ export const BackToTop = () => {
         return () => window.removeEventListener("scroll", onScroll);
     }, []);
 
-    const scrollToTop = async () => {
+    const scrollToTop = () => {
         if (isLaunching) return;
+        setIsLaunching(true);
+        setLaunchKey((k) => k + 1);
 
         if (reduce) {
             window.scrollTo({ top: 0, behavior: "smooth" });
             playWhoosh();
+            setIsLaunching(false);
             return;
         }
 
-        setIsLaunching(true);
-        setLaunchKey((k) => k + 1);
-        // 1. Pre-launch rumble
-        await controls.start({
-            x: [0, -1.5, 1.5, -1.5, 1.5, -1, 1, 0],
-            transition: { duration: 0.3, ease: "linear" },
-        });
-        // 2. Blast off (+ whoosh + scroll)
-        playWhoosh();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        await controls.start({ y: -90, opacity: 0, transition: { duration: 0.45, ease: "easeIn" } });
-        // 3. A fresh rocket slides back in from below
-        controls.set({ y: 46, opacity: 0 });
-        await controls.start({ y: 0, opacity: 1, transition: { type: "spring", stiffness: 220, damping: 18 } });
-        setIsLaunching(false);
+        // Animate (fire-and-forget): rumble -> blast off. Scrolling to the top
+        // drops scrollY below 500, which unmounts the rocket mid-animation, so we
+        // must NOT rely on these awaits to reset state.
+        (async () => {
+            try {
+                await controls.start({
+                    x: [0, -1.5, 1.5, -1.5, 1.5, -1, 1, 0],
+                    transition: { duration: 0.3, ease: "linear" },
+                });
+                playWhoosh();
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                await controls.start({ y: -90, opacity: 0, transition: { duration: 0.5, ease: "easeIn" } });
+            } catch {
+                /* element unmounted mid-animation — ignore */
+            }
+        })();
+
+        // Guaranteed reset + restore on the (always-mounted) parent, so the button
+        // stays usable even though the rocket unmounted during launch.
+        window.setTimeout(() => {
+            setIsLaunching(false);
+            controls.set({ y: 0, opacity: 1 });
+        }, 1300);
     };
 
     return (
