@@ -21,22 +21,14 @@ function playWhoosh() {
         if (audioCtx.state === "suspended") audioCtx.resume();
         const ctx = audioCtx;
         const now = ctx.currentTime;
+        const dur = 0.9;
 
-        // Descending tone
-        const osc = ctx.createOscillator();
-        const oscGain = ctx.createGain();
-        osc.type = "sawtooth";
-        osc.frequency.setValueAtTime(560, now);
-        osc.frequency.exponentialRampToValueAtTime(110, now + 0.5);
-        oscGain.gain.setValueAtTime(0.0001, now);
-        oscGain.gain.linearRampToValueAtTime(0.05, now + 0.05);
-        oscGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
-        osc.connect(oscGain).connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.5);
+        const master = ctx.createGain();
+        master.gain.value = 0.8;
+        master.connect(ctx.destination);
 
-        // Filtered noise sweep for the "whoosh" texture
-        const size = ctx.sampleRate * 0.5;
+        // 1. Filtered-noise "whoosh" — sweeps up on liftoff, then trails off
+        const size = Math.floor(ctx.sampleRate * dur);
         const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
         const data = buffer.getChannelData(0);
         for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
@@ -44,16 +36,43 @@ function playWhoosh() {
         noise.buffer = buffer;
         const bp = ctx.createBiquadFilter();
         bp.type = "bandpass";
-        bp.frequency.setValueAtTime(1400, now);
-        bp.frequency.exponentialRampToValueAtTime(280, now + 0.5);
-        bp.Q.value = 0.7;
+        bp.Q.value = 0.9;
+        bp.frequency.setValueAtTime(320, now);
+        bp.frequency.exponentialRampToValueAtTime(1700, now + 0.18);
+        bp.frequency.exponentialRampToValueAtTime(240, now + dur);
         const noiseGain = ctx.createGain();
         noiseGain.gain.setValueAtTime(0.0001, now);
-        noiseGain.gain.linearRampToValueAtTime(0.07, now + 0.06);
-        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
-        noise.connect(bp).connect(noiseGain).connect(ctx.destination);
+        noiseGain.gain.exponentialRampToValueAtTime(0.15, now + 0.12);
+        noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+        noise.connect(bp).connect(noiseGain).connect(master);
         noise.start(now);
-        noise.stop(now + 0.5);
+        noise.stop(now + dur);
+
+        // 2. Low rumble — engine "power"; sine so it never buzzes
+        const rumble = ctx.createOscillator();
+        rumble.type = "sine";
+        rumble.frequency.setValueAtTime(95, now);
+        rumble.frequency.exponentialRampToValueAtTime(45, now + dur);
+        const rumbleGain = ctx.createGain();
+        rumbleGain.gain.setValueAtTime(0.0001, now);
+        rumbleGain.gain.exponentialRampToValueAtTime(0.2, now + 0.1);
+        rumbleGain.gain.exponentialRampToValueAtTime(0.0001, now + dur * 0.95);
+        rumble.connect(rumbleGain).connect(master);
+        rumble.start(now);
+        rumble.stop(now + dur);
+
+        // 3. Soft rising "lift" tone — triangle, subtle sense of ascent
+        const lift = ctx.createOscillator();
+        lift.type = "triangle";
+        lift.frequency.setValueAtTime(180, now);
+        lift.frequency.exponentialRampToValueAtTime(520, now + 0.5);
+        const liftGain = ctx.createGain();
+        liftGain.gain.setValueAtTime(0.0001, now);
+        liftGain.gain.exponentialRampToValueAtTime(0.04, now + 0.15);
+        liftGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+        lift.connect(liftGain).connect(master);
+        lift.start(now);
+        lift.stop(now + 0.6);
     } catch {
         /* audio not available - ignore */
     }

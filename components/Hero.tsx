@@ -1,12 +1,23 @@
 "use client"
 import { useState, useEffect, useCallback, useRef } from "react"
-import { motion, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion"
+import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion"
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+
+const AVATAR_QUOTES = [
+  "Booting personality.exe...",
+  "Yes, I'm real. Mostly.",
+  "You found the hologram's tickle spot.",
+  "404: shyness not found.",
+  "Powered by caffeine and curiosity.",
+  "Beep boop. (That's hello.)",
+  "Compiling a witty reply...",
+  "Transmission stable. For now.",
+]
 
 const Hero = () => {
   const { scrollY } = useScroll()
@@ -60,6 +71,21 @@ const Hero = () => {
     tiltY.set(0)
   }, [tiltX, tiltY])
 
+  // Avatar click reaction: glitch burst + a rotating one-liner bubble
+  const [quote, setQuote] = useState<string | null>(null)
+  const quoteIdxRef = useRef(0)
+  const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleAvatarClick = useCallback(() => {
+    if (!shouldReduceMotion) triggerGlitch()
+    setQuote(AVATAR_QUOTES[quoteIdxRef.current % AVATAR_QUOTES.length])
+    quoteIdxRef.current += 1
+    if (quoteTimer.current) clearTimeout(quoteTimer.current)
+    quoteTimer.current = setTimeout(() => setQuote(null), 2800)
+  }, [shouldReduceMotion, triggerGlitch])
+
+  useEffect(() => () => { if (quoteTimer.current) clearTimeout(quoteTimer.current) }, [])
+
   // --- CONFIGURATION ---
   // Set to TRUE for the Hologram look
   // Set to FALSE for the Portal look
@@ -110,6 +136,8 @@ const Hero = () => {
                 ref={hologramRef}
                 onMouseMove={handleHologramMouseMove}
                 onMouseLeave={handleHologramMouseLeave}
+                onClick={handleAvatarClick}
+                whileTap={{ scale: 0.97 }}
                 style={{ rotateX: hologramRotateX, rotateY: hologramRotateY, transformStyle: "preserve-3d" }}
                 className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer"
               >
@@ -146,6 +174,35 @@ const Hero = () => {
 
                   {/* 3. Subtle Glitch Gradient Overlay (Disappears on hover) */}
                   <div className="absolute inset-0 z-30 bg-gradient-to-t from-teal-500/20 via-transparent to-transparent mix-blend-color-dodge opacity-40 pointer-events-none transition-opacity duration-500 group-hover:opacity-0" />
+
+                  {/* Click reaction: bottom anchored just above the head, grows upward, rides the float bob */}
+                  <div className="pointer-events-none absolute bottom-[82%] left-1/2 z-50 -translate-x-1/2">
+                    <AnimatePresence>
+                      {quote && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.9 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          style={{ transformOrigin: "bottom center" }}
+                          className="relative flex min-h-[44px] w-[160px] items-center justify-center rounded-2xl border border-teal-400/40 bg-black/85 px-3 py-1.5 text-center font-mono text-[10px] leading-snug text-teal-200 shadow-[0_0_22px_rgba(45,212,191,0.3)] backdrop-blur-md sm:min-h-[50px] sm:w-[190px] sm:text-xs lg:min-h-[58px] lg:w-[240px] lg:text-sm"
+                        >
+                          <AnimatePresence mode="wait">
+                            <motion.span
+                              key={quote}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.13, ease: "linear" }}
+                            >
+                              {quote}
+                            </motion.span>
+                          </AnimatePresence>
+                          <span className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rotate-45 border-b border-r border-teal-400/40 bg-black/85" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
 
                 </motion.div>
 
