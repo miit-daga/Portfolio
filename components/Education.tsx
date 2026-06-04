@@ -128,7 +128,7 @@ const EducationCard = ({
 export function Education() {
     const data = [
         {
-            title: "Bachelor of Technology — Vellore, India",
+            title: "Bachelor of Technology · Vellore, India",
             content: (
                 <EducationCard
                     institution="Vellore Institute of Technology"
@@ -150,7 +150,7 @@ export function Education() {
             ),
         },
         {
-            title: "Higher Secondary Education (Class XII) — India",
+            title: "Higher Secondary Education (Class XII) · India",
             content: (
                 <EducationCard
                     institution="Swami Vivekananda Vidyamandir"
@@ -172,7 +172,7 @@ export function Education() {
             ),
         },
         {
-            title: "Primary & Secondary Education (Class X) — India",
+            title: "Primary & Secondary Education (Class X) · India",
             content: (
                 <EducationCard
                     institution="St. Helen's School"

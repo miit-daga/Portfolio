@@ -155,7 +155,7 @@ export const FloatingNav = ({
   }, [navItems]);
 
   // Keep the URL hash in sync with the section in view. Debounced so the
-  // history write happens only after scrolling settles — calling replaceState
+  // history write happens only after scrolling settles - calling replaceState
   // mid-scroll interrupts momentum and makes scrolling feel jaggy/sticky.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -175,7 +175,7 @@ export const FloatingNav = ({
   // which made the page "stick" at the Projects grid. A second pass re-aligns
   // after any late layout shift (e.g. the async GitHub projects loading).
   const handleNavClick = (e: React.MouseEvent, link: string) => {
-    if (!link.startsWith("#")) return; // external / terminal — let it behave normally
+    if (!link.startsWith("#")) return; // external / terminal - let it behave normally
     e.preventDefault();
     const el = document.getElementById(link.substring(1));
     if (!el) return;

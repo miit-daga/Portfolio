@@ -12,7 +12,7 @@ import {
 } from "framer-motion";
 import { RocketIcon } from "./ui/rocket"; // Reusing your existing icon
 
-// Sections the rocket "passes" — used for checkpoints and the live label
+// Sections the rocket "passes" - used for checkpoints and the live label
 const SECTIONS = [
     { id: "about-me", label: "About" },
     { id: "workex", label: "Work" },
@@ -103,7 +103,7 @@ export const ScrollProgress = () => {
     // Measure each section's position: frac (bar position) + top (absolute, for the label)
     const [checkpoints, setCheckpoints] = useState<{ label: string; frac: number; top: number }[]>([]);
     useEffect(() => {
-        // Layout position up the offset chain — immune to the reveal animations'
+        // Layout position up the offset chain - immune to the reveal animations'
         // translateY (getBoundingClientRect would include those transforms).
         const offsetTopOf = (el: HTMLElement) => {
             let y = 0;
@@ -144,7 +144,7 @@ export const ScrollProgress = () => {
         };
     }, []);
 
-    // Live section label under the rocket — based on which section is centred in
+    // Live section label under the rocket - based on which section is centred in
     // the viewport (so it flips as a section reaches mid-screen, not its end).
     const [label, setLabel] = useState("About");
     // Hide the tag while the hero (top of page) is on screen; reveal it once
@@ -160,7 +160,7 @@ export const ScrollProgress = () => {
     });
 
     // Fire an arrival burst when the ROCKET (spring-lagged position) actually
-    // reaches the end — not when raw scroll hits 100% (the rocket trails behind).
+    // reaches the end - not when raw scroll hits 100% (the rocket trails behind).
     const [burstKey, setBurstKey] = useState(0);
     const armed = useRef(true);
     useMotionValueEvent(scaleX, "change", (v) => {

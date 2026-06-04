@@ -1,4 +1,7 @@
+"use client"
 import type { ComponentType, CSSProperties } from "react"
+import { motion, useReducedMotion, type Variants } from "framer-motion"
+import { IconCode, IconStack2, IconDatabase, IconTools } from "@tabler/icons-react"
 import Heading from "./Heading"
 import { HoverEffectAchievements } from "./ui/card-hover-effect-achievements"
 import { Spotlight } from "./ui/spotlight-card"
@@ -9,6 +12,13 @@ const skillsData = {
     "Libraries/Frameworks": ["NodeJS", "ExpressJS", "FastAPI", "ReactJS", "NextJS", "Bootstrap", "Chakra UI"],
     "Databases": ["MongoDB", "MySQL", "PostgreSQL", "Redis", "Firebase", "BigQuery"],
     "Other Tools & Platforms": ["Git", "Postman", "Playwright", "AWS", "Nginx", "VS Code", "Render", "Vercel", "Netlify"],
+};
+
+const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string; stroke?: number }>> = {
+    "Languages": IconCode,
+    "Libraries/Frameworks": IconStack2,
+    "Databases": IconDatabase,
+    "Other Tools & Platforms": IconTools,
 };
 
 const achievementsData = [
@@ -25,38 +35,62 @@ const achievementsData = [
 ];
 
 export function SkillsAndAchievements() {
+    const reduce = useReducedMotion();
+    const container: Variants = {
+        hidden: {},
+        show: { transition: { staggerChildren: 0.04 } },
+    };
+    const chip: Variants = {
+        hidden: { opacity: 0, y: reduce ? 0 : 12 },
+        show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: "easeOut" } },
+    };
+
     return (
         <div className="relative w-full overflow-clip py-16" id="skills-achievements">
             <Heading text="Skills & Achievements" />
             <div className="max-w-5xl mx-auto px-8 mt-10">
 
                 <div className="space-y-12">
-                    {Object.entries(skillsData).map(([category, skills]) => (
-                        <div key={category}>
-                            <h3 className="text-2xl md:text-3xl font-bold text-neutral-300 mb-6 text-center">{category.replace(/ & /g, ' & ')}</h3>
-                            <div className="flex flex-wrap items-center justify-center gap-4">
-                                {skills.map(skill => {
-                                    const meta = SKILL_ICONS[skill];
-                                    const Icon = meta?.Icon as
-                                        | ComponentType<{ className?: string; style?: CSSProperties }>
-                                        | undefined;
-                                    return (
-                                        <Spotlight key={skill} className="w-auto inline-block rounded-lg">
-                                            <div className="group flex items-center gap-2.5 px-5 py-3 font-medium text-neutral-200">
-                                                {Icon && (
-                                                    <Icon
-                                                        className="h-[18px] w-[18px] flex-shrink-0 transition-transform duration-300 group-hover:scale-125"
-                                                        style={{ color: meta.color }}
-                                                    />
-                                                )}
-                                                <span>{skill}</span>
-                                            </div>
-                                        </Spotlight>
-                                    );
-                                })}
+                    {Object.entries(skillsData).map(([category, skills]) => {
+                        const CategoryIcon = CATEGORY_ICONS[category];
+                        return (
+                            <div key={category}>
+                                <h3 className="flex items-center justify-center gap-2.5 text-2xl md:text-3xl font-bold text-neutral-300 mb-6">
+                                    {CategoryIcon && <CategoryIcon className="h-6 w-6 text-teal-400/80" stroke={1.6} />}
+                                    {category}
+                                </h3>
+                                <motion.div
+                                    className="flex flex-wrap items-center justify-center gap-4"
+                                    variants={container}
+                                    initial="hidden"
+                                    whileInView="show"
+                                    viewport={{ once: true, margin: "-60px" }}
+                                >
+                                    {skills.map(skill => {
+                                        const meta = SKILL_ICONS[skill];
+                                        const Icon = meta?.Icon as
+                                            | ComponentType<{ className?: string; style?: CSSProperties }>
+                                            | undefined;
+                                        return (
+                                            <motion.div key={skill} variants={chip}>
+                                                <Spotlight className="w-auto inline-block rounded-lg">
+                                                    <div className="group flex items-center gap-2.5 px-5 py-3 font-medium text-neutral-200">
+                                                        {Icon && (
+                                                            <Icon
+                                                                className="h-[18px] w-[18px] flex-shrink-0 transition-transform duration-300 group-hover:scale-125"
+                                                                style={{ color: meta.color }}
+                                                            />
+                                                        )}
+                                                        <span>{skill}</span>
+                                                    </div>
+                                                </Spotlight>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </motion.div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
                 <div className="mt-24">

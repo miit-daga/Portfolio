@@ -106,7 +106,7 @@ const shadeRgb = (c: { r: number; g: number; b: number }, f: number) => {
   return { r: m(c.r), g: m(c.g), b: m(c.b) };
 };
 
-// Concentric ring bands (radius multiple, width, opacity) — note the faint
+// Concentric ring bands (radius multiple, width, opacity) - note the faint
 // band ~1.6 acts as a Cassini-style gap between the two bright bands.
 const RING_BANDS = [
   { rad: 1.34, w: 0.05, a: 0.22 },
@@ -155,10 +155,10 @@ const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
   ctx.arc(p.x, p.y, r * 1.95, 0, Math.PI * 2);
   ctx.fill();
 
-  // 2. Ring — back half (behind body)
+  // 2. Ring - back half (behind body)
   if (p.hasRing) drawRing(ctx, p, "back");
 
-  // Orbiting moon — the far (upper) half is drawn behind the body for occlusion
+  // Orbiting moon - the far (upper) half is drawn behind the body for occlusion
   const drawMoon = () => {
     const a = p.moonAngle ?? 0;
     const md = r * 1.9;
@@ -166,7 +166,7 @@ const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
     const my = p.y + Math.sin(a) * md * 0.4;
     const mr = Math.max(1.6, r * 0.18);
     const mg = ctx.createRadialGradient(mx - mr * 0.3, my - mr * 0.35, mr * 0.1, mx, my, mr);
-    mg.addColorStop(0, "#e0e7ff"); // icy alien moon — periwinkle highlight
+    mg.addColorStop(0, "#e0e7ff"); // icy alien moon - periwinkle highlight
     mg.addColorStop(0.6, "#818cf8");
     mg.addColorStop(1, "#312e81"); // deep indigo shadow
     ctx.fillStyle = mg;
@@ -175,9 +175,9 @@ const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
     ctx.fill();
   };
   const moonIsFront = Math.sin(p.moonAngle ?? 0) >= 0;
-  if (p.moon && !moonIsFront) drawMoon(); // behind — the body fill below will occlude it
+  if (p.moon && !moonIsFront) drawMoon(); // behind - the body fill below will occlude it
 
-  // 3. Body — clipped sphere with bands, terminator, ring-shadow & highlight
+  // 3. Body - clipped sphere with bands, terminator, ring-shadow & highlight
   ctx.save();
   ctx.beginPath();
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
@@ -238,14 +238,14 @@ const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
   ctx.stroke();
   ctx.restore();
 
-  // 5. Ring — front half (over body)
+  // 5. Ring - front half (over body)
   if (p.hasRing) drawRing(ctx, p, "front");
 
-  // 6. Orbiting moon — near (lower) half drawn over the body
+  // 6. Orbiting moon - near (lower) half drawn over the body
   if (p.moon && moonIsFront) drawMoon();
 };
 
-// Realistic ISS: central truss, solar-array wings, modules — small & oriented to travel
+// Realistic ISS: central truss, solar-array wings, modules - small & oriented to travel
 const drawISS = (ctx: CanvasRenderingContext2D, x: number, y: number, angle: number) => {
   ctx.save();
   ctx.translate(x, y);
@@ -362,7 +362,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const createPlanets = () => {
       planets = [];
       const planetConfigs = [
-        // AMBER GAS-GIANT (Inner orbit) — warm tone, distinct from the teal UI/dividers
+        // AMBER GAS-GIANT (Inner orbit) - warm tone, distinct from the teal UI/dividers
         { color: "#f59e0b", ring: true, distMult: 0.22, size: 28, speed: 0.00015, parallax: 10, moon: true },
 
         // VIOLET PLANET (Outer orbit)
@@ -686,7 +686,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         }
       }
 
-      // 5. ISS — drifts slowly and steadily across the sky, no trail
+      // 5. ISS - drifts slowly and steadily across the sky, no trail
       if (!isImploding) {
         satelliteTimer += 1;
         if (satelliteTimer > satelliteInterval) {

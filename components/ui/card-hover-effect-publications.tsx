@@ -1,18 +1,24 @@
 "use client";
 import { cn } from "@/utils/cn";
 import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { IconArrowUpRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState, useRef } from "react";
+
+type PublicationItem = {
+  title: string;
+  description: string;
+  link: string;
+  type?: "journal" | "patent";
+  venue?: string;
+  status?: string;
+};
 
 export const HoverEffectPublications = ({
   items,
   className,
 }: {
-  items: {
-    title: string;
-    description: string;
-    link: string;
-  }[];
+  items: PublicationItem[];
   className?: string;
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
@@ -45,7 +51,7 @@ const TiltCard = ({
   hoveredIndex,
   setHoveredIndex,
 }: {
-  item: { title: string; description: string; link: string };
+  item: PublicationItem;
   idx: number;
   isLonelyItem: boolean;
   hoveredIndex: number | null;
@@ -53,6 +59,7 @@ const TiltCard = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null);
   const hasValidLink = item?.link && item.link.trim() !== "";
+  const isPatent = item.type === "patent";
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -98,8 +105,36 @@ const TiltCard = ({
 
       <div style={{ transform: "translateZ(20px)" }} className="h-full">
         <Card className="w-full h-full" isHovered={hoveredIndex === idx}>
+          {/* Type badge + venue */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                isPatent
+                  ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                  : "border-teal-500/30 bg-teal-500/10 text-teal-300"
+              )}
+            >
+              {isPatent ? "Patent" : "Journal"}
+            </span>
+            {item.venue && <span className="font-mono text-[11px] text-neutral-500">{item.venue}</span>}
+          </div>
+
           <CardTitle>{item.title}</CardTitle>
           <CardDescription>{item.description}</CardDescription>
+
+          {/* Footer: DOI link affordance or filed-status chip */}
+          <div className="mt-6">
+            {hasValidLink ? (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-300 transition-colors group-hover:text-teal-200">
+                View DOI <IconArrowUpRight className="h-3.5 w-3.5" />
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
+                {item.status ?? "Filed"}
+              </span>
+            )}
+          </div>
         </Card>
       </div>
     </>

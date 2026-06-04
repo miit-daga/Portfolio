@@ -9,6 +9,7 @@ import Publications from "@/components/Publications";
 import { Contact } from "@/components/Contact";
 import { Education } from "@/components/Education";
 import { SkillsAndAchievements } from "@/components/SkillsAndAchievements";
+import { Stats } from "@/components/Stats";
 import { aboutme } from "@/constants";
 import { FloatingNav } from "@/components/ui/floating-navbar";
 import {
@@ -185,9 +186,10 @@ const Home = () => {
               <Reveal>
                 <div
                   id="about-me"
-                  className="flex items-center justify-center mx-10 md:mx-20 my-10 md:my-20"
+                  className="flex flex-col items-center justify-center gap-12 md:gap-16 mx-10 md:mx-20 my-10 md:my-20"
                 >
                   <Paragraph para={aboutme} />
+                  <Stats />
                 </div>
               </Reveal>
 

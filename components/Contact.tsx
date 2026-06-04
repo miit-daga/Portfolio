@@ -79,7 +79,7 @@ export function Contact() {
         <div className="relative w-full overflow-hidden pt-16 pb-10" id="contact">
             <Heading text="Let's Connect" />
 
-            <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center mt-10">
+            <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center mt-6">
 
                 {/* Left Side: Text */}
                 <div className="flex flex-col items-center lg:items-start text-center lg:text-left z-20 order-2 lg:order-1">
@@ -133,7 +133,7 @@ export function Contact() {
                 </div>
 
                 {/* Right Side: SIGNAL BEACON */}
-                <div className="relative h-[400px] lg:h-[600px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
+                <div className="relative h-[360px] lg:h-[440px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-blue-500/5 blur-3xl opacity-20 rounded-full" />
                     <SignalRings />
                 </div>

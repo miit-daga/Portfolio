@@ -55,7 +55,7 @@ function playWhoosh() {
         noise.start(now);
         noise.stop(now + 0.5);
     } catch {
-        /* audio not available — ignore */
+        /* audio not available - ignore */
     }
 }
 
@@ -107,7 +107,7 @@ export const BackToTop = () => {
                 window.scrollTo({ top: 0, behavior: "smooth" });
                 await controls.start({ y: -90, opacity: 0, transition: { duration: 0.5, ease: "easeIn" } });
             } catch {
-                /* element unmounted mid-animation — ignore */
+                /* element unmounted mid-animation - ignore */
             }
         })();
 

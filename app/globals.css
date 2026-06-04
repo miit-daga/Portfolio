@@ -88,7 +88,7 @@ html {
   animation: hologramGlitch 300ms steps(6) 1;
 }
 
-/* Text glitch effect — clip-path slicing + RGB split */
+/* Text glitch effect - clip-path slicing + RGB split */
 @keyframes textGlitch {
   0% { transform: translate(0, 0); opacity: 1; clip-path: inset(0 0 0 0); text-shadow: none; }
   8% { transform: translate(-2px, 0); opacity: 0.8; clip-path: inset(20% 0 55% 0); text-shadow: 2px 0 #0ff, -2px 0 #f0f; }

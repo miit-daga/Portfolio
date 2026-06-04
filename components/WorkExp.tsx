@@ -128,14 +128,14 @@ const ExperienceCard = ({
 export function WorkExp() {
   const data = [
     {
-      title: "Software Development Engineer — Remote",
+      title: "Software Development Engineer · Remote",
       content: (
         <ExperienceCard
           company="Talendy Holdings (via Tech Japan Lab)"
           role="Software Development Engineer"
           date="[June 2026 – Present]"
           points={[
-            "Build and ship full-stack features across internal products — from spec and design through to production.",
+            "Build and ship full-stack features across internal products, from spec and design through to production.",
             "Own technical workstreams and partner with senior engineers to deliver on schedule.",
             "Shape architecture and design decisions, debug production issues, and tighten performance and stability.",
           ]}
@@ -144,13 +144,13 @@ export function WorkExp() {
             Full-time Software Development Engineer (remote), building and shipping full-stack features across internal products and owning work from specification and design through to production deployment.
           </p>
           <p>
-            Working closely with senior engineers to plan and deliver technical initiatives — helping shape architecture and design decisions, resolving production issues, and steadily improving performance and stability.
+            Working closely with senior engineers to plan and deliver technical initiatives, helping shape architecture and design decisions, resolving production issues, and steadily improving performance and stability.
           </p>
         </ExperienceCard>
       ),
     },
     {
-      title: "Full Stack Engineering Intern — Remote",
+      title: "Full Stack Engineering Intern · Remote",
       content: (
         <ExperienceCard
           company="Akatsuki AI Technologies"
@@ -175,7 +175,7 @@ export function WorkExp() {
       ),
     },
     {
-      title: "Project Intern — Mumbai, India",
+      title: "Project Intern · Mumbai, India",
       content: (
         <ExperienceCard
           company="Tata Power"
@@ -200,7 +200,7 @@ export function WorkExp() {
       ),
     },
     {
-      title: "Full Stack Developer Intern — Remote",
+      title: "Full Stack Developer Intern · Remote",
       content: (
         <ExperienceCard
           company="TechWire Studio"
@@ -222,7 +222,7 @@ export function WorkExp() {
       ),
     },
     {
-      title: "SDE Intern — Vellore, India",
+      title: "SDE Intern · Vellore, India",
       content: (
         <ExperienceCard
           company="Seculinx"
@@ -238,7 +238,7 @@ export function WorkExp() {
             Played a key role in building the digital foundation for Seculinx, a smart home automation startup focused on AI-powered, intuitive living experiences. Designed and developed a high-performance, SEO-optimized website that showcased Seculinx's vision for intelligent home systems and energy-efficient automation.
           </p>
           <p>
-            Implemented scalable, responsive UI components and integrated real-time product features using modern web technologies. Achieved a 35% improvement in load times and enhanced user engagement through interactive, lifestyle-centric content — contributing to stronger early brand presence and lead generation.
+            Implemented scalable, responsive UI components and integrated real-time product features using modern web technologies. Achieved a 35% improvement in load times and enhanced user engagement through interactive, lifestyle-centric content, contributing to stronger early brand presence and lead generation.
           </p>
         </ExperienceCard>
       ),

@@ -16,7 +16,7 @@ export const Reveal = ({
 
   // Only run the scroll-reveal on laptop-and-up. On smaller screens sections
   // stack into a tall single column, where `whileInView` can fail to fire and
-  // leave a section stuck invisible/blank — so there we render it plainly.
+  // leave a section stuck invisible/blank - so there we render it plainly.
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const update = () => setIsDesktop(mq.matches);

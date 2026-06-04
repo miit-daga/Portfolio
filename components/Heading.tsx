@@ -2,6 +2,12 @@ import React from 'react';
 import { CipherText } from './ui/cipher-text';
 
 const Heading = ({ text = "Projects" }) => {
+  // For "X & Y" titles, keep "X &" and "Y" on separate lines below lg so the
+  // cipher animation doesn't wrap at a shifting point on smaller screens.
+  const ampIndex = text.indexOf(" & ");
+  const first = ampIndex !== -1 ? text.slice(0, ampIndex + 2) : text; // e.g. "Skills &"
+  const second = ampIndex !== -1 ? text.slice(ampIndex + 3) : null; // e.g. "Achievements"
+
   return (
     <div className='py-10 text-center overflow-x-clip'>
       {/* font-mono prevents width-jitter during the cipher animation.
@@ -14,7 +20,16 @@ const Heading = ({ text = "Projects" }) => {
             "linear-gradient(90deg, #e2e8f0, #5eead4, #818cf8, #5eead4, #e2e8f0)",
         }}
       >
-        <CipherText text={text} />
+        {second ? (
+          <>
+            <CipherText text={first} />
+            <span className="hidden lg:inline"> </span>
+            <br className="lg:hidden" />
+            <CipherText text={second} />
+          </>
+        ) : (
+          <CipherText text={text} />
+        )}
       </h2>
       {/* Flowing gradient underline */}
       <div className="relative mx-auto mt-4 h-1 w-24 overflow-hidden rounded-full opacity-90">

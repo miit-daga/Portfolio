@@ -200,7 +200,7 @@ const PlanetDivider = ({ isInView }: { isInView: boolean }) => (
             <stop offset="100%" stopColor="#0c4a44" />
           </radialGradient>
         </defs>
-        {/* Ring — full ellipse (back portion hides behind the body) */}
+        {/* Ring - full ellipse (back portion hides behind the body) */}
         <g transform="rotate(-20 36 22)">
           <ellipse cx="36" cy="22" rx="30" ry="9" fill="none" stroke="rgba(153,246,228,0.45)" strokeWidth="2.5" />
           <ellipse cx="36" cy="22" rx="23" ry="6.5" fill="none" stroke="rgba(153,246,228,0.22)" strokeWidth="1" />
@@ -209,7 +209,7 @@ const PlanetDivider = ({ isInView }: { isInView: boolean }) => (
         <circle cx="36" cy="22" r="11" fill="url(#dividerPlanetBody)" />
         {/* Rim light */}
         <path d="M 28 16 A 11 11 0 0 1 41 14" fill="none" stroke="rgba(204,251,241,0.7)" strokeWidth="1" strokeLinecap="round" />
-        {/* Ring — front half (over the body) */}
+        {/* Ring - front half (over the body) */}
         <g transform="rotate(-20 36 22)">
           <path d="M 6 22 A 30 9 0 0 0 66 22" fill="none" stroke="rgba(153,246,228,0.6)" strokeWidth="2.5" strokeLinecap="round" />
         </g>
