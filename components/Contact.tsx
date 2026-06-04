@@ -7,7 +7,7 @@ import Socials from "./Socials";
 import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { Galaxy } from "./ui/galaxy";
+import { SignalRings } from "./ui/signal-rings";
 
 type ContactType = "email" | "phone" | null;
 
@@ -132,11 +132,10 @@ export function Contact() {
                     </div>
                 </div>
 
-                {/* Right Side: GALAXY */}
-                {/* Updated height for larger display on desktop */}
+                {/* Right Side: SIGNAL BEACON */}
                 <div className="relative h-[400px] lg:h-[600px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-blue-500/5 blur-3xl opacity-20 rounded-full" />
-                    <Galaxy />
+                    <SignalRings />
                 </div>
             </div>
 
