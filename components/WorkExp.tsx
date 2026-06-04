@@ -131,7 +131,7 @@ export function WorkExp() {
       title: "Software Development Engineer — Remote",
       content: (
         <ExperienceCard
-          company="Talendy Holdings (via Tech Japan Labs)"
+          company="Talendy Holdings (via Tech Japan Lab)"
           role="Software Development Engineer"
           date="[June 2026 – Present]"
           points={[
