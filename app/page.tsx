@@ -28,6 +28,7 @@ import { ScrollProgress } from "@/components/ScrollProgress";
 import { BackToTop } from "@/components/BackToTop";
 import { SectionDivider } from "@/components/ui/section-divider";
 import { Reveal } from "@/components/ui/reveal";
+import { CollectiblesProvider, CollectibleHUD, Fragment as Collectible, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -72,6 +73,7 @@ const Home = () => {
     setTimeout(() => {
       // 2. Clear Session Logic
       sessionStorage.removeItem("hasEnteredCosmos");
+      sessionStorage.removeItem(FRAGMENTS_STORAGE_KEY);
 
       // 3. Scroll to top instantly
       window.scrollTo(0, 0);
@@ -133,7 +135,7 @@ const Home = () => {
   if (!isLoaded) return null;
 
   return (
-    <>
+    <CollectiblesProvider>
       {/* Progress Bar - Hide during implosion */}
       {!showEnterScreen && !isImploding && <ScrollProgress />}
 
@@ -154,6 +156,7 @@ const Home = () => {
             */}
             <div className={`relative z-50 transition-opacity duration-500 ${isImploding ? "opacity-0" : "opacity-100"}`}>
               <BackToTop />
+              <CollectibleHUD isImploding={isImploding} onCosmicReset={triggerCosmicReset} />
             </div>
 
             {/* This Motion Div handles the Spaghettification of the UI */}
@@ -195,23 +198,38 @@ const Home = () => {
 
               <SectionDivider variant="comet" />
               <Reveal>
-                <WorkExp />
+                <div className="relative">
+                  <WorkExp />
+                  <Collectible id="workex" className="top-10 right-6 md:right-16" />
+                </div>
               </Reveal>
               <SectionDivider variant="planet" />
               <Reveal>
-                <Education />
+                <div className="relative">
+                  <Education />
+                  <Collectible id="education" className="top-12 left-6 md:left-16" />
+                </div>
               </Reveal>
               <SectionDivider variant="constellation" />
               <Reveal>
-                <SkillsAndAchievements />
+                <div className="relative">
+                  <SkillsAndAchievements />
+                  <Collectible id="skills" className="bottom-12 right-8 md:right-20" />
+                </div>
               </Reveal>
               <SectionDivider variant="nova" />
               <Reveal>
-                <Projects />
+                <div className="relative">
+                  <Projects />
+                  <Collectible id="projects" className="top-12 left-8 md:left-20" />
+                </div>
               </Reveal>
               <SectionDivider variant="galaxy" />
               <Reveal>
-                <Publications />
+                <div className="relative">
+                  <Publications />
+                  <Collectible id="publications" className="bottom-14 right-8 md:right-24" />
+                </div>
               </Reveal>
               <SectionDivider variant="rocket" />
               <Reveal>
@@ -222,7 +240,7 @@ const Home = () => {
           </AnimatedBackground>
         )}
       </AnimatePresence>
-    </>
+    </CollectiblesProvider>
   );
 };
 

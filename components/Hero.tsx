@@ -94,7 +94,7 @@ const Hero = () => {
   return (
     <motion.div
       style={{ opacity }}
-      className="h-screen relative overflow-hidden"
+      className="h-dvh relative overflow-hidden"
     >
       <BackgroundGradientAnimation>
         <div className="absolute z-50 inset-0 flex flex-col lg:flex-row items-center justify-center text-white font-bold px-4 pt-16 pb-24 lg:py-0 pointer-events-none w-full h-full gap-6 sm:gap-10 lg:gap-24">

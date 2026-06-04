@@ -225,6 +225,23 @@ export const SignalRings = () => {
     const rootRef = useRef<HTMLDivElement>(null);
     const inView = useInView(rootRef, { margin: "200px" });
 
+    // Scale the whole scene to fit its container width so the rings and the
+    // leader's speech bubble stay in bounds on any screen (not just breakpoints).
+    const [sceneScale, setSceneScale] = useState(1);
+    useEffect(() => {
+        const el = rootRef.current;
+        if (!el) return;
+        const SCENE_W = 500;
+        const update = () => {
+            const w = el.clientWidth;
+            if (w > 0) setSceneScale(Math.min(1, Math.max(0.55, (w * 0.9) / SCENE_W)));
+        };
+        update();
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
     // Advance the choreography only while the section is on-screen.
     useEffect(() => {
         if (reduce || !inView) return;
@@ -321,7 +338,7 @@ export const SignalRings = () => {
     }
 
     return (
-        <div ref={rootRef} className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible scale-[0.8] sm:scale-100 md:scale-110 lg:scale-100">
+        <div ref={rootRef} style={{ transform: `scale(${sceneScale})` }} className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-visible">
             {inView && (
                 <>
             {/* Ambient glow */}
