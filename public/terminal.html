@@ -549,13 +549,32 @@
         try { commandHistory = JSON.parse(localStorage.getItem('term-history') || '[]'); } catch (e) {}
         let historyIndex = commandHistory.length;
 
+        // Argument autocomplete targets for commands that take one
+        const ARG_TARGETS = {
+            cat: ['secret_plans.txt'],
+            cd: ['documents', 'downloads', 'music', 'pictures', 'videos'],
+            ls: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
+            rm: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
+            theme: Object.keys(THEMES),
+        };
+
         inputLine.addEventListener('input', () => {
-            const val = inputLine.value.toLowerCase();
-            ghostInput.value = ''; 
-            if (!val) return;
-            const match = MOCK_DATA.commands.find(cmd => cmd.startsWith(val));
-            if (match) {
-                ghostInput.value = match;
+            const raw = inputLine.value;
+            ghostInput.value = '';
+            if (!raw) return;
+            const spaceIdx = raw.indexOf(' ');
+            if (spaceIdx !== -1) {
+                // "<cmd> <partial-arg>" -> suggest a matching argument
+                const cmd = raw.slice(0, spaceIdx);
+                const argPartial = raw.slice(spaceIdx + 1).toLowerCase();
+                const targets = ARG_TARGETS[cmd.toLowerCase()];
+                if (targets) {
+                    const m = targets.find(t => t.toLowerCase().startsWith(argPartial));
+                    if (m) ghostInput.value = cmd + ' ' + m;
+                }
+            } else {
+                const match = MOCK_DATA.commands.find(c => c.startsWith(raw.toLowerCase()));
+                if (match) ghostInput.value = match;
             }
         });
 
@@ -691,12 +710,25 @@
                     await typeRaw(`<span class="error-text">Error: Permission denied. You are not authorized to view world domination plans. 😈</span>`);
                     await typeRaw(`<span class="error-text">This incident has been reported to the Council of Cats. 🐱</span>`);
                 } else {
-                    const filename = command.substring(4);
+                    const filename = command.substring(4).trim();
+                    const knownDirs = ['documents', 'downloads', 'music', 'pictures', 'videos'];
                     SoundFX.error();
-                    await typeRaw(`<span class="error-text">cat: ${filename}: No such file or directory</span>`);
-                    await new Promise(r => setTimeout(r, 300));
-                    SoundFX.meow();
-                    await typeLine("Psst... did you mean 'cat' without args? That one actually meows. 🐱", 5);
+                    if (knownDirs.includes(filename.toLowerCase())) {
+                        const catDirJokes = [
+                            `The cat tried to read '${filename}', knocked it off the table, and walked away. 🐱`,
+                            `'${filename}' is a folder. The cat is already sitting in it and refuses to move. 📦🐱`,
+                            `The cat sniffed '${filename}', judged you silently, and went back to sleep. 😼`,
+                            `You can't recite a directory to a cat. Try 'ls ${filename}' if you must snoop. 🐱`,
+                            `Error: '${filename}' is a box, not a snack. The cat is disappointed. 🐱`,
+                        ];
+                        await typeRaw(`<span class="error-text">cat: ${filename}: Is a directory</span>`);
+                        await new Promise(r => setTimeout(r, 200));
+                        await typeLine(catDirJokes[Math.floor(Math.random() * catDirJokes.length)], 5);
+                    } else {
+                        await typeRaw(`<span class="error-text">cat: ${filename}: No such file or directory</span>`);
+                        await new Promise(r => setTimeout(r, 300));
+                        await typeLine("Psst... did you mean 'cat' without args? That one actually meows. 🐱", 5);
+                    }
                 }
                 inputLine.disabled = false;
                 inputLine.focus();
@@ -1168,22 +1200,36 @@
                 }
             } else if (e.key === 'Tab') {
                 e.preventDefault();
-                const val = inputLine.value.toLowerCase().trim();
-                if (!val) return;
-                const matches = MOCK_DATA.commands.filter(c => c.startsWith(val));
+                const raw = inputLine.value;
+                if (!raw.trim()) return;
+                const spaceIdx = raw.indexOf(' ');
+
+                // Decide the candidate pool: arguments after a command, else commands
+                let matches, prefixOut;
+                if (spaceIdx !== -1) {
+                    const cmd = raw.slice(0, spaceIdx);
+                    const argPartial = raw.slice(spaceIdx + 1).toLowerCase();
+                    const targets = ARG_TARGETS[cmd.toLowerCase()] || [];
+                    matches = targets.filter(t => t.toLowerCase().startsWith(argPartial));
+                    prefixOut = (p) => `${cmd} ${p}`;
+                } else {
+                    matches = MOCK_DATA.commands.filter(c => c.startsWith(raw.toLowerCase()));
+                    prefixOut = (p) => p;
+                }
+
                 if (matches.length === 1) {
-                    inputLine.value = matches[0];
-                    ghostInput.value = matches[0];
+                    inputLine.value = prefixOut(matches[0]);
+                    ghostInput.value = inputLine.value;
                 } else if (matches.length > 1) {
                     // Complete to the longest common prefix shared by all matches...
                     let prefix = matches[0];
                     for (const m of matches) {
-                        while (!m.startsWith(prefix)) prefix = prefix.slice(0, -1);
+                        while (!m.toLowerCase().startsWith(prefix.toLowerCase())) prefix = prefix.slice(0, -1);
                     }
-                    inputLine.value = prefix;
+                    inputLine.value = prefixOut(prefix);
                     ghostInput.value = '';
                     // ...then list the candidates (bash-style).
-                    typeRaw(matches.map(m => `<span class="nav-link" onclick="runCommandFromClick('${m}')">${m}</span>`).join('  '));
+                    typeRaw(matches.map(m => `<span class="nav-link" onclick="runCommandFromClick('${prefixOut(m)}')">${m}</span>`).join('  '));
                     terminal.scrollTop = terminal.scrollHeight;
                 }
             } else if (e.key === 'ArrowUp') {
@@ -1224,9 +1270,11 @@
             inputLine.disabled = true;
 
             const skipBoot = () => { bootSkipped = true; };
+            let skipHintEl = null;
             const finishReady = () => {
                 document.removeEventListener('keydown', skipBoot);
                 document.removeEventListener('click', skipBoot);
+                if (skipHintEl) skipHintEl.remove(); // hint goes away once boot completes
                 bootSkipped = false; // restore normal typing speed for command output
                 inputLine.disabled = false;
                 inputLine.focus();
@@ -1253,7 +1301,11 @@
 
             SoundFX.dataBurst();
             await typeRaw(`<div class="ascii-art">${ASCII_ART}</div>`);
-            await typeRaw(`<span class="highlight-dim">[ press any key to skip ]</span>`);
+            skipHintEl = document.createElement('div');
+            skipHintEl.className = 'output';
+            skipHintEl.innerHTML = `<span class="highlight-dim">[ press any key to skip ]</span>`;
+            outputContainer.appendChild(skipHintEl);
+            terminal.scrollTop = terminal.scrollHeight;
 
             SoundFX.compute();
             await typeLine("Booting MIIT-DAGA-OS v1.0...", 30);

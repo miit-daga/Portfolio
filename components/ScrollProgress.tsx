@@ -172,8 +172,19 @@ export const ScrollProgress = () => {
         }
     });
 
+    // Hide the bar while the mobile menu is open (its rocket overlaps the close button)
+    const [menuOpen, setMenuOpen] = useState(false);
+    useEffect(() => {
+        const handler = (e: Event) => setMenuOpen((e as CustomEvent).detail === true);
+        window.addEventListener("nav-menu-toggle", handler);
+        return () => window.removeEventListener("nav-menu-toggle", handler);
+    }, []);
+
     return (
-        <div className="fixed top-0 left-0 right-0 h-1.5 z-[6000] pointer-events-none">
+        <div
+            className="fixed top-0 left-0 right-0 h-1.5 z-[6000] pointer-events-none transition-opacity duration-200"
+            style={{ opacity: menuOpen ? 0 : 1 }}
+        >
             {/* The flowing gradient line */}
             <motion.div
                 className="absolute top-0 left-0 bottom-0 origin-left bg-[length:200%_100%] animate-shimmer motion-reduce:animate-none shadow-[0_0_10px_rgba(45,212,191,0.6)]"

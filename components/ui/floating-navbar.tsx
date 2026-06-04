@@ -33,21 +33,38 @@ export const FloatingNav = ({
   const [activeSection, setActiveSection] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Auto-hide on scroll is a laptop-only behaviour; on phones the nav/menu stay put.
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // Refs for logic
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
     return () => {
       // Cleanup timer on unmount
       if (timerRef.current) clearTimeout(timerRef.current);
+      mq.removeEventListener("change", update);
     };
   }, []);
+
+  // Tell the scroll-progress bar to hide while the mobile menu is open
+  // (otherwise the rocket overlaps the menu's close button).
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("nav-menu-toggle", { detail: isMenuOpen }));
+  }, [isMenuOpen]);
 
   // --- SCROLL LOGIC (Pixels + Auto-Hide Timer) ---
   useMotionValueEvent(scrollY, "change", (current) => {
     if (typeof current === "number") {
+      // Auto-hide is laptop-only. On phones, the address-bar show/hide fires
+      // scroll events that would randomly hide the nav and close the menu.
+      if (!isDesktop) return;
+
       const previous = scrollY.getPrevious() ?? 0;
       const direction = current - previous;
 
@@ -70,11 +87,11 @@ export const FloatingNav = ({
           // Scrolling UP -> Show Immediately
           setVisible(true);
 
-          // Start Auto-Hide Timer (2.5s)
+          // Start Auto-Hide Timer (5s)
           timerRef.current = setTimeout(() => {
             setVisible(false);
             setIsMenuOpen(false);
-          }, 2500);
+          }, 5000);
 
         } else if (direction > 0) {
           // Scrolling DOWN -> Hide Immediately
