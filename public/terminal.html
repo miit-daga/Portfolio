@@ -411,7 +411,7 @@
           commands: [
             "help", "about", "experience", "education", "skills", "projects", "publications",
             "contact", "socials", "resume", "clear", "mute", "theme", "home", "back", "neofetch",
-            "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat", "rm", "mkdir", "reboot", "history"
+            "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat", "rm", "mkdir", "reboot", "history", "play"
           ]
         };
 
@@ -557,6 +557,7 @@
             ls: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
             rm: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
             theme: Object.keys(THEMES),
+            play: ['snake', 'invaders', 'dodge'],
         };
 
         inputLine.addEventListener('input', () => {
@@ -677,6 +678,302 @@
             div.className = 'output';
             div.innerHTML = `<span class="prompt"></span> ${command}`;
             outputContainer.appendChild(div);
+        }
+
+        // --- SNAKE mini-game (launched via `play snake`) ---
+        function startSnakeGame() {
+            return new Promise((resolve) => {
+                const root = document.documentElement;
+                const primary = ((getComputedStyle(root).getPropertyValue('--term-primary') || '#2dd4bf').trim()) || '#2dd4bf';
+                const accent = ((getComputedStyle(root).getPropertyValue('--term-accent') || '#67e8f9').trim()) || '#67e8f9';
+                const GRID = 22, CELL = 16, SIZE = GRID * CELL;
+
+                const overlay = document.createElement('div');
+                overlay.style.cssText = "position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,0.88);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-family:'Roboto Mono',monospace;";
+
+                const title = document.createElement('div');
+                title.style.cssText = "color:" + primary + ";font-weight:700;letter-spacing:0.35em;font-size:18px;";
+                title.textContent = 'S N A K E';
+
+                const scoreBar = document.createElement('div');
+                scoreBar.style.cssText = "color:" + accent + ";font-size:13px;display:flex;gap:28px;";
+
+                const canvas = document.createElement('canvas');
+                canvas.width = SIZE; canvas.height = SIZE;
+                canvas.style.cssText = "border:1px solid " + primary + ";border-radius:8px;box-shadow:0 0 18px " + primary + ";max-width:90vw;height:auto;";
+                const ctx = canvas.getContext('2d');
+
+                const hint = document.createElement('div');
+                hint.style.cssText = "color:#888;font-size:11px;text-align:center;";
+                hint.innerHTML = "Arrows / WASD to move &nbsp;&middot;&nbsp; Q to quit";
+
+                overlay.appendChild(title);
+                overlay.appendChild(scoreBar);
+                overlay.appendChild(canvas);
+                overlay.appendChild(hint);
+                document.body.appendChild(overlay);
+
+                let high = 0;
+                try { high = parseInt(localStorage.getItem('snake-highscore') || '0', 10) || 0; } catch (e) {}
+
+                let snake, dir, nextDir, food, score, tickMs, loop, over;
+
+                function placeFood() {
+                    do { food = { x: Math.floor(Math.random() * GRID), y: Math.floor(Math.random() * GRID) }; }
+                    while (snake.some(s => s.x === food.x && s.y === food.y));
+                }
+                function updateBar() {
+                    scoreBar.innerHTML = "<span>SCORE <b style='color:" + primary + "'>" + score + "</b></span><span>HIGH <b style='color:" + primary + "'>" + Math.max(high, score) + "</b></span>";
+                }
+                function restartLoop() { clearInterval(loop); loop = setInterval(tick, tickMs); }
+                function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+
+                function draw() {
+                    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, SIZE, SIZE);
+                    ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1;
+                    for (let i = 1; i < GRID; i++) {
+                        ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, SIZE); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(SIZE, i * CELL); ctx.stroke();
+                    }
+                    ctx.save();
+                    ctx.translate(food.x * CELL + CELL / 2, food.y * CELL + CELL / 2);
+                    ctx.rotate(Math.PI / 4);
+                    ctx.shadowColor = accent; ctx.shadowBlur = 10; ctx.fillStyle = accent;
+                    ctx.fillRect(-CELL * 0.28, -CELL * 0.28, CELL * 0.56, CELL * 0.56);
+                    ctx.restore();
+                    ctx.shadowBlur = 0;
+                    for (let i = 0; i < snake.length; i++) {
+                        const s = snake[i];
+                        if (i === 0) { ctx.fillStyle = '#ffffff'; ctx.shadowColor = primary; ctx.shadowBlur = 12; }
+                        else { ctx.fillStyle = primary; ctx.shadowBlur = 0; }
+                        roundRect(ctx, s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2, 4);
+                        ctx.fill();
+                    }
+                    ctx.shadowBlur = 0;
+                    if (over) {
+                        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, SIZE, SIZE);
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = primary; ctx.font = "bold 22px 'Roboto Mono', monospace";
+                        ctx.fillText('GAME OVER', SIZE / 2, SIZE / 2 - 8);
+                        ctx.fillStyle = '#bbbbbb'; ctx.font = "12px 'Roboto Mono', monospace";
+                        ctx.fillText('Score ' + score + '  ·  High ' + Math.max(high, score), SIZE / 2, SIZE / 2 + 16);
+                        ctx.fillText('R to restart  ·  Q to quit', SIZE / 2, SIZE / 2 + 36);
+                    }
+                }
+
+                function tick() {
+                    dir = nextDir;
+                    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+                    if (head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID || snake.some(s => s.x === head.x && s.y === head.y)) { gameOver(); return; }
+                    snake.unshift(head);
+                    if (head.x === food.x && head.y === food.y) {
+                        score++;
+                        if (typeof SoundFX !== 'undefined') SoundFX.successChime();
+                        placeFood();
+                        if (score % 4 === 0 && tickMs > 75) { tickMs -= 6; restartLoop(); }
+                        updateBar();
+                    } else {
+                        snake.pop();
+                    }
+                    draw();
+                }
+
+                function gameOver() {
+                    over = true; clearInterval(loop);
+                    if (typeof SoundFX !== 'undefined') SoundFX.powerDown();
+                    if (score > high) { high = score; try { localStorage.setItem('snake-highscore', String(high)); } catch (e) {} }
+                    hint.innerHTML = "R to restart &nbsp;&middot;&nbsp; Q to quit";
+                    updateBar(); draw();
+                }
+
+                function reset() {
+                    const c = Math.floor(GRID / 2);
+                    snake = [{ x: c, y: c }, { x: c - 1, y: c }, { x: c - 2, y: c }];
+                    dir = { x: 1, y: 0 }; nextDir = { x: 1, y: 0 };
+                    score = 0; tickMs = 120; over = false;
+                    placeFood(); updateBar(); restartLoop(); draw();
+                    hint.innerHTML = "Arrows / WASD to move &nbsp;&middot;&nbsp; Q to quit";
+                }
+
+                function setDir(nx, ny) { if (dir.x + nx === 0 && dir.y + ny === 0) return; nextDir = { x: nx, y: ny }; }
+
+                function onKey(e) {
+                    const k = (e.key || '').toLowerCase();
+                    if (k === 'arrowup' || k === 'w') { setDir(0, -1); e.preventDefault(); }
+                    else if (k === 'arrowdown' || k === 's') { setDir(0, 1); e.preventDefault(); }
+                    else if (k === 'arrowleft' || k === 'a') { setDir(-1, 0); e.preventDefault(); }
+                    else if (k === 'arrowright' || k === 'd') { setDir(1, 0); e.preventDefault(); }
+                    else if (k === 'q' || k === 'escape') { e.preventDefault(); cleanup(); }
+                    else if (k === 'r' && over) { e.preventDefault(); reset(); }
+                }
+
+                function cleanup() {
+                    clearInterval(loop);
+                    document.removeEventListener('keydown', onKey, true);
+                    overlay.remove();
+                    resolve();
+                }
+
+                document.addEventListener('keydown', onKey, true);
+                reset();
+            });
+        }
+
+        // Shared overlay for arcade games (themed to the current terminal palette)
+        function makeGameOverlay(titleText, w, h) {
+            const root = document.documentElement;
+            const primary = ((getComputedStyle(root).getPropertyValue('--term-primary') || '#2dd4bf').trim()) || '#2dd4bf';
+            const accent = ((getComputedStyle(root).getPropertyValue('--term-accent') || '#67e8f9').trim()) || '#67e8f9';
+            const overlay = document.createElement('div');
+            overlay.style.cssText = "position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(0,0,0,0.88);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-family:'Roboto Mono',monospace;";
+            const title = document.createElement('div');
+            title.style.cssText = "color:" + primary + ";font-weight:700;letter-spacing:0.3em;font-size:18px;";
+            title.textContent = titleText;
+            const scoreBar = document.createElement('div');
+            scoreBar.style.cssText = "color:" + accent + ";font-size:13px;display:flex;gap:24px;flex-wrap:wrap;justify-content:center;";
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.style.cssText = "border:1px solid " + primary + ";border-radius:8px;box-shadow:0 0 18px " + primary + ";max-width:92vw;max-height:70vh;width:auto;height:auto;";
+            const ctx = canvas.getContext('2d');
+            const hint = document.createElement('div');
+            hint.style.cssText = "color:#888;font-size:11px;text-align:center;";
+            overlay.appendChild(title); overlay.appendChild(scoreBar); overlay.appendChild(canvas); overlay.appendChild(hint);
+            document.body.appendChild(overlay);
+            return { overlay, canvas, ctx, scoreBar, hint, primary, accent };
+        }
+
+        // Shared "game over" panel for arcade games
+        function endText(ctx, W, H, primary, score, high) {
+            ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H);
+            ctx.textAlign = 'center';
+            ctx.fillStyle = primary; ctx.font = "bold 22px 'Roboto Mono', monospace";
+            ctx.fillText('GAME OVER', W / 2, H / 2 - 8);
+            ctx.fillStyle = '#bbbbbb'; ctx.font = "12px 'Roboto Mono', monospace";
+            ctx.fillText('Score ' + score + '  ·  High ' + Math.max(high, score), W / 2, H / 2 + 16);
+            ctx.fillText('R to restart  ·  Q to quit', W / 2, H / 2 + 36);
+        }
+
+        // --- SPACE INVADERS (play invaders) ---
+        function startInvadersGame() {
+            return new Promise((resolve) => {
+                const W = 360, H = 400;
+                const ui = makeGameOverlay('I N V A D E R S', W, H);
+                const ctx = ui.ctx, primary = ui.primary, accent = ui.accent, scoreBar = ui.scoreBar, hint = ui.hint, overlay = ui.overlay;
+                const PW = 26, PH = 12, PSPEED = 4, BSPEED = 6, EBSPEED = 3.2;
+                const keys = {};
+                let player, bullets, ebullets, aliens, dirX, score, wave, over, loop, lastShot;
+                let high = 0; try { high = parseInt(localStorage.getItem('invaders-highscore') || '0', 10) || 0; } catch (e) {}
+                function spawnWave() {
+                    aliens = [];
+                    const cols = 8, rows = 4, gx = 28, gy = 28, sx = 38, sy = 28;
+                    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) aliens.push({ x: gx + c * sx, y: gy + r * sy, w: 22, h: 16, alive: true });
+                    dirX = 1;
+                }
+                function alive() { return aliens.filter(a => a.alive); }
+                function updateBar() { scoreBar.innerHTML = "<span>SCORE <b style='color:" + primary + "'>" + score + "</b></span><span>WAVE <b style='color:" + primary + "'>" + wave + "</b></span><span>HIGH <b style='color:" + primary + "'>" + Math.max(high, score) + "</b></span>"; }
+                function restartLoop() { clearInterval(loop); loop = setInterval(step, 1000 / 30); }
+                function reset() {
+                    player = { x: W / 2 - PW / 2, y: H - 26 };
+                    bullets = []; ebullets = []; score = 0; wave = 1; over = false; lastShot = 0;
+                    spawnWave(); updateBar();
+                    hint.innerHTML = "Arrows / AD to move &nbsp;&middot;&nbsp; Space to shoot &nbsp;&middot;&nbsp; Q to quit";
+                    restartLoop();
+                }
+                function step() {
+                    if (over) return;
+                    if (keys['arrowleft'] || keys['a']) player.x -= PSPEED;
+                    if (keys['arrowright'] || keys['d']) player.x += PSPEED;
+                    player.x = Math.max(4, Math.min(W - PW - 4, player.x));
+                    const now = Date.now();
+                    if ((keys[' '] || keys['spacebar']) && now - lastShot > 300) { bullets.push({ x: player.x + PW / 2, y: player.y - 6 }); lastShot = now; if (typeof SoundFX !== 'undefined' && SoundFX.playTone) SoundFX.playTone(880, 'square', 0.05, 0.03); }
+                    for (const b of bullets) b.y -= BSPEED;
+                    bullets = bullets.filter(b => b.y > -10);
+                    const aa = alive();
+                    const speed = Math.min(3.4, 0.5 + (wave - 1) * 0.35 + (32 - aa.length) * 0.06);
+                    let edge = false;
+                    for (const a of aa) { a.x += dirX * speed; if (a.x < 4 || a.x + a.w > W - 4) edge = true; }
+                    if (edge) { dirX *= -1; for (const a of aa) a.y += 14; }
+                    if (aa.length && Math.random() < 0.025 + wave * 0.004) { const sh = aa[Math.floor(Math.random() * aa.length)]; ebullets.push({ x: sh.x + sh.w / 2, y: sh.y + sh.h }); }
+                    for (const b of ebullets) b.y += EBSPEED;
+                    ebullets = ebullets.filter(b => b.y < H + 10);
+                    for (const b of bullets) { for (const a of aa) { if (a.alive && b.x > a.x && b.x < a.x + a.w && b.y > a.y && b.y < a.y + a.h) { a.alive = false; b.y = -999; score += 10; if (typeof SoundFX !== 'undefined' && SoundFX.playTone) SoundFX.playTone(440, 'square', 0.06, 0.04); break; } } }
+                    bullets = bullets.filter(b => b.y > -10);
+                    updateBar();
+                    for (const b of ebullets) { if (b.x > player.x && b.x < player.x + PW && b.y > player.y && b.y < player.y + PH) { gameOver(); return; } }
+                    for (const a of aa) { if (a.y + a.h >= player.y) { gameOver(); return; } }
+                    if (aa.length === 0) { wave++; spawnWave(); }
+                    draw();
+                }
+                function draw() {
+                    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, W, H);
+                    ctx.fillStyle = primary; ctx.shadowColor = primary; ctx.shadowBlur = 8;
+                    ctx.beginPath(); ctx.moveTo(player.x + PW / 2, player.y); ctx.lineTo(player.x, player.y + PH); ctx.lineTo(player.x + PW, player.y + PH); ctx.closePath(); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ffffff'; for (const b of bullets) ctx.fillRect(b.x - 1.5, b.y, 3, 8);
+                    ctx.fillStyle = accent; for (const b of ebullets) ctx.fillRect(b.x - 1.5, b.y, 3, 8);
+                    for (const a of aliens) { if (!a.alive) continue; ctx.fillStyle = accent; ctx.shadowColor = accent; ctx.shadowBlur = 6; ctx.fillRect(a.x + 3, a.y + 3, a.w - 6, a.h - 6); ctx.shadowBlur = 0; ctx.fillStyle = '#05070a'; ctx.fillRect(a.x + 6, a.y + 6, 3, 3); ctx.fillRect(a.x + a.w - 9, a.y + 6, 3, 3); }
+                    ctx.shadowBlur = 0;
+                    if (over) endText(ctx, W, H, primary, score, high);
+                }
+                function gameOver() { over = true; clearInterval(loop); if (typeof SoundFX !== 'undefined' && SoundFX.powerDown) SoundFX.powerDown(); if (score > high) { high = score; try { localStorage.setItem('invaders-highscore', String(high)); } catch (e) {} } hint.innerHTML = "R to restart &nbsp;&middot;&nbsp; Q to quit"; updateBar(); draw(); }
+                function onKey(e) { const k = (e.key || '').toLowerCase(); if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', ' ', 'spacebar'].indexOf(k) !== -1) e.preventDefault(); if (k === 'q' || k === 'escape') { e.preventDefault(); cleanup(); return; } if (k === 'r' && over) { e.preventDefault(); reset(); return; } keys[k] = true; }
+                function onKeyUp(e) { keys[(e.key || '').toLowerCase()] = false; }
+                function cleanup() { clearInterval(loop); document.removeEventListener('keydown', onKey, true); document.removeEventListener('keyup', onKeyUp, true); overlay.remove(); resolve(); }
+                document.addEventListener('keydown', onKey, true); document.addEventListener('keyup', onKeyUp, true);
+                reset();
+            });
+        }
+
+        // --- METEOR DODGE (play dodge) ---
+        function startMeteorDodge() {
+            return new Promise((resolve) => {
+                const W = 340, H = 420;
+                const ui = makeGameOverlay('M E T E O R   D O D G E', W, H);
+                const ctx = ui.ctx, primary = ui.primary, accent = ui.accent, scoreBar = ui.scoreBar, hint = ui.hint, overlay = ui.overlay;
+                const PW = 22, PH = 16, PSPEED = 4.5, PY = H - 30;
+                const keys = {};
+                let player, meteors, score, t, over, loop, spawnAcc;
+                let high = 0; try { high = parseInt(localStorage.getItem('dodge-highscore') || '0', 10) || 0; } catch (e) {}
+                function updateBar() { scoreBar.innerHTML = "<span>SCORE <b style='color:" + primary + "'>" + score + "</b></span><span>HIGH <b style='color:" + primary + "'>" + Math.max(high, score) + "</b></span>"; }
+                function restartLoop() { clearInterval(loop); loop = setInterval(step, 1000 / 40); }
+                function reset() { player = { x: W / 2 - PW / 2 }; meteors = []; score = 0; t = 0; over = false; spawnAcc = 0; updateBar(); hint.innerHTML = "Arrows / AD to dodge &nbsp;&middot;&nbsp; Q to quit"; restartLoop(); }
+                function step() {
+                    if (over) return;
+                    t++;
+                    if (t % 4 === 0) { score++; updateBar(); }
+                    const fall = 2.2 + Math.min(4.5, t / 500);
+                    if (keys['arrowleft'] || keys['a']) player.x -= PSPEED;
+                    if (keys['arrowright'] || keys['d']) player.x += PSPEED;
+                    player.x = Math.max(4, Math.min(W - PW - 4, player.x));
+                    spawnAcc++;
+                    const every = Math.max(9, 24 - Math.floor(t / 250));
+                    if (spawnAcc >= every) { spawnAcc = 0; const r = 8 + Math.random() * 13; meteors.push({ x: r + Math.random() * (W - 2 * r), y: -r, r: r, vy: fall + Math.random() * 1.5 }); }
+                    for (const m of meteors) m.y += m.vy;
+                    meteors = meteors.filter(m => m.y - m.r < H + 20);
+                    for (const m of meteors) {
+                        const cx = Math.max(player.x, Math.min(m.x, player.x + PW));
+                        const cy = Math.max(PY, Math.min(m.y, PY + PH));
+                        const dx = m.x - cx, dy = m.y - cy;
+                        if (dx * dx + dy * dy < m.r * m.r) { gameOver(); return; }
+                    }
+                    draw();
+                }
+                function draw() {
+                    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, W, H);
+                    for (const m of meteors) { ctx.fillStyle = accent; ctx.shadowColor = accent; ctx.shadowBlur = 8; ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2); ctx.fill(); }
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = primary; ctx.shadowColor = primary; ctx.shadowBlur = 10;
+                    ctx.beginPath(); ctx.moveTo(player.x + PW / 2, PY); ctx.lineTo(player.x, PY + PH); ctx.lineTo(player.x + PW, PY + PH); ctx.closePath(); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    if (over) endText(ctx, W, H, primary, score, high);
+                }
+                function gameOver() { over = true; clearInterval(loop); if (typeof SoundFX !== 'undefined' && SoundFX.powerDown) SoundFX.powerDown(); if (score > high) { high = score; try { localStorage.setItem('dodge-highscore', String(high)); } catch (e) {} } hint.innerHTML = "R to restart &nbsp;&middot;&nbsp; Q to quit"; updateBar(); draw(); }
+                function onKey(e) { const k = (e.key || '').toLowerCase(); if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'a', 'd', ' '].indexOf(k) !== -1) e.preventDefault(); if (k === 'q' || k === 'escape') { e.preventDefault(); cleanup(); return; } if (k === 'r' && over) { e.preventDefault(); reset(); return; } keys[k] = true; }
+                function onKeyUp(e) { keys[(e.key || '').toLowerCase()] = false; }
+                function cleanup() { clearInterval(loop); document.removeEventListener('keydown', onKey, true); document.removeEventListener('keyup', onKeyUp, true); overlay.remove(); resolve(); }
+                document.addEventListener('keydown', onKey, true); document.addEventListener('keyup', onKeyUp, true);
+                reset();
+            });
         }
 
         async function runCommand(command) {
@@ -960,6 +1257,47 @@
                 return;
             }
 
+            // Handle play (mini-games) before the switch
+            if (cmd === 'play' || cmd.startsWith('play ')) {
+                const arg = command.substring(4).trim().toLowerCase();
+                const games = {
+                    snake: { launch: startSnakeGame, hint: 'arrows / WASD to move, Q to quit' },
+                    invaders: { launch: startInvadersGame, hint: 'arrows / AD to move, Space to shoot, Q to quit' },
+                    dodge: { launch: startMeteorDodge, hint: 'arrows / AD to dodge, Q to quit' },
+                };
+                if (!arg) {
+                    SoundFX.enter();
+                    await typeRaw('<div class="section-title">Arcade</div>');
+                    await typeRaw('Usage: play &lt;game&gt;');
+                    await typeRaw('Available: ' + Object.keys(games).map(g => `<span class="nav-link" onclick="runCommandFromClick('play ${g}')">${g}</span>`).join('  '));
+                } else if (games[arg]) {
+                    SoundFX.enter();
+                    await typeLine(`Launching ${arg.toUpperCase()}... ${games[arg].hint}.`, 10);
+                    await games[arg].launch();
+                    const quips = [
+                        "Productivity: successfully avoided. 👾",
+                        "Achievement unlocked: procrastination. 🏆",
+                        "You came for the resume, you stayed for the games. 😎",
+                        "The aliens will remember this. 👽",
+                        "GG. Now go hire me. 💼",
+                        "Reality called. I hit snooze. ☎️",
+                        "Back to pretending to read my work experience. 📄",
+                        "Score saved. Bragging rights pending. ✨",
+                        "Okay, okay... back to the portfolio. 🪐",
+                        "Hope you didn't have a meeting. 😅",
+                    ];
+                    await typeLine(quips[Math.floor(Math.random() * quips.length)], 10);
+                } else {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">play: '${arg}' is not an available game. Try: ${Object.keys(games).join(', ')}.</span>`);
+                }
+                inputLine.disabled = false;
+                inputLine.focus();
+                isTyping = false;
+                terminal.scrollTop = terminal.scrollHeight;
+                return;
+            }
+
             switch(cmd) {
                 case 'help':
                     SoundFX.enter();
@@ -968,6 +1306,7 @@
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'home'],
                         'System': ['clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'pwd', 'cd', 'vim', 'vi', 'cat', 'rm', 'mkdir'],
+                        'Arcade': ['play'],
                     };
                     let helpHtml = '<div class="section-title">Available Commands</div>';
                     helpHtml += '<div class="help-grid">';
