@@ -557,7 +557,7 @@
             ls: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
             rm: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
             theme: Object.keys(THEMES),
-            play: ['snake', 'invaders', 'dodge', 'tetris'],
+            play: ['snake', 'invaders', 'dodge', 'tetris', 'typing'],
         };
 
         inputLine.addEventListener('input', () => {
@@ -843,14 +843,14 @@
         }
 
         // Shared "game over" panel for arcade games
-        function endText(ctx, W, H, primary, score, high) {
+        function endText(ctx, W, H, primary, score, high, controls) {
             ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H);
             ctx.textAlign = 'center';
             ctx.fillStyle = primary; ctx.font = "bold 22px 'Roboto Mono', monospace";
             ctx.fillText('GAME OVER', W / 2, H / 2 - 8);
             ctx.fillStyle = '#bbbbbb'; ctx.font = "12px 'Roboto Mono', monospace";
             ctx.fillText('Score ' + score + '  ·  High ' + Math.max(high, score), W / 2, H / 2 + 16);
-            ctx.fillText('R to restart  ·  Q to quit', W / 2, H / 2 + 36);
+            ctx.fillText(controls || 'R to restart  ·  Q to quit', W / 2, H / 2 + 36);
         }
 
         // --- SPACE INVADERS (play invaders) ---
@@ -1094,6 +1094,101 @@
                     else if (k === 'z') rotate(-1);
                     else if (k === ' ' || k === 'spacebar') hardDrop();
                     else if (k === 'c') hold();
+                }
+                function cleanup() { clearInterval(loop); document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(); }
+                document.addEventListener('keydown', onKey, true);
+                reset();
+            });
+        }
+
+        // --- COSMIC TYPING (play typing) ---
+        function startTypingGame() {
+            return new Promise((resolve) => {
+                const W = 380, H = 380, GROUND = H - 28;
+                const ui = makeGameOverlay('T Y P I N G', W, H);
+                const ctx = ui.ctx, primary = ui.primary, accent = ui.accent, scoreBar = ui.scoreBar, hint = ui.hint, overlay = ui.overlay;
+                const WORDS = ['orbit', 'nebula', 'quasar', 'photon', 'cosmos', 'vector', 'syntax', 'kernel', 'pixel', 'async', 'router', 'schema', 'galaxy', 'meteor', 'plasma', 'binary', 'pointer', 'lambda', 'docker', 'cipher', 'matrix', 'proton', 'vertex', 'signal', 'module', 'buffer', 'thread', 'cosmic', 'rocket', 'comet', 'pulsar', 'quantum', 'neutron', 'gravity', 'warp', 'laser', 'debug', 'commit', 'deploy', 'promise', 'closure', 'asteroid', 'stardust', 'eclipse', 'horizon', 'antenna', 'velocity', 'particle', 'spectrum', 'cluster', 'payload', 'daemon', 'runtime', 'compile', 'boolean', 'encrypt', 'backend', 'console', 'frontend', 'database', 'protocol', 'terminal', 'keyboard', 'function', 'variable', 'operator', 'frequency', 'telescope', 'satellite', 'iterator', 'overflow', 'callback', 'algorithm', 'recursion', 'compiler', 'bytecode', 'hashmap', 'queue', 'stack', 'heap', 'array', 'struct', 'mutex', 'socket', 'packet', 'latency', 'bandwidth', 'cache', 'registry', 'pipeline', 'endpoint', 'request', 'response', 'token', 'session', 'cookie', 'regex', 'linker', 'assembly', 'semaphore', 'deadlock', 'integer', 'traversal', 'iteration', 'interface', 'generics', 'process', 'syscall', 'malloc', 'segfault', 'gradient', 'tensor', 'dataset', 'entropy', 'gateway', 'firewall', 'handshake', 'decrypt', 'checksum', 'bitwise', 'typescript', 'javascript', 'python', 'golang', 'bigquery', 'postgres', 'redis', 'nginx', 'webhook', 'branch', 'rebase', 'merge', 'repo', 'kubernetes', 'container', 'volume', 'react', 'angular', 'svelte', 'express', 'django', 'mongodb', 'sqlite', 'graphql', 'restful', 'middleware', 'oauth', 'quicksort', 'mergesort', 'linkedlist', 'complexity', 'polymorph', 'override', 'lexer', 'parser', 'tokenizer', 'semantic', 'exception', 'generator', 'coroutine', 'spinlock', 'atomic', 'volatile', 'register', 'opcode', 'virtual', 'segment', 'bootloader', 'firmware', 'hardware', 'software', 'fullstack', 'devops', 'jenkins', 'terraform', 'serverless', 'artifact', 'manifest', 'monorepo', 'refactor', 'debugger', 'breakpoint', 'stacktrace', 'profiler', 'benchmark', 'scheduler', 'context', 'bitmask', 'unsigned', 'typedef', 'currying', 'functor', 'monad', 'tuple', 'sigmoid', 'softmax', 'dropout', 'backprop', 'inference', 'attention', 'embedding', 'regression', 'numpy', 'pandas', 'pytorch', 'neuron', 'graph', 'vite', 'await', 'yield'];
+                let high = 0; try { high = parseInt(localStorage.getItem('typing-highscore') || '0', 10) || 0; } catch (e) {}
+                let words, target, typed, score, t, over, loop, spawnAcc, bag;
+
+                function updateBar() { scoreBar.innerHTML = "<span>SCORE <b style='color:" + primary + "'>" + score + "</b></span><span>HIGH <b style='color:" + primary + "'>" + Math.max(high, score) + "</b></span>"; }
+                function restartLoop() { clearInterval(loop); loop = setInterval(step, 1000 / 30); }
+                function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t2 = a[i]; a[i] = a[j]; a[j] = t2; } return a; }
+                function nextWord() {
+                    if (!bag || !bag.length) bag = shuffle(WORDS.slice());
+                    let w = bag.pop();
+                    if (words.some(o => o.text === w)) {
+                        const idx = bag.findIndex(b => !words.some(o => o.text === b));
+                        if (idx >= 0) { const alt = bag[idx]; bag[idx] = w; w = alt; }
+                    }
+                    return w;
+                }
+                function spawnWord() {
+                    const text = nextWord();
+                    const w = text.length * 9;
+                    const x = 8 + Math.random() * Math.max(0, W - 16 - w);
+                    const vy = 0.8 + Math.min(1.4, t / 2000) + Math.random() * 0.3;
+                    words.push({ text: text, x: x, y: 14, vy: vy });
+                }
+                function reset() {
+                    words = []; target = null; typed = 0; score = 0; t = 0; over = false; spawnAcc = 0; bag = [];
+                    updateBar(); hint.innerHTML = "Type the falling words &nbsp;&middot;&nbsp; Esc to quit";
+                    restartLoop(); spawnWord(); draw();
+                }
+                function step() {
+                    if (over) return;
+                    t++;
+                    spawnAcc++;
+                    const every = Math.max(26, 70 - Math.floor(t / 90));
+                    if (spawnAcc >= every) { spawnAcc = 0; spawnWord(); }
+                    for (const wd of words) wd.y += wd.vy;
+                    for (const wd of words) { if (wd.y >= GROUND) { gameOver(); return; } }
+                    draw();
+                }
+                function destroy(wd) {
+                    score += wd.text.length;
+                    words = words.filter(w => w !== wd);
+                    target = null; typed = 0;
+                    if (typeof SoundFX !== 'undefined' && SoundFX.playTone) SoundFX.playTone(880, 'square', 0.05, 0.04);
+                    updateBar();
+                }
+                function miss() { if (typeof SoundFX !== 'undefined' && SoundFX.playTone) SoundFX.playTone(150, 'sawtooth', 0.05, 0.025); }
+                function onChar(ch) {
+                    if (over) return;
+                    if (!target) {
+                        let best = null;
+                        for (const wd of words) { if (wd.text[0] === ch && (!best || wd.y > best.y)) best = wd; }
+                        if (best) { target = best; typed = 1; if (target.text.length === 1) destroy(target); }
+                        else miss();
+                    } else {
+                        if (ch === target.text[typed]) { typed++; if (typed >= target.text.length) destroy(target); }
+                        else miss();
+                    }
+                    draw();
+                }
+                function draw() {
+                    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, W, H);
+                    ctx.strokeStyle = 'rgba(248,113,113,0.55)'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(0, GROUND); ctx.lineTo(W, GROUND); ctx.stroke();
+                    ctx.font = "14px 'Roboto Mono', monospace"; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+                    for (const wd of words) {
+                        if (wd === target && typed > 0) {
+                            const done = wd.text.slice(0, typed);
+                            ctx.fillStyle = primary; ctx.fillText(done, wd.x, wd.y);
+                            const dw = ctx.measureText(done).width;
+                            ctx.fillStyle = '#777'; ctx.fillText(wd.text.slice(typed), wd.x + dw, wd.y);
+                        } else {
+                            ctx.fillStyle = accent; ctx.fillText(wd.text, wd.x, wd.y);
+                        }
+                    }
+                    if (over) endText(ctx, W, H, primary, score, high, 'Enter to restart  ·  Esc to quit');
+                }
+                function gameOver() { over = true; clearInterval(loop); if (typeof SoundFX !== 'undefined' && SoundFX.powerDown) SoundFX.powerDown(); if (score > high) { high = score; try { localStorage.setItem('typing-highscore', String(high)); } catch (e) {} } hint.innerHTML = "Enter to restart &nbsp;&middot;&nbsp; Esc to quit"; updateBar(); draw(); }
+                function onKey(e) {
+                    const key = e.key;
+                    if (key === 'Escape') { e.preventDefault(); cleanup(); return; }
+                    if (over) { if (key === 'Enter' || key === ' ') { e.preventDefault(); reset(); } return; }
+                    if (key && key.length === 1 && /[a-zA-Z]/.test(key)) { e.preventDefault(); onChar(key.toLowerCase()); }
                 }
                 function cleanup() { clearInterval(loop); document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(); }
                 document.addEventListener('keydown', onKey, true);
@@ -1428,6 +1523,17 @@
                             "You'll be seeing falling blocks in your sleep. 😴",
                             "Lines cleared, mind cleared. 🧱",
                             "An L-piece when you prayed for an I-piece. Classic. 😤",
+                        ],
+                    },
+                    typing: {
+                        launch: startTypingGame,
+                        hint: 'type the falling words, Esc to quit',
+                        quips: [
+                            "Words per minute: cosmic. ⌨️",
+                            "Your keyboard is basically smoking. 🔥",
+                            "Faster than my git commits. ⌨️",
+                            "Spell-check could never. 🛰️",
+                            "Transmission complete. ✨",
                         ],
                     },
                 };
