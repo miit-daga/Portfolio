@@ -8,6 +8,8 @@ import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabl
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SignalRings } from "./ui/signal-rings";
+import { CrewCard } from "./ui/crew-card";
+import { SignalGlobe } from "./ui/signal-globe";
 
 type ContactType = "email" | "phone" | null;
 
@@ -136,6 +138,16 @@ export function Contact() {
                 <div className="relative h-[360px] lg:h-[440px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-blue-500/5 blur-3xl opacity-20 rounded-full" />
                     <SignalRings />
+                </div>
+            </div>
+
+            {/* Crew ID + live signal path */}
+            <div className="max-w-7xl mx-auto px-4 mt-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+                <div className="flex justify-center">
+                    <CrewCard />
+                </div>
+                <div className="flex justify-center">
+                    <SignalGlobe />
                 </div>
             </div>
 

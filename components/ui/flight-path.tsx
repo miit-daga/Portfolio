@@ -154,14 +154,21 @@ export const FlightPath = () => {
     }
 
     return (
-        <motion.nav
+        // The centring translate lives on this static nav: putting x/y motion
+        // values on the same element would overwrite the Tailwind transform
+        // and let the track hang below centre, into the back-to-top rocket
+        <nav
             aria-label="Section minimap"
-            className="fixed right-4 top-1/2 z-[5500] hidden -translate-y-1/2 lg:block"
-            initial={{ opacity: 0, x: 8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+            className="fixed right-4 top-1/2 z-[5500] hidden -translate-y-1/2 lg:block [@media(max-height:540px)]:lg:hidden"
         >
-            <div className="relative h-[min(44vh,400px)] w-4">
+            <motion.div
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+                // Height is clamped so the centred track always clears the
+                // back-to-top rocket parked in the bottom-right corner
+                className="relative h-[min(44vh,400px,calc(100vh-320px))] w-4"
+            >
                 {/* Route line */}
                 <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/20 to-transparent" />
 
@@ -231,7 +238,7 @@ export const FlightPath = () => {
                         </button>
                     );
                 })}
-            </div>
-        </motion.nav>
+            </motion.div>
+        </nav>
     );
 };

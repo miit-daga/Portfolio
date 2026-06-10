@@ -4,6 +4,7 @@ import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
+import { describeLocation } from "@/lib/locate"
 
 interface AnimatedBackgroundProps {
   children: React.ReactNode
@@ -318,9 +319,41 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   const didPlayImplosionSound = useRef(false);
   const satellitePosRef = useRef<{ x: number; y: number }[]>([])
   const [issModal, setIssModal] = useState<{ sarcasm: string; fact: string } | null>(null)
+  // Live position from the public wheretheiss.at API, prefetched on load and
+  // refreshed on an interval so the modal can show it instantly
+  const [issTelemetry, setIssTelemetry] = useState<{ alt: number; vel: number; lat: number; lon: number } | null>(null)
+  const issTelemetryRef = useRef<{ alt: number; vel: number; lat: number; lon: number } | null>(null)
+  const issFetchAbort = useRef<AbortController | null>(null)
   const issPausedRef = useRef(false)
   const issFactIdx = useRef(Math.floor(Math.random() * ISS_FACTS.length))
   const issSarcasmIdx = useRef(Math.floor(Math.random() * ISS_SARCASM.length))
+
+  useEffect(() => {
+    if (window.innerWidth < 768) return // the ISS never renders on phones
+    const fetchTelemetry = () => {
+      if (document.hidden) return
+      issFetchAbort.current?.abort()
+      const ac = new AbortController()
+      issFetchAbort.current = ac
+      fetch("https://api.wheretheiss.at/v1/satellites/25544", { signal: ac.signal, cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d && typeof d.altitude === "number") {
+            const t = { alt: d.altitude, vel: d.velocity, lat: d.latitude, lon: d.longitude }
+            issTelemetryRef.current = t
+            // Modal already open: refresh the strip in place
+            if (issPausedRef.current) setIssTelemetry(t)
+          }
+        })
+        .catch(() => { /* offline or blocked - the modal just skips the strip */ })
+    }
+    fetchTelemetry()
+    const id = setInterval(fetchTelemetry, 30000)
+    return () => {
+      clearInterval(id)
+      issFetchAbort.current?.abort()
+    }
+  }, [])
 
   // Easter egg: clicking the drifting ISS halts it mid-orbit and opens a modal.
   // The canvas is pointer-transparent, so hit-test window clicks by position.
@@ -339,6 +372,8 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
           issSarcasmIdx.current = (issSarcasmIdx.current + 1) % ISS_SARCASM.length
           issPausedRef.current = true
           setIssModal({ sarcasm: ISS_SARCASM[issSarcasmIdx.current], fact: ISS_FACTS[issFactIdx.current] })
+          // Telemetry is prefetched and kept fresh, so it appears instantly
+          setIssTelemetry(issTelemetryRef.current)
           return
         }
       }
@@ -349,6 +384,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
   const closeIssModal = () => {
     setIssModal(null)
+    setIssTelemetry(null)
     issPausedRef.current = false
   }
 
@@ -845,6 +881,18 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
               </button>
               <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-teal-400/80">incoming transmission</p>
               <p className="mt-3 text-base font-medium leading-snug text-white">{issModal.sarcasm}</p>
+              {issTelemetry && (
+                <motion.p
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.4 }}
+                  className="mt-3 rounded-md border border-teal-500/20 bg-teal-500/5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-teal-300/90"
+                >
+                  live telemetry &middot; alt {Math.round(issTelemetry.alt)} km &middot;{" "}
+                  {Math.round(issTelemetry.vel).toLocaleString()} km/h &middot;{" "}
+                  {describeLocation(issTelemetry.lat, issTelemetry.lon)}
+                </motion.p>
+              )}
               <p className="mt-4 text-xs uppercase tracking-wider text-neutral-500">Here&apos;s a random fact about the ISS</p>
               <p className="mt-1.5 text-sm leading-relaxed text-teal-100">{issModal.fact}</p>
               <button
