@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Hero from "@/components/Hero";
 import Paragraph from "@/components/Paragraph";
@@ -34,6 +34,7 @@ import { WarpOverlay } from "@/components/ui/warp-overlay";
 import { ConstellationPuzzle, CONSTELLATION_STORAGE_KEY } from "@/components/ui/constellation-puzzle";
 import { DefenseMode } from "@/components/ui/defense-mode";
 import { IdleAlien } from "@/components/ui/idle-alien";
+import { MobileNotice } from "@/components/ui/mobile-notice";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -44,6 +45,9 @@ const Home = () => {
   // The page content is far taller than the screen, so the implosion must pivot
   // around the CURRENT viewport centre, not the element's geometric centre.
   const [implodeOrigin, setImplodeOrigin] = useState("50% 50%");
+  // Mirror for the konami listener (registered once) to check the live value
+  const showEnterScreenRef = useRef(showEnterScreen);
+  showEnterScreenRef.current = showEnterScreen;
 
   useEffect(() => {
     const hasEntered = sessionStorage.getItem("hasEnteredCosmos");
@@ -57,8 +61,8 @@ const Home = () => {
     let keyHistory: string[] = [];
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't register keys if we are already in the black hole
-      if (isImploding) return;
+      // Don't register keys in the black hole or on the enter screen
+      if (isImploding || showEnterScreenRef.current) return;
 
       keyHistory.push(e.key.toLowerCase());
       if (keyHistory.length > konamiCode.length) {
@@ -202,6 +206,7 @@ const Home = () => {
             <div className={`relative z-50 transition-opacity duration-500 ${isImploding ? "opacity-0" : "opacity-100"}`}>
               <BackToTop />
               <CollectibleHUD isImploding={isImploding} onCosmicReset={triggerCosmicReset} />
+              <MobileNotice />
             </div>
 
             {/* The singularity itself - fixed at viewport centre, outside the imploding transform */}

@@ -35,6 +35,19 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
   const [pathLength, setPathLength] = useState(0)
   const [ballYs, setBallYs] = useState<number[]>([])
   const [glowingBalls, setGlowingBalls] = useState<Set<number>>(new Set())
+  // Sampled path points so scroll frames never call getPointAtLength (slow DOM API)
+  const pointCacheRef = useRef<{ x: number; y: number }[]>([])
+
+  // Phones skip the SVG drop-shadow filters: repainting a filtered path on every
+  // scroll frame is what made the timeline lag on mobile.
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)")
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener("change", update)
+    return () => mq.removeEventListener("change", update)
+  }, [])
 
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
   const setItemRef = useCallback((el: HTMLDivElement | null, index: number) => {
@@ -72,11 +85,19 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
     return () => window.removeEventListener("resize", measure)
   }, [data])
 
-  // Measure the path length once it's drawn
+  // Measure the path length once it's drawn, and cache sampled points so the
+  // scroll handler is pure array math
   useEffect(() => {
     if (pathRef.current && height > 0) {
       const len = pathRef.current.getTotalLength()
       setPathLength(len)
+      const SAMPLES_CACHE = 240
+      const pts: { x: number; y: number }[] = []
+      for (let i = 0; i <= SAMPLES_CACHE; i++) {
+        const pt = pathRef.current.getPointAtLength((i / SAMPLES_CACHE) * len)
+        pts.push({ x: pt.x, y: pt.y })
+      }
+      pointCacheRef.current = pts
       // Start the glowing path fully hidden to avoid a one-frame flash
       if (!shouldReduceMotion) revealOffset.set(len)
     }
@@ -128,12 +149,17 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
 
   const applyProgress = useCallback(
     (latest: number, dir = 1) => {
-      if (!pathRef.current || pathLength <= 0) return
+      const pts = pointCacheRef.current
+      if (pts.length < 2 || pathLength <= 0) return
       const p = Math.max(0, Math.min(1, latest))
-      const l = p * pathLength
-      const pt = pathRef.current.getPointAtLength(l)
-      const pt2 = pathRef.current.getPointAtLength(Math.min(pathLength, l + 1))
-      const theta = (Math.atan2(pt2.y - pt.y, pt2.x - pt.x) * 180) / Math.PI
+      const f = p * (pts.length - 1)
+      const i = Math.min(pts.length - 2, Math.floor(f))
+      const u = f - i
+      const pt = {
+        x: pts[i].x + (pts[i + 1].x - pts[i].x) * u,
+        y: pts[i].y + (pts[i + 1].y - pts[i].y) * u,
+      }
+      const theta = (Math.atan2(pts[i + 1].y - pts[i].y, pts[i + 1].x - pts[i].x) * 180) / Math.PI
 
       rocketCX.set(pt.x)
       rocketCY.set(pt.y)
@@ -245,7 +271,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
               style={{
                 strokeDasharray: pathLength,
                 strokeDashoffset: revealOffset,
-                filter: tealGlow,
+                filter: isMobile ? "none" : tealGlow,
               }}
             />
           )}
@@ -260,7 +286,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
                   stroke={lit ? "#99f6e4" : "#475569"}
                   strokeWidth={1.5}
                   style={{
-                    filter: lit ? "drop-shadow(0 0 6px rgba(20,184,166,0.95))" : "none",
+                    filter: lit && !isMobile ? "drop-shadow(0 0 6px rgba(20,184,166,0.95))" : "none",
                     transition: "fill 0.3s, stroke 0.3s, filter 0.3s",
                   }}
                 />
@@ -309,7 +335,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
               style={{
                 width: ROCKET_W,
                 height: ROCKET_H,
-                filter: "drop-shadow(0 0 6px rgba(45,212,191,0.5))",
+                filter: isMobile ? "none" : "drop-shadow(0 0 6px rgba(45,212,191,0.5))",
               }}
             />
           </motion.div>

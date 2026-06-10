@@ -527,9 +527,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       })
     }
 
-    // Occasional artificial satellite drifting slowly across the sky
+    // Occasional artificial satellite drifting slowly across the sky (desktop
+    // only: too small to spot or tap on phones)
     const createSatellite = () => {
       if (isImploding) return
+      if (window.innerWidth < 768) return
       if (satellites.filter((s) => s.active).length >= 1) return
       const fromLeft = Math.random() < 0.5
       const startX = fromLeft ? -20 : canvas.width + 20

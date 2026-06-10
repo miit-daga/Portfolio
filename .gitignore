@@ -29,5 +29,6 @@ next-env.d.ts
 # resume source (kept local)
 main.tex
 
-# local session log (kept local)
+# local notes (kept local)
 CHANGES.md
+EASTER-EGGS.md
