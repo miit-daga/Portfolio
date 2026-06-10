@@ -82,6 +82,13 @@ export const FlightPath = () => {
     const smooth = useSpring(scrollYProgress, { stiffness: 120, damping: 28, restDelta: 0.001 });
     const markerTop = useTransform(reduce ? scrollYProgress : smooth, (v) => `${v * 100}%`);
 
+    // While mounted, globals.css hides the document scrollbar on lg+ screens -
+    // the minimap takes over as the page's position indicator there
+    useEffect(() => {
+        document.documentElement.classList.add("flight-path-active");
+        return () => document.documentElement.classList.remove("flight-path-active");
+    }, []);
+
     // True position of each waypoint along the scroll range (0..1)
     const [fracs, setFracs] = useState<number[]>([]);
     const [activeIdx, setActiveIdx] = useState(0);

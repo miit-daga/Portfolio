@@ -65,6 +65,20 @@ img {
   scrollbar-color: #2dd4bf rgba(8, 10, 20, 0.6);
 }
 
+/* On lg+ the flight-path minimap replaces the page scrollbar, so hide the
+   document scrollbar only; inner scrollers (command menu etc.) keep theirs.
+   The class is set by FlightPath while mounted, so pages without the minimap
+   (404, terminal) keep their scrollbar. */
+@media (min-width: 1024px) {
+  html.flight-path-active {
+    scrollbar-width: none;
+  }
+
+  html.flight-path-active::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 html {
   scroll-behavior: smooth;
 }
