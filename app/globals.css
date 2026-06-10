@@ -156,9 +156,10 @@ html {
   opacity: 1;
 }
 
-/* Phones: animating the conic gradient repaints every card border each frame,
-   which drags scroll performance. Keep borders static unless a card is open. */
-@media (max-width: 767px) {
+/* Touch devices (phones + tablets): animating the conic gradient repaints every
+   card border each frame, which drags scroll performance. Keep borders static
+   unless a card is open. */
+@media (pointer: coarse), (max-width: 767px) {
   .meteor-border::before {
     animation: none;
     --meteor-angle: 135deg;

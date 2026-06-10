@@ -38,11 +38,12 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
   // Sampled path points so scroll frames never call getPointAtLength (slow DOM API)
   const pointCacheRef = useRef<{ x: number; y: number }[]>([])
 
-  // Phones skip the SVG drop-shadow filters: repainting a filtered path on every
-  // scroll frame is what made the timeline lag on mobile.
+  // Touch-first devices (phones AND tablets) get the lite timeline: their GPUs
+  // can't repaint the animated full-height SVG every scroll frame. Small
+  // laptops keep the full version (their primary pointer is fine).
   const [isMobile, setIsMobile] = useState(false)
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)")
+    const mq = window.matchMedia("(pointer: coarse), (max-width: 767px)")
     const update = () => setIsMobile(mq.matches)
     update()
     mq.addEventListener("change", update)
