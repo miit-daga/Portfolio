@@ -269,8 +269,10 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
             strokeDasharray="2 7"
             strokeLinecap="round"
           />
-          {/* Glowing flown path (revealed up to the rocket) */}
-          {pathLength > 0 && (
+          {/* Glowing flown path (revealed up to the rocket). Desktop only:
+              animating dashoffset repaints the full-height SVG every frame,
+              which no phone GPU keeps up with. */}
+          {pathLength > 0 && !isMobile && (
             <motion.path
               d={pathD}
               fill="none"
@@ -280,7 +282,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
               style={{
                 strokeDasharray: pathLength,
                 strokeDashoffset: revealOffset,
-                filter: isMobile ? "none" : tealGlow,
+                filter: tealGlow,
               }}
             />
           )}
@@ -315,8 +317,8 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
           })}
         </svg>
 
-        {/* --- Exhaust particles --- */}
-        {!shouldReduceMotion && (
+        {/* --- Exhaust particles (desktop only) --- */}
+        {!shouldReduceMotion && !isMobile && (
           <>
             <motion.div
               className="absolute left-0 top-0 h-2.5 w-2.5 rounded-full bg-teal-300/70 blur-[1px] pointer-events-none"
@@ -333,8 +335,8 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
           </>
         )}
 
-        {/* --- The rocket --- */}
-        {!shouldReduceMotion && (
+        {/* --- The rocket (desktop only; phones get the static path + igniting planets) --- */}
+        {!shouldReduceMotion && !isMobile && (
           <motion.div
             className="absolute left-0 top-0 z-10 pointer-events-none"
             style={{ x: rocketX, y: rocketY, rotate: rocketRotSpring }}
