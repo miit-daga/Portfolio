@@ -35,6 +35,7 @@ import { ConstellationPuzzle, CONSTELLATION_STORAGE_KEY } from "@/components/ui/
 import { DefenseMode } from "@/components/ui/defense-mode";
 import { IdleAlien } from "@/components/ui/idle-alien";
 import { MobileNotice } from "@/components/ui/mobile-notice";
+import { FlightPath } from "@/components/ui/flight-path";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -207,6 +208,7 @@ const Home = () => {
               <BackToTop />
               <CollectibleHUD isImploding={isImploding} onCosmicReset={triggerCosmicReset} />
               <MobileNotice />
+              <FlightPath />
             </div>
 
             {/* The singularity itself - fixed at viewport centre, outside the imploding transform */}

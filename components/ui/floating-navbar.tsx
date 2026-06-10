@@ -11,7 +11,7 @@ import { cn } from "@/utils/cn";
 import Link from "next/link";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 import { IconFileText } from "@tabler/icons-react";
-import { warpForJump } from "@/components/ui/warp-overlay";
+import { scrollToSection } from "@/lib/scroll-to-section";
 import { MagneticWrapper } from "./magnetic-wrapper";
 
 export const FloatingNav = ({
@@ -170,48 +170,14 @@ export const FloatingNav = ({
   const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK;
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
 
-  // In-page links: scroll the WINDOW to the element's absolute position. Using
-  // window.scrollTo (not scrollIntoView) avoids scrolling the overflow-hidden
-  // wrapper, which the reveal transforms turn into a nested scroll container and
-  // which made the page "stick" at the Projects grid. A second pass re-aligns
-  // after any late layout shift (e.g. the async GitHub projects loading).
+  // In-page links glide via the shared eased window scroll (lib/scroll-to-section)
   const handleNavClick = (e: React.MouseEvent, link: string) => {
     if (!link.startsWith("#")) return; // external / terminal - let it behave normally
     e.preventDefault();
-    const el = document.getElementById(link.substring(1));
-    if (!el) return;
+    if (!document.getElementById(link.substring(1))) return;
     setIsMenuOpen(false);
     history.replaceState(null, "", link); // reflect the section in the URL
-
-    // Disable pointer events so content sliding under the cursor can't trigger
-    // hover-driven layout shifts (e.g. project cards expanding) mid-scroll.
-    document.body.style.pointerEvents = "none";
-
-    // Fixed-duration eased scroll that re-reads the target's LIVE position each
-    // frame, so it's a visible smooth glide that still follows any layout shift
-    // (sections revealing below) without the settle-then-jump of a fixed target.
-    const getTop = () => Math.max(0, el.getBoundingClientRect().top + window.scrollY - 16);
-    const startY = window.scrollY;
-    const duration = 750;
-
-    // Hyperspace streak only when skipping several sections
-    warpForJump(link, 850);
-    const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
-    let startTime: number | null = null;
-
-    const step = (now: number) => {
-      if (startTime === null) startTime = now;
-      const t = Math.min(1, (now - startTime) / duration);
-      const y = startY + (getTop() - startY) * easeInOut(t);
-      window.scrollTo({ top: y, behavior: "instant" as ScrollBehavior });
-      if (t < 1) {
-        requestAnimationFrame(step);
-      } else {
-        window.scrollTo({ top: getTop(), behavior: "instant" as ScrollBehavior });
-        document.body.style.pointerEvents = "";
-      }
-    };
-    requestAnimationFrame(step);
+    scrollToSection(link);
   };
 
   // COMBINED LOGIC: Show if scrolled up AND not currently imploding

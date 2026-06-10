@@ -3,7 +3,7 @@ import { cn } from "@/utils/cn";
 import { AnimatePresence, motion, useMotionValue, useMotionTemplate, useSpring, useTransform } from "framer-motion";
 import { IconArrowUpRight } from "@tabler/icons-react";
 import Link from "next/link";
-import { useState, useRef } from "react";
+import { useState, useRef, useId } from "react";
 
 type PublicationItem = {
   title: string;
@@ -44,6 +44,34 @@ export const HoverEffectPublications = ({
   );
 };
 
+// Rubber-stamp style venue seal: double ring, circular caption, star core.
+// Violet ink for journals, amber for patents; "inks in" on hover.
+const VenueSeal = ({ isPatent, isHovered }: { isPatent: boolean; isHovered: boolean }) => {
+  const arcId = `seal-arc-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`;
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute right-5 top-5 z-30 h-16 w-16 -rotate-12 transition-opacity duration-300"
+      style={{ opacity: isHovered ? 0.9 : 0.45, color: isPatent ? "#fcd34d" : "#a78bfa" }}
+    >
+      <svg viewBox="0 0 64 64" className="h-full w-full">
+        <defs>
+          <path id={arcId} d="M 32 32 m -21 0 a 21 21 0 1 1 42 0 a 21 21 0 1 1 -42 0" />
+        </defs>
+        <circle cx="32" cy="32" r="30" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.9" />
+        <circle cx="32" cy="32" r="27.5" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.55" />
+        <circle cx="32" cy="32" r="14" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.55" />
+        <text fill="currentColor" fontSize="5" letterSpacing="0.9" fontFamily="ui-monospace, SFMono-Regular, monospace">
+          <textPath href={`#${arcId}`}>
+            {isPatent ? "PATENT FILED · INDIAN IP OFFICE · " : "PEER REVIEWED · SCOPUS INDEXED · "}
+          </textPath>
+        </text>
+        <path d="M32 25 l2 5 5 2 -5 2 -2 5 -2-5 -5-2 5-2 Z" fill="currentColor" opacity="0.8" />
+      </svg>
+    </div>
+  );
+};
+
 const TiltCard = ({
   item,
   idx,
@@ -71,7 +99,7 @@ const TiltCard = ({
   // Specular glare that follows the cursor across the glass
   const sheenX = useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]);
   const sheenY = useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]);
-  const sheen = useMotionTemplate`radial-gradient(260px circle at ${sheenX} ${sheenY}, rgba(255, 255, 255, 0.10), rgba(45, 212, 191, 0.04) 45%, transparent 70%)`;
+  const sheen = useMotionTemplate`radial-gradient(260px circle at ${sheenX} ${sheenY}, rgba(255, 255, 255, 0.10), rgba(167, 139, 250, 0.05) 45%, transparent 70%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!ref.current) return;
@@ -97,7 +125,7 @@ const TiltCard = ({
       <AnimatePresence>
         {hoveredIndex === idx && (
           <motion.span
-            className="absolute inset-0 h-full w-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 block rounded-3xl"
+            className="absolute inset-0 h-full w-full bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-fuchsia-500/10 block rounded-3xl"
             layoutId="hoverBackgroundPublications"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -109,15 +137,18 @@ const TiltCard = ({
       </AnimatePresence>
 
       <div style={{ transform: "translateZ(20px)" }} className="h-full">
-        <Card className="w-full h-full" isHovered={hoveredIndex === idx}>
-          {/* Type badge + venue */}
-          <div className="flex flex-wrap items-center gap-2">
+        <Card className="w-full h-full" isHovered={hoveredIndex === idx} variant="log">
+          {/* Log index + type badge + venue */}
+          <div className="flex flex-wrap items-center gap-2 pr-14">
+            <span className="font-mono text-[10px] tracking-[0.25em] text-violet-300/60">
+              LOG·0{idx + 1}
+            </span>
             <span
               className={cn(
                 "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
                 isPatent
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                  : "border-teal-500/30 bg-teal-500/10 text-teal-300"
+                  : "border-violet-500/30 bg-violet-500/10 text-violet-300"
               )}
             >
               {isPatent ? "Patent" : "Journal"}
@@ -125,13 +156,13 @@ const TiltCard = ({
             {item.venue && <span className="font-mono text-[11px] text-neutral-500">{item.venue}</span>}
           </div>
 
-          <CardTitle>{item.title}</CardTitle>
+          <CardTitle className="pr-12">{item.title}</CardTitle>
           <CardDescription>{item.description}</CardDescription>
 
           {/* Footer: DOI link affordance or filed-status chip */}
           <div className="mt-6">
             {hasValidLink ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-300 transition-colors group-hover:text-teal-200">
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-300 transition-colors group-hover:text-violet-200">
                 View DOI <IconArrowUpRight className="h-3.5 w-3.5" />
               </span>
             ) : (
@@ -141,6 +172,8 @@ const TiltCard = ({
             )}
           </div>
         </Card>
+        {/* Venue seal stamped over the card's top-right corner */}
+        <VenueSeal isPatent={isPatent} isHovered={hoveredIndex === idx} />
         {/* Cursor-tracked specular sheen */}
         <motion.div
           className="pointer-events-none absolute inset-0 z-30 rounded-2xl"
@@ -176,7 +209,7 @@ const TiltCard = ({
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="h-full w-full block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            className="h-full w-full block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
           >
             {Content}
           </Link>
@@ -194,16 +227,23 @@ export const Card = ({
   className,
   children,
   isHovered = false,
+  variant = "default",
 }: {
   className?: string;
   children: React.ReactNode;
   isHovered?: boolean;
+  // "default": teal meteor-border (Achievements). "log": the Publications
+  // identity - quiet border + violet accent rail, no spinning conic.
+  variant?: "default" | "log";
 }) => {
   return (
     <motion.div
       className={cn(
-        "rounded-2xl h-full p-4 overflow-hidden relative z-20 meteor-border",
-        isHovered && "meteor-active",
+        "rounded-2xl h-full p-4 overflow-hidden relative z-20",
+        variant === "default" && "meteor-border",
+        variant === "default" && isHovered && "meteor-active",
+        variant === "log" && "border transition-colors duration-300",
+        variant === "log" && (isHovered ? "border-violet-400/40" : "border-white/10"),
         className
       )}
       style={{
@@ -219,6 +259,16 @@ export const Card = ({
         ease: [0.25, 0.46, 0.45, 0.94],
       }}
     >
+      {variant === "log" && (
+        <span
+          aria-hidden
+          className="absolute bottom-5 left-0 top-5 w-[2px] rounded-full bg-gradient-to-b from-violet-400/80 via-indigo-400/40 to-transparent transition-opacity duration-300"
+          style={{
+            opacity: isHovered ? 1 : 0.55,
+            boxShadow: isHovered ? "0 0 8px rgba(167,139,250,0.45)" : "none",
+          }}
+        />
+      )}
       <div className="relative z-50">
         <div className="p-4">{children}</div>
       </div>
