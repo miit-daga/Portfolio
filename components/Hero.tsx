@@ -338,7 +338,7 @@ const Hero = () => {
               centering transform), lifted clear of phone browser bars + safe area */}
           <div
             className="absolute left-1/2 -translate-x-1/2 pointer-events-auto lg:hidden"
-            style={{ bottom: "calc(4.5rem + env(safe-area-inset-bottom))" }}
+            style={{ bottom: "calc(6.5rem + env(safe-area-inset-bottom))" }}
           >
             <motion.a
               href="#about-me"

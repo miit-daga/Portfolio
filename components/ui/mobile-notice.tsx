@@ -2,16 +2,18 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// One-time heads-up for phone visitors: the full experience lives on desktop.
-// Shows a few seconds after entry, dismissed forever via localStorage.
-const STORAGE_KEY = "mobile-notice-dismissed";
+// Heads-up for phone visitors: the full experience lives on desktop. Shows a
+// few seconds after entry; a dismissal silences it for 24 hours.
+const STORAGE_KEY = "mobile-notice-dismissed-at";
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 export const MobileNotice = () => {
     const [show, setShow] = useState(false);
 
     useEffect(() => {
         try {
-            if (localStorage.getItem(STORAGE_KEY)) return;
+            const dismissedAt = parseInt(localStorage.getItem(STORAGE_KEY) || "0", 10);
+            if (Date.now() - dismissedAt < COOLDOWN_MS) return;
         } catch {
             /* ignore */
         }
@@ -23,7 +25,7 @@ export const MobileNotice = () => {
     const dismiss = () => {
         setShow(false);
         try {
-            localStorage.setItem(STORAGE_KEY, "1");
+            localStorage.setItem(STORAGE_KEY, String(Date.now()));
         } catch {
             /* ignore */
         }
