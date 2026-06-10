@@ -328,6 +328,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   const issFactIdx = useRef(Math.floor(Math.random() * ISS_FACTS.length))
   const issSarcasmIdx = useRef(Math.floor(Math.random() * ISS_SARCASM.length))
 
+  // 30s cadence keeps the prefetched position warm; while the modal is open
+  // it tightens to 10s (with an immediate fetch) so the readout visibly drifts
+  const issModalOpen = issModal !== null
   useEffect(() => {
     if (window.innerWidth < 768) return // the ISS never renders on phones
     const fetchTelemetry = () => {
@@ -348,12 +351,12 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         .catch(() => { /* offline or blocked - the modal just skips the strip */ })
     }
     fetchTelemetry()
-    const id = setInterval(fetchTelemetry, 30000)
+    const id = setInterval(fetchTelemetry, issModalOpen ? 10000 : 30000)
     return () => {
       clearInterval(id)
       issFetchAbort.current?.abort()
     }
-  }, [])
+  }, [issModalOpen])
 
   // Easter egg: clicking the drifting ISS halts it mid-orbit and opens a modal.
   // The canvas is pointer-transparent, so hit-test window clicks by position.
@@ -888,6 +891,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
                   transition={{ duration: 0.4 }}
                   className="mt-3 rounded-md border border-teal-500/20 bg-teal-500/5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-teal-300/90"
                 >
+                  <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400 align-middle motion-reduce:animate-none" />
                   live telemetry &middot; alt {Math.round(issTelemetry.alt)} km &middot;{" "}
                   {Math.round(issTelemetry.vel).toLocaleString()} km/h &middot;{" "}
                   {describeLocation(issTelemetry.lat, issTelemetry.lon)}
