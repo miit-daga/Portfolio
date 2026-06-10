@@ -181,7 +181,7 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
                 animate={isTransitioning ? { opacity: 0, scale: 0.92 } : { opacity: 1, scale: 1 }}
                 transition={{ duration: 0.45, ease: "easeIn" }}
             >
-                <h1 className="mb-4 bg-gradient-to-b from-white via-teal-100 to-slate-400 bg-clip-text pb-2 text-4xl font-light leading-[1.2] tracking-wide text-transparent sm:text-5xl md:text-6xl lg:text-7xl">
+                <h1 className="font-display mb-4 bg-gradient-to-b from-white via-teal-100 to-slate-400 bg-clip-text pb-2 text-4xl font-light leading-[1.2] tracking-wide text-transparent sm:text-5xl md:text-6xl lg:text-7xl">
                     Miit Daga
                 </h1>
                 <div className="mx-auto mb-6 h-px w-32 bg-gradient-to-r from-transparent via-teal-400 to-transparent" />
@@ -233,7 +233,7 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
                                 className="text-center"
                             >
                                 <motion.h2
-                                    className="text-2xl font-light tracking-wider text-white sm:text-3xl md:text-4xl"
+                                    className="font-display text-2xl font-light tracking-wider text-white sm:text-3xl md:text-4xl"
                                     initial={{ letterSpacing: "0.08em" }}
                                     animate={{ letterSpacing: "0.22em" }}
                                     transition={{ duration: 1.1, delay: 0.35, ease: "easeOut" }}

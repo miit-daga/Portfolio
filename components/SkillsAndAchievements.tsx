@@ -55,7 +55,7 @@ export function SkillsAndAchievements() {
                         const CategoryIcon = CATEGORY_ICONS[category];
                         return (
                             <div key={category}>
-                                <h3 className="flex items-center justify-center gap-2.5 text-2xl md:text-3xl font-bold text-neutral-300 mb-6">
+                                <h3 className="font-display flex items-center justify-center gap-2.5 text-2xl md:text-3xl font-bold text-neutral-300 mb-6">
                                     {CategoryIcon && <CategoryIcon className="h-6 w-6 text-teal-400/80" stroke={1.6} />}
                                     {category}
                                 </h3>
@@ -94,7 +94,7 @@ export function SkillsAndAchievements() {
                 </div>
 
                 <div className="mt-24">
-                    <h3 className="text-2xl md:text-3xl font-bold text-neutral-300 mb-2 text-center">Hackathon Achievements</h3>
+                    <h3 className="font-display text-2xl md:text-3xl font-bold text-neutral-300 mb-2 text-center">Hackathon Achievements</h3>
                     <div className="max-w-4xl mx-auto">
                         <HoverEffectAchievements items={achievementsData} />
                     </div>

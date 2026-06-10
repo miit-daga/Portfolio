@@ -1,7 +1,7 @@
 import type React from "react"
 import type { Metadata } from "next"
 import Script from "next/script"
-import { Outfit } from "next/font/google"
+import { Outfit, Space_Grotesk } from "next/font/google"
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
@@ -10,6 +10,9 @@ import { CommandMenu } from "@/components/ui/command-menu"
 import { StardustTrail } from "@/components/ui/stardust-trail"
 
 const outfit = Outfit({ subsets: ["latin"] })
+
+// Display face for headings only; body copy stays on Outfit
+const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-display" })
 
 const baseUrl = "https://miitdaga.dev"
 
@@ -87,7 +90,7 @@ const jsonLd = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={outfit.className}>
+      <body className={`${outfit.className} ${spaceGrotesk.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {/* NEW: Noise Overlay Div */}
           <div className="bg-noise" />

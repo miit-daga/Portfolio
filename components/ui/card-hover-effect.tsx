@@ -292,7 +292,7 @@ export const CardTitle = ({
   return (
     <h4
       className={cn(
-        "text-zinc-100 font-bold tracking-wide mt-4 group-hover:text-white transition-colors duration-300",
+        "font-display text-zinc-100 font-bold tracking-wide mt-4 group-hover:text-white transition-colors duration-300",
         className
       )}
     >

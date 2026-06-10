@@ -8,6 +8,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        display: ["var(--font-display)", "system-ui", "sans-serif"],
+      },
       transitionProperty: {
         'height': 'height',
         'spacing': 'margin, padding',

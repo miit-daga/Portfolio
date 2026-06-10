@@ -162,7 +162,7 @@ const Hero = () => {
 
           {/* --- LEFT SIDE: TEXT CONTENT --- */}
           <div className="flex flex-col items-center lg:items-end text-center lg:text-right z-10 order-2 lg:order-1 lg:w-1/2">
-            <h1 className={cn("bg-clip-text text-transparent text-6xl md:text-8xl lg:text-9xl drop-shadow-2xl text-white tracking-tighter font-extrabold", isGlitching && "text-glitch")}>
+            <h1 className={cn("font-display bg-clip-text text-transparent text-6xl md:text-8xl lg:text-9xl drop-shadow-2xl text-white tracking-tight font-bold", isGlitching && "text-glitch")}>
               Miit Daga
             </h1>
 

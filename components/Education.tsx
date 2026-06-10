@@ -73,7 +73,7 @@ const EducationCard = ({
                 <div className="flex flex-col gap-2">
                     <div className="flex justify-between items-start">
                         <div>
-                            <h3 className="text-xl md:text-2xl font-bold text-white group-hover:text-teal-400 transition-colors">
+                            <h3 className="font-display text-xl md:text-2xl font-bold text-white group-hover:text-teal-400 transition-colors">
                                 {institution}
                             </h3>
                             <p className="text-md md:text-lg font-medium text-neutral-400">

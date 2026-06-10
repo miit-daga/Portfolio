@@ -10,11 +10,12 @@ const Heading = ({ text = "Projects" }) => {
 
   return (
     <div className='py-10 text-center overflow-x-clip'>
-      {/* font-mono prevents width-jitter during the cipher animation.
+      {/* CipherText sizes each character slot to its final glyph, so the
+          display face stays width-stable during the scramble.
           The title is a flowing white -> teal -> indigo gradient (clipped to text).
           leading + padding keep descenders (j, g, p) from being clipped by bg-clip-text. */}
       <h2
-        className='font-mono font-extrabold text-4xl md:text-6xl lg:text-7xl tracking-tight leading-[1.2] pb-1 bg-clip-text text-transparent bg-[length:200%_100%] animate-shimmer motion-reduce:animate-none'
+        className='font-display font-bold text-4xl md:text-6xl lg:text-7xl tracking-tight leading-[1.2] pb-1 bg-clip-text text-transparent bg-[length:200%_100%] animate-shimmer motion-reduce:animate-none'
         style={{
           backgroundImage:
             "linear-gradient(90deg, #e2e8f0, #5eead4, #818cf8, #5eead4, #e2e8f0)",

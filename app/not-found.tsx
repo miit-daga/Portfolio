@@ -33,7 +33,7 @@ export default function NotFound() {
                     <RocketIcon className="w-full h-full text-neutral-400" isIgnited={!shouldReduceMotion} />
                 </motion.div>
 
-                <h1 className="text-6xl md:text-8xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400">
+                <h1 className="font-display text-6xl md:text-8xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400">
                     404
                 </h1>
 
