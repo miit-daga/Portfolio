@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" fill="none">
+<defs>
+<radialGradient id="headSkin" cx="38%" cy="25%" r="90%">
+    <stop offset="0%" stop-color="#C2D4C8" />
+    <stop offset="55%" stop-color="#7E988A" />
+    <stop offset="100%" stop-color="#465A4F" />
+</radialGradient>
+
+<linearGradient id="bodySkin" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#C2D4C8" />
+    <stop offset="40%" stop-color="#7E988A" />
+    <stop offset="80%" stop-color="#465A4F" />
+    <stop offset="100%" stop-color="#64888D" />
+</linearGradient>
+
+
+<!-- Glossy dark gradient for the almond eyes -->
+<radialGradient id="eyeGloss" cx="40%" cy="40%" r="60%">
+    <stop offset="0%" stop-color="#1A2520" />
+    <stop offset="100%" stop-color="#050806" />
+</radialGradient>
+
+<!-- Darker overlay for inner thigh/crotch depth -->
+<linearGradient id="innerShadow" x1="0%" y1="0%" x2="0%" y2="100%">
+    <stop offset="0%" stop-color="#3A4A41" stop-opacity="0.8" />
+    <stop offset="100%" stop-color="#7E988A" stop-opacity="0" />
+</linearGradient>
+</defs>
+
+<!-- LEFT LEG (Viewer's Left) -->
+<g id="leg-left">
+    <path
+        d="M 105 360 C 105 400, 95 450, 90 485 C 88 495, 108 495, 105 485 C 110 450, 120 400, 120 365 C 115 365, 110 360, 105 360 Z"
+        fill="url(#bodySkin)" />
+    <!-- Subtle inner thigh shadow -->
+    <path d="M 120 365 C 120 400, 110 450, 105 485 C 108 450, 120 400, 120 365 Z" fill="#2E3C34" opacity="0.4" />
+</g>
+
+
+<!-- RIGHT LEG (Viewer's Right) -->
+<g id="leg-right">
+    <path
+        d="M 151 360 C 151 400, 161 450, 166 485 C 168 495, 148 495, 151 485 C 146 450, 136 400, 136 365 C 141 365, 146 360, 151 360 Z"
+        fill="url(#bodySkin)" />
+    <!-- Subtle inner thigh shadow -->
+    <path d="M 136 365 C 136 400, 146 450, 151 485 C 148 450, 136 400, 136 365 Z" fill="#2E3C34" opacity="0.4" />
+</g>
+
+
+<!-- TORSO & NECK -->
+<g id="torso">
+    <!-- Neck Base -->
+    <path d="M 115 210 L 141 210 L 138 245 L 118 245 Z" fill="url(#bodySkin)" />
+    <!-- Slim Torso -->
+    <path
+        d="M 105 230 C 85 230, 75 245, 80 270 C 90 310, 105 340, 105 365 C 105 380, 151 380, 151 365 C 151 340, 166 310, 176 270 C 181 245, 171 230, 151 230 Z"
+        fill="url(#bodySkin)" />
+    <!-- Torso Core Shadow -->
+    <path d="M 105 365 C 105 380, 151 380, 151 365 C 151 340, 166 310, 176 270 C 171 310, 156 340, 151 365 Z"
+        fill="url(#innerShadow)" opacity="0.5" />
+</g>
+
+
+<!-- LEFT ARM -->
+<g id="arm-left">
+    <path
+        d="M 85 255 C 65 285, 60 325, 72 405 C 74 415, 82 415, 80 405 C 72 330, 80 290, 95 265 C 95 260, 90 250, 85 255 Z"
+        fill="url(#bodySkin)" />
+</g>
+
+<!-- RIGHT ARM -->
+<g id="arm-right">
+    <path
+        d="M 171 255 C 191 285, 196 325, 184 405 C 182 415, 174 415, 176 405 C 184 330, 176 290, 161 265 C 161 260, 166 250, 171 255 Z"
+        fill="url(#bodySkin)" />
+</g>
+
+
+<!-- HEAD GROUP -->
+<g id="head">
+    <!-- Elongated Dome Head -->
+    <path
+        d="M 128 20 C 170 20, 195 60, 195 120 C 195 180, 150 220, 128 230 C 106 220, 61 180, 61 120 C 61 60, 86 20, 128 20 Z"
+        fill="url(#headSkin)" />
+
+
+    <!-- LEFT EYE -->
+    <g id="eye-left">
+        <!-- Slanted Almond Base -->
+        <path d="M 65 130 C 85 115, 105 140, 110 175 C 95 185, 70 160, 65 130 Z" fill="url(#eyeGloss)" />
+        <!-- Soft Outer Glow/Socket Shadow -->
+        <path d="M 65 130 C 85 115, 105 140, 110 175 C 95 185, 70 160, 65 130 Z" fill="none" stroke="#3A4A41"
+            stroke-width="2" opacity="0.6" />
+        <!-- White Catchlight -->
+        <ellipse cx="82" cy="142" rx="4" ry="2" fill="#FFFFFF" transform="rotate(-25 82 142)" />
+        <ellipse cx="78" cy="146" rx="1.5" ry="1" fill="#FFFFFF" opacity="0.4" transform="rotate(-25 78 146)" />
+    </g>
+
+
+    <!-- RIGHT EYE -->
+    <g id="eye-right">
+        <!-- Slanted Almond Base -->
+        <path d="M 191 130 C 171 115, 151 140, 146 175 C 161 185, 186 160, 191 130 Z" fill="url(#eyeGloss)" />
+        <!-- Soft Outer Glow/Socket Shadow -->
+        <path d="M 191 130 C 171 115, 151 140, 146 175 C 161 185, 186 160, 191 130 Z" fill="none" stroke="#3A4A41"
+            stroke-width="2" opacity="0.6" />
+        <!-- White Catchlight -->
+        <ellipse cx="174" cy="142" rx="4" ry="2" fill="#FFFFFF" transform="rotate(25 174 142)" />
+        <ellipse cx="178" cy="146" rx="1.5" ry="1" fill="#FFFFFF" opacity="0.4" transform="rotate(25 178 146)" />
+    </g>
+
+
+    <!-- FACIAL DETAILS (Minimal) -->
+    <!-- Faint Nostril Slits -->
+    <path d="M 124 190 L 126 195 M 132 190 L 130 195" stroke="#3A4A41" stroke-width="1.5" stroke-linecap="round"
+        fill="none" opacity="0.5" />
+    <!-- Minimal Mouth Line -->
+    <path d="M 121 210 Q 128 213 135 210" stroke="#3A4A41" stroke-width="1.5" stroke-linecap="round" fill="none"
+        opacity="0.5" />
+</g>
+</svg>

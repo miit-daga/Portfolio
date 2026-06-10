@@ -196,7 +196,17 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
               ref={(el) => setItemRef(el, index)}
               className="flex items-center md:w-1/3 pl-20 mb-4 md:mb-0"
             >
-              <h3 className="text-xl lg:text-2xl font-bold text-neutral-400 md:pl-4">
+              <h3
+                className={`text-xl lg:text-2xl font-bold md:pl-4 transition-colors duration-500 ${
+                  glowingBalls.has(index) ? "text-teal-300" : "text-neutral-400"
+                }`}
+                style={{
+                  textShadow: glowingBalls.has(index)
+                    ? "0 0 18px rgba(45, 212, 191, 0.35)"
+                    : "none",
+                  transition: "color 0.5s, text-shadow 0.5s",
+                }}
+              >
                 {item.title}
               </h3>
             </div>

@@ -16,7 +16,9 @@ import {
     IconBrandLinkedin,
     IconSearch,
     IconArrowUpRight,
+    IconTarget,
 } from "@tabler/icons-react";
+import { warpForJump } from "@/components/ui/warp-overlay";
 
 export function CommandMenu() {
     const [open, setOpen] = React.useState(false);
@@ -35,6 +37,12 @@ export function CommandMenu() {
     const runCommand = React.useCallback((command: () => void) => {
         setOpen(false);
         command();
+    }, []);
+
+    // In-page jumps get a hyperspace streak only when skipping several sections
+    const navTo = React.useCallback((hash: string) => {
+        warpForJump(hash, 800);
+        window.location.href = hash;
     }, []);
 
     return (
@@ -69,12 +77,12 @@ export function CommandMenu() {
                                 </Command.Empty>
 
                                 <Command.Group heading="Navigation">
-                                    <Item icon={<IconHome />} onSelect={() => runCommand(() => (window.location.href = "#"))}>Home</Item>
-                                    <Item icon={<IconUser />} onSelect={() => runCommand(() => (window.location.href = "#about-me"))}>About Me</Item>
-                                    <Item icon={<IconBriefcase />} onSelect={() => runCommand(() => (window.location.href = "#workex"))}>Experience</Item>
-                                    <Item icon={<IconCode />} onSelect={() => runCommand(() => (window.location.href = "#projects"))}>Projects</Item>
-                                    <Item icon={<IconAward />} onSelect={() => runCommand(() => (window.location.href = "#skills-achievements"))}>Skills & Achievements</Item>
-                                    <Item icon={<IconMail />} onSelect={() => runCommand(() => (window.location.href = "#contact"))}>Contact</Item>
+                                    <Item icon={<IconHome />} onSelect={() => runCommand(() => navTo("#"))}>Home</Item>
+                                    <Item icon={<IconUser />} onSelect={() => runCommand(() => navTo("#about-me"))}>About Me</Item>
+                                    <Item icon={<IconBriefcase />} onSelect={() => runCommand(() => navTo("#workex"))}>Experience</Item>
+                                    <Item icon={<IconCode />} onSelect={() => runCommand(() => navTo("#projects"))}>Projects</Item>
+                                    <Item icon={<IconAward />} onSelect={() => runCommand(() => navTo("#skills-achievements"))}>Skills & Achievements</Item>
+                                    <Item icon={<IconMail />} onSelect={() => runCommand(() => navTo("#contact"))}>Contact</Item>
                                 </Command.Group>
 
                                 <Command.Separator className="my-2 h-px bg-white/10" />
@@ -89,6 +97,7 @@ export function CommandMenu() {
 
                                 <Command.Group heading="System">
                                     <Item external icon={<IconTerminal />} onSelect={() => runCommand(() => window.open("/terminal.html", "_blank"))}>Terminal Mode</Item>
+                                    <Item icon={<IconTarget />} onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("defense-mode")))}>Initiate Defense Mode</Item>
                                 </Command.Group>
                             </Command.List>
 

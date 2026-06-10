@@ -141,6 +141,7 @@ export function Contact() {
 
             {/* Footer */}
             <div className="border-t border-white/10 mt-20 pt-8 pb-4 flex flex-col items-center gap-4">
+                <MissionStatus />
                 <p className="text-neutral-500 text-sm">
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
@@ -220,6 +221,48 @@ export function Contact() {
         </div>
     );
 }
+
+const CALLSIGNS = ["NOVA", "ORION", "VEGA", "LYRA", "QUASAR", "PULSAR", "ANDROMEDA", "CYGNUS", "DRACO", "PHOENIX"];
+
+// Mission-control status strip: live local time + a session callsign
+const MissionStatus = () => {
+    const [time, setTime] = useState<string | null>(null);
+    const [callsign, setCallsign] = useState("");
+
+    useEffect(() => {
+        try {
+            let cs = sessionStorage.getItem("visitor-callsign");
+            if (!cs) {
+                cs = `${CALLSIGNS[Math.floor(Math.random() * CALLSIGNS.length)]}-${10 + Math.floor(Math.random() * 90)}`;
+                sessionStorage.setItem("visitor-callsign", cs);
+            }
+            setCallsign(cs);
+        } catch {
+            setCallsign("NOVA-7");
+        }
+        const tick = () => setTime(new Date().toLocaleTimeString([], { hour12: false }));
+        tick();
+        const id = setInterval(tick, 1000);
+        return () => clearInterval(id);
+    }, []);
+
+    if (!time) return null;
+
+    return (
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+            <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 motion-reduce:animate-none" />
+                systems nominal
+            </span>
+            <span className="text-neutral-700">|</span>
+            <span>local time {time}</span>
+            <span className="text-neutral-700">|</span>
+            <span>
+                callsign <span className="text-teal-400">{callsign}</span>
+            </span>
+        </div>
+    );
+};
 
 const Kbd = ({ children }: { children: React.ReactNode }) => {
     return (

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" fill="none">
+<defs>
+<linearGradient id="profileSkin" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#C2D4C8" />
+    <stop offset="50%" stop-color="#7E988A" />
+    <stop offset="100%" stop-color="#465A4F" />
+</linearGradient>
+<linearGradient id="backSkin" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#5C7A68" />
+    <stop offset="50%" stop-color="#3A4A41" />
+    <stop offset="100%" stop-color="#24302A" />
+</linearGradient>
+
+<radialGradient id="eyeGloss" cx="30%" cy="30%" r="70%">
+    <stop offset="0%" stop-color="#1A2520" />
+    <stop offset="100%" stop-color="#050806" />
+</radialGradient>
+</defs>
+
+
+<!-- RIGHT LEG (Background, stepping forward) -->
+<g id="leg-right">
+    <path d="M 125 360 C 115 400, 90 440, 70 480 C 65 490, 80 495, 85 485 C 105 445, 130 400, 140 365 Z"
+        fill="url(#backSkin)" />
+</g>
+
+
+<!-- TORSO (Identical registration point) -->
+<g id="torso">
+    <path d="M 105 230 C 95 260, 100 320, 105 365 C 115 375, 135 370, 135 360 C 145 310, 135 260, 125 230 Z"
+        fill="url(#profileSkin)" />
+</g>
+
+
+<!-- LEFT LEG (Foreground, stepping backward) -->
+<g id="leg-left">
+    <path d="M 115 360 C 125 400, 145 440, 165 480 C 170 490, 155 495, 150 485 C 130 445, 110 400, 105 365 Z"
+        fill="url(#profileSkin)" />
+</g>
+
+<!-- LEFT ARM (Foreground, swinging forward) -->
+<g id="arm-left">
+    <path d="M 115 245 C 90 260, 60 280, 40 310 C 35 320, 45 325, 50 315 C 70 285, 100 265, 125 250 Z"
+        fill="url(#profileSkin)" />
+</g>
+
+
+<!-- HEAD GROUP (Identical registration point) -->
+<g id="head">
+    <path
+        d="M 120 220 C 110 170, 175 160, 205 120 C 230 85, 195 40, 140 30 C 95 20, 65 60, 55 90 C 45 120, 40 140, 40 150 C 40 160, 50 170, 45 175 C 40 180, 40 190, 50 195 C 60 200, 80 220, 100 220 Z"
+        fill="url(#profileSkin)" />
+
+    <g id="eye-left">
+        <path d="M 45 145 C 55 135, 80 145, 90 160 C 70 165, 55 155, 45 145 Z" fill="url(#eyeGloss)" />
+        <path d="M 45 145 C 55 135, 80 145, 90 160 C 70 165, 55 155, 45 145 Z" fill="none" stroke="#24302A"
+            stroke-width="1.5" opacity="0.6" />
+        <ellipse cx="55" cy="146" rx="2" ry="4" fill="#FFFFFF" transform="rotate(-15 55 146)" />
+        <ellipse cx="53" cy="151" rx="1" ry="2" fill="#FFFFFF" opacity="0.4" transform="rotate(-15 53 151)" />
+    </g>
+    <path d="M 45 190 Q 50 193 55 190" stroke="#3A4A41" stroke-width="1.5" stroke-linecap="round" fill="none"
+        opacity="0.5" />
+</g>
+</svg>

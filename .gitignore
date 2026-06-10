@@ -28,3 +28,6 @@ next-env.d.ts
 
 # resume source (kept local)
 main.tex
+
+# local session log (kept local)
+CHANGES.md

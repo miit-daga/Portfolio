@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 512" fill="none">
+<defs>
+<linearGradient id="profileSkin" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#C2D4C8" />
+    <stop offset="50%" stop-color="#7E988A" />
+    <stop offset="100%" stop-color="#465A4F" />
+</linearGradient>
+
+<linearGradient id="backSkin" x1="0%" y1="0%" x2="100%" y2="0%">
+    <stop offset="0%" stop-color="#5C7A68" />
+    <stop offset="50%" stop-color="#3A4A41" />
+    <stop offset="100%" stop-color="#24302A" />
+</linearGradient>
+
+<!-- Glossy eye gradient -->
+<radialGradient id="eyeGloss" cx="30%" cy="30%" r="70%">
+    <stop offset="0%" stop-color="#1A2520" />
+    <stop offset="100%" stop-color="#050806" />
+</radialGradient>
+</defs>
+
+<!-- RIGHT ARM (Background, swinging forward) -->
+<g id="arm-right">
+    <path
+        d="M 125 245 C 115 270, 85 300, 65 335 C 60 345, 70 350, 75 340 C 95 305, 135 270, 135 250 C 135 245, 130 240, 125 245 Z"
+        fill="url(#backSkin)" />
+</g>
+
+<!-- RIGHT LEG (Background, stepping backward) -->
+<g id="leg-right">
+    <path
+        d="M 125 360 C 135 400, 155 440, 165 480 C 170 495, 155 495, 150 485 C 140 445, 115 400, 115 365 C 115 360, 120 355, 125 360 Z"
+        fill="url(#backSkin)" />
+</g>
+
+
+<!-- TORSO -->
+<g id="torso">
+    <path d="M 105 230 C 95 260, 100 320, 105 365 C 115 375, 135 370, 135 360 C 145 310, 135 260, 125 230 Z"
+        fill="url(#profileSkin)" />
+</g>
+
+
+<!-- LEFT LEG (Foreground, stepping forward) -->
+<g id="leg-left">
+    <path
+        d="M 115 360 C 110 400, 90 440, 75 480 C 70 495, 85 495, 85 485 C 100 445, 130 400, 130 365 C 130 360, 120 355, 115 360 Z"
+        fill="url(#profileSkin)" />
+</g>
+
+<!-- LEFT ARM (Foreground, swinging backward) -->
+<g id="arm-left">
+    <path
+        d="M 115 245 C 125 270, 145 310, 165 355 C 170 365, 160 370, 155 360 C 135 320, 105 270, 105 250 C 105 245, 110 240, 115 245 Z"
+        fill="url(#profileSkin)" />
+</g>
+
+
+<!-- HEAD GROUP (Profile View) -->
+<g id="head">
+    <!-- Elongated Cranium extending backward -->
+    <path
+        d="M 120 220 C 110 170, 175 160, 205 120 C 230 85, 195 40, 140 30 C 95 20, 65 60, 55 90 C 45 120, 40 140, 40 150 C 40 160, 50 170, 45 175 C 40 180, 40 190, 50 195 C 60 200, 80 220, 100 220 Z"
+        fill="url(#profileSkin)" />
+
+
+    <!-- LEFT EYE (Wrapped around side) -->
+    <g id="eye-left">
+        <!-- Profile Almond Base -->
+        <path d="M 45 145 C 55 135, 80 145, 90 160 C 70 165, 55 155, 45 145 Z" fill="url(#eyeGloss)" />
+        <!-- Soft Edge Shadow -->
+        <path d="M 45 145 C 55 135, 80 145, 90 160 C 70 165, 55 155, 45 145 Z" fill="none" stroke="#24302A"
+            stroke-width="1.5" opacity="0.6" />
+        <!-- Catchlight adjusting to side curvature -->
+        <ellipse cx="55" cy="146" rx="2" ry="4" fill="#FFFFFF" transform="rotate(-15 55 146)" />
+        <ellipse cx="53" cy="151" rx="1" ry="2" fill="#FFFFFF" opacity="0.4" transform="rotate(-15 53 151)" />
+    </g>
+
+    <!-- Minimal Mouth Profile Indentation -->
+    <path d="M 45 190 Q 50 193 55 190" stroke="#3A4A41" stroke-width="1.5" stroke-linecap="round" fill="none"
+        opacity="0.5" />
+</g>
+</svg>

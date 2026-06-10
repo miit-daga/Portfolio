@@ -5,8 +5,67 @@ import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
+import { AstronautBuddy } from "./ui/astronaut"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+
+// A meteor streaks across the hero every ~20-40s; nothing renders in between.
+type Streak = { top: number; left: number; angle: number; len: number; dur: number; key: number }
+
+const ShootingStar = ({ disabled }: { disabled: boolean }) => {
+  const [streak, setStreak] = useState<Streak | null>(null)
+
+  useEffect(() => {
+    if (disabled) return
+    let t: ReturnType<typeof setTimeout>
+    let alive = true
+    const fire = () => {
+      if (!alive) return
+      setStreak({
+        top: 6 + Math.random() * 30,
+        left: 5 + Math.random() * 50,
+        angle: 18 + Math.random() * 16,
+        len: 200 + Math.random() * 130,
+        dur: 0.9 + Math.random() * 0.5,
+        key: Date.now(),
+      })
+      t = setTimeout(() => {
+        if (!alive) return
+        setStreak(null)
+        t = setTimeout(fire, 16000 + Math.random() * 24000)
+      }, 1800)
+    }
+    t = setTimeout(fire, 4000 + Math.random() * 4000)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [disabled])
+
+  if (disabled || !streak) return null
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden" aria-hidden>
+      <div
+        className="absolute"
+        style={{ top: `${streak.top}%`, left: `${streak.left}%`, transform: `rotate(${streak.angle}deg)` }}
+      >
+        <motion.div
+          key={streak.key}
+          className="h-[2px] rounded-full"
+          style={{
+            width: streak.len,
+            background: "linear-gradient(90deg, transparent, rgba(153,246,228,0.85) 65%, #ffffff)",
+            boxShadow: "0 0 6px rgba(45,212,191,0.5)",
+          }}
+          initial={{ x: -60, opacity: 0 }}
+          animate={{ x: streak.len * 1.5, opacity: [0, 1, 1, 0] }}
+          transition={{ duration: streak.dur, ease: "easeIn", times: [0, 0.15, 0.75, 1] }}
+        />
+      </div>
+    </div>
+  )
+}
 
 const AVATAR_QUOTES = [
   "Booting personality.exe...",
@@ -97,6 +156,8 @@ const Hero = () => {
       className="h-dvh relative overflow-hidden"
     >
       <BackgroundGradientAnimation>
+        <ShootingStar disabled={!!shouldReduceMotion} />
+        <AstronautBuddy className="left-[6%] top-24 lg:left-[8%] lg:top-auto lg:bottom-[22%]" />
         <div className="absolute z-50 inset-0 flex flex-col lg:flex-row items-center justify-center text-white font-bold px-4 pt-16 pb-24 lg:py-0 pointer-events-none w-full h-full gap-6 sm:gap-10 lg:gap-24">
 
           {/* --- LEFT SIDE: TEXT CONTENT --- */}
@@ -174,6 +235,7 @@ const Hero = () => {
 
                   {/* 3. Subtle Glitch Gradient Overlay (Disappears on hover) */}
                   <div className="absolute inset-0 z-30 bg-gradient-to-t from-teal-500/20 via-transparent to-transparent mix-blend-color-dodge opacity-40 pointer-events-none transition-opacity duration-500 group-hover:opacity-0" />
+
 
                   {/* Click reaction: bottom anchored just above the head, grows upward, rides the float bob */}
                   <div className="pointer-events-none absolute bottom-[82%] left-1/2 z-50 -translate-x-1/2">

@@ -11,6 +11,7 @@ import { cn } from "@/utils/cn";
 import Link from "next/link";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 import { IconFileText } from "@tabler/icons-react";
+import { warpForJump } from "@/components/ui/warp-overlay";
 import { MagneticWrapper } from "./magnetic-wrapper";
 
 export const FloatingNav = ({
@@ -192,6 +193,9 @@ export const FloatingNav = ({
     const getTop = () => Math.max(0, el.getBoundingClientRect().top + window.scrollY - 16);
     const startY = window.scrollY;
     const duration = 750;
+
+    // Hyperspace streak only when skipping several sections
+    warpForJump(link, 850);
     const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
     let startTime: number | null = null;
 

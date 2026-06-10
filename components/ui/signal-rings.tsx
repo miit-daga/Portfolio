@@ -40,7 +40,7 @@ const LAND_SCALE = 1.0;
 // -> 3D rounds -> land -> open -> (aliens out)...
 const SEQUENCE = [
     { p: "orbit", d: 12000 },
-    { p: "descend", d: 1700 },
+    { p: "descend", d: 2100 },
     { p: "open", d: 800 },
     { p: "disembark", d: 4200 },
     { p: "gather", d: 1200 },
@@ -51,8 +51,8 @@ const SEQUENCE = [
 ] as const;
 const START_INDEX = 3; // begin parked with the hatch open
 
-// The leader (index 0) stays centred in front of the ship; the other two split off
-// to opposite sides so all three head different ways.
+// The leader (index 0) stays centred in front of the ship; the other two split
+// off to opposite sides so all three drift different ways.
 const ALIEN_ROAM = [
     { x: [0, 4, -6, 2, 0], y: [LAND_Y, 28, 40, 32, 38] },
     { x: [0, -44, -82, -58, -86], y: [LAND_Y, 20, 36, 54, 42] },
@@ -82,7 +82,7 @@ const LINES = [
     "Verdict: hire the human.",
 ];
 
-// ---- Flying saucer (sleek, metallic) -------------------------------------
+// ---- Flying saucer (SVG, gunmetal, directional lighting) ------------------
 const Ufo = ({ reduce, hatchOpen, thrust }: { reduce: boolean | null; hatchOpen: boolean; thrust: boolean }) => (
     <motion.div
         className="relative"
@@ -90,129 +90,162 @@ const Ufo = ({ reduce, hatchOpen, thrust }: { reduce: boolean | null; hatchOpen:
         animate={reduce ? undefined : { y: [0, -1.5, 0] }}
         transition={reduce ? undefined : { duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
     >
-        {/* Ion thruster (takeoff / landing) */}
-        <motion.div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{
-                top: 14,
-                width: 12,
-                height: 30,
-                background: "radial-gradient(ellipse at 50% 0%, rgba(191,219,254,0.7), rgba(125,211,252,0.18) 45%, transparent 72%)",
-                filter: "blur(2px)",
-            }}
-            animate={reduce ? { opacity: thrust ? 0.55 : 0 } : { opacity: thrust ? [0.4, 0.8, 0.4] : 0, scaleY: thrust ? [1, 1.25, 1] : 1 }}
-            transition={reduce ? { duration: 0.3 } : { duration: 0.5, repeat: thrust ? Infinity : 0, ease: "easeInOut" }}
-        />
-        {/* Boarding ramp light while the hatch is open */}
-        <motion.div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{
-                top: 15,
-                width: 22,
-                height: 26,
-                background: "linear-gradient(to bottom, rgba(191,219,254,0.2), transparent)",
-                clipPath: "polygon(40% 0, 60% 0, 100% 100%, 0 100%)",
-            }}
-            animate={{ opacity: hatchOpen ? 1 : 0 }}
-            transition={{ duration: 0.5 }}
-        />
-        {/* Lower saucer hull */}
-        <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{
-                top: 8,
-                width: 58,
-                height: 12,
-                borderRadius: "50%",
-                background: "linear-gradient(to bottom, #d3dae3 0%, #97a2b2 28%, #3a434f 72%, #1b212a 100%)",
-                boxShadow: "0 4px 9px rgba(0,0,0,0.55)",
-            }}
-        />
-        {/* Specular sheen */}
-        <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: 8.5, width: 40, height: 4, borderRadius: "50%", background: "linear-gradient(to bottom, rgba(255,255,255,0.55), transparent)", opacity: 0.6 }}
-        />
-        {/* Upper bulge */}
-        <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: 2, width: 32, height: 12, borderRadius: "50%", background: "linear-gradient(to bottom, #e6eaf0, #6c7787 75%, #4a5360)" }}
-        />
-        {/* Smoked-glass dome */}
-        <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: -2, width: 15, height: 8, borderRadius: "50% 50% 42% 42%", background: "radial-gradient(circle at 50% 25%, rgba(203,213,225,0.75), rgba(18,26,36,0.96))" }}
-        />
-        {/* Rim highlight */}
-        <div className="absolute left-1/2 -translate-x-1/2" style={{ top: 8, width: 58, height: 12, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.1)" }} />
-        {/* Soft underglow */}
-        <div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: 17, width: 26, height: 6, borderRadius: "50%", background: "radial-gradient(ellipse at center, rgba(125,211,252,0.4), transparent 70%)", filter: "blur(1px)" }}
-        />
-        {/* Hatch seam - opens/closes */}
-        <motion.div
-            className="absolute left-1/2 -translate-x-1/2"
-            style={{ top: 17, width: 12, borderRadius: "50%", background: "rgba(191,219,254,0.85)", boxShadow: "0 0 5px rgba(125,211,252,0.6)" }}
-            animate={{ height: hatchOpen ? 3.5 : 0.6, opacity: hatchOpen ? 0.9 : 0 }}
-            transition={{ duration: 0.5 }}
-        />
-        {/* Dim portholes */}
-        {[-16, -8, 0, 8, 16].map((dx, i) => (
-            <motion.span
-                key={i}
-                className="absolute rounded-full"
-                style={{ left: `calc(50% + ${dx}px)`, top: 12.5, width: 1.6, height: 1.6, marginLeft: -0.8, background: "rgba(191,219,254,0.85)" }}
-                animate={reduce ? undefined : { opacity: [0.22, 0.65, 0.22] }}
-                transition={reduce ? undefined : { duration: 2, delay: i * 0.3, repeat: Infinity, ease: "easeInOut" }}
+        <svg viewBox="0 0 58 24" width="58" height="24" style={{ overflow: "visible", display: "block" }} aria-hidden>
+            <defs>
+                <linearGradient id="sigUfoHull" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="#7e8a99" />
+                    <stop offset="0.4" stopColor="#46505e" />
+                    <stop offset="0.75" stopColor="#232b36" />
+                    <stop offset="1" stopColor="#11161e" />
+                </linearGradient>
+                <linearGradient id="sigUfoTop" x1="0.3" y1="0" x2="0.7" y2="1">
+                    <stop offset="0" stopColor="#b8c2cd" />
+                    <stop offset="0.6" stopColor="#5e6a78" />
+                    <stop offset="1" stopColor="#39434f" />
+                </linearGradient>
+                <radialGradient id="sigUfoDome" cx="0.38" cy="0.28" r="1">
+                    <stop offset="0" stopColor="#9fb4c2" stopOpacity="0.85" />
+                    <stop offset="0.45" stopColor="#27343f" />
+                    <stop offset="1" stopColor="#0a1118" />
+                </radialGradient>
+                <linearGradient id="sigUfoBeam" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stopColor="rgba(125,211,252,0.25)" />
+                    <stop offset="1" stopColor="rgba(125,211,252,0)" />
+                </linearGradient>
+                <radialGradient id="sigUfoThrust" cx="0.5" cy="0.1" r="0.9">
+                    <stop offset="0" stopColor="rgba(190,225,255,0.75)" />
+                    <stop offset="1" stopColor="rgba(125,211,252,0)" />
+                </radialGradient>
+            </defs>
+
+            {/* Ion thrust (takeoff / landing) */}
+            <motion.ellipse
+                cx="29"
+                cy="24"
+                rx="6"
+                ry="8"
+                fill="url(#sigUfoThrust)"
+                animate={reduce ? { opacity: thrust ? 0.6 : 0 } : { opacity: thrust ? [0.4, 0.85, 0.4] : 0 }}
+                transition={reduce ? { duration: 0.3 } : { duration: 0.5, repeat: thrust ? Infinity : 0, ease: "easeInOut" }}
             />
-        ))}
+            {/* Boarding beam while the hatch is open */}
+            <motion.path
+                d="M25 18 L33 18 L40 32 L18 32 Z"
+                fill="url(#sigUfoBeam)"
+                animate={{ opacity: hatchOpen ? 1 : 0 }}
+                transition={{ duration: 0.5 }}
+            />
+
+            {/* Smoked dome (behind the hull cap) */}
+            <ellipse cx="29" cy="7" rx="7.5" ry="5.5" fill="url(#sigUfoDome)" />
+            <path d="M24.5 4.6 Q27.5 2.8 31.5 4.2" stroke="rgba(255,255,255,0.4)" strokeWidth="0.7" fill="none" strokeLinecap="round" />
+
+            {/* Upper hull cap */}
+            <ellipse cx="29" cy="10.5" rx="13" ry="4.4" fill="url(#sigUfoTop)" />
+            <path d="M18 9.2 Q29 6.4 40 9.2" stroke="rgba(255,255,255,0.18)" strokeWidth="0.5" fill="none" />
+
+            {/* Main saucer */}
+            <ellipse cx="29" cy="14.2" rx="28" ry="6.6" fill="url(#sigUfoHull)" />
+            {/* Off-centre specular (keylight from upper-left) */}
+            <ellipse cx="20" cy="11.6" rx="12" ry="2" fill="rgba(255,255,255,0.16)" />
+            {/* Panel seams */}
+            <path d="M3.5 15.5 Q29 22 54.5 15.5" stroke="rgba(0,0,0,0.4)" strokeWidth="0.5" fill="none" />
+            <path d="M7 12.4 Q29 8.6 51 12.4" stroke="rgba(255,255,255,0.07)" strokeWidth="0.5" fill="none" />
+            {/* Rim edge */}
+            <ellipse cx="29" cy="14.2" rx="28" ry="6.6" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
+            {/* Underside shadow */}
+            <ellipse cx="29" cy="17.4" rx="15" ry="2.6" fill="rgba(0,0,0,0.45)" />
+
+            {/* Hatch (opens/closes) */}
+            <motion.ellipse
+                cx="29"
+                cy="17.8"
+                rx="4.6"
+                fill="#0a1016"
+                stroke="rgba(125,211,252,0.55)"
+                strokeWidth="0.5"
+                animate={{ ry: hatchOpen ? 1.9 : 0.45, opacity: hatchOpen ? 1 : 0.45 }}
+                transition={{ duration: 0.5 }}
+            />
+
+            {/* Dim warm running lights along the rim */}
+            {[-21, -10.5, 0, 10.5, 21].map((dx, i) => (
+                <motion.circle
+                    key={i}
+                    cx={29 + dx}
+                    cy={16 - Math.abs(dx) * 0.055}
+                    r="0.75"
+                    fill="#ffd9a0"
+                    animate={reduce ? undefined : { opacity: [0.2, 0.7, 0.2] }}
+                    transition={reduce ? undefined : { duration: 2.4, delay: i * 0.3, repeat: Infinity, ease: "easeInOut" }}
+                />
+            ))}
+        </svg>
     </motion.div>
 );
 
-// ---- Alien (luminous "grey" being) ---------------------------------------
+// ---- Alien (SVG, muted sage, soft key light) ------------------------------
 const Alien = ({ reduce, leader = false }: { reduce: boolean | null; leader?: boolean }) => (
-    <div className="relative" style={{ width: 18, height: 30, transform: leader ? "scale(1.32)" : undefined, transformOrigin: "bottom center" }}>
-        {/* glow halo so it reads on the dark backdrop (leader glows brighter) */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ width: 22, height: 30, background: `radial-gradient(ellipse at center, rgba(94,234,212,${leader ? 0.4 : 0.28}), transparent 70%)`, filter: "blur(2px)" }} />
-        {/* ground shadow */}
-        <div className="absolute left-1/2 -translate-x-1/2 rounded-[50%] bg-black/55 blur-[1.5px]" style={{ bottom: 0, width: 13, height: 3.5 }} />
+    <div className="relative" style={{ width: 20, height: 34, transform: leader ? "scale(1.3)" : undefined, transformOrigin: "bottom center" }}>
+        {/* faint presence glow, just enough to read on the dark ground */}
+        <div
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            style={{ width: 24, height: 34, background: `radial-gradient(ellipse at center, rgba(125,200,180,${leader ? 0.2 : 0.13}), transparent 70%)`, filter: "blur(2px)" }}
+        />
         <motion.div
             className="absolute inset-0"
             animate={reduce ? undefined : { y: [0, -1.5, 0] }}
-            transition={reduce ? undefined : { duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            transition={reduce ? undefined : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
         >
-            {/* legs */}
-            <div className="absolute" style={{ left: "calc(50% - 3px)", bottom: 1, width: 2, height: 9, borderRadius: 2, background: "linear-gradient(to bottom, #9fe8d8, #3f7d72)" }} />
-            <div className="absolute" style={{ left: "calc(50% + 1px)", bottom: 1, width: 2, height: 9, borderRadius: 2, background: "linear-gradient(to bottom, #9fe8d8, #3f7d72)" }} />
-            {/* arms */}
-            <div className="absolute" style={{ left: "calc(50% - 6.5px)", bottom: 10, width: 2, height: 8, borderRadius: 2, background: "linear-gradient(to bottom, #8fdccb, #3f7d72)", transform: "rotate(14deg)" }} />
-            <div className="absolute" style={{ left: "calc(50% + 4.5px)", bottom: 10, width: 2, height: 8, borderRadius: 2, background: "linear-gradient(to bottom, #8fdccb, #3f7d72)", transform: "rotate(-14deg)" }} />
-            {/* torso */}
-            <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: 8, width: 8, height: 11, borderRadius: "45% 45% 38% 38%", background: "linear-gradient(160deg, #c6f3e8 0%, #6fc3b2 52%, #3a7568 100%)", boxShadow: "0 0 6px rgba(94,234,212,0.35)" }} />
-            {/* elongated head */}
-            <div
-                className="absolute left-1/2 -translate-x-1/2"
-                style={{ bottom: 16, width: 13, height: 14, borderRadius: "52% 52% 50% 50% / 62% 62% 40% 40%", background: "radial-gradient(circle at 50% 32%, #def7ef, #62b6a6 68%, #356b60)", boxShadow: "0 0 8px rgba(94,234,212,0.4)" }}
-            >
-                {/* large slanted almond eyes */}
-                <div className="absolute" style={{ left: 1.5, top: 4.5, width: 4.5, height: 6, background: "#0a1418", borderRadius: "65% 35% 55% 45%", transform: "rotate(22deg)" }} />
-                <div className="absolute" style={{ right: 1.5, top: 4.5, width: 4.5, height: 6, background: "#0a1418", borderRadius: "35% 65% 45% 55%", transform: "rotate(-22deg)" }} />
-            </div>
-            {/* crown (leader only) */}
-            {leader && (
-                <div
-                    className="absolute left-1/2 -translate-x-1/2"
-                    style={{
-                        bottom: 30,
-                        width: 12,
-                        height: 5,
-                        background: "linear-gradient(to bottom, #fde68a, #f59e0b)",
-                        clipPath: "polygon(0 100%, 0 45%, 18% 72%, 34% 0, 50% 72%, 66% 0, 82% 72%, 100% 45%, 100% 100%)",
-                        boxShadow: "0 0 5px rgba(253,224,138,0.85)",
-                    }}
-                />
-            )}
+            <svg viewBox="0 0 20 34" width="20" height="34" style={{ overflow: "visible", display: "block" }} aria-hidden>
+                <defs>
+                    <radialGradient id="sigAlienHead" cx="0.4" cy="0.28" r="1">
+                        <stop offset="0" stopColor="#c2d4c8" />
+                        <stop offset="0.55" stopColor="#7e988a" />
+                        <stop offset="1" stopColor="#465a4f" />
+                    </radialGradient>
+                    <linearGradient id="sigAlienBody" x1="0.3" y1="0" x2="0.7" y2="1">
+                        <stop offset="0" stopColor="#9db4a6" />
+                        <stop offset="1" stopColor="#4c6156" />
+                    </linearGradient>
+                </defs>
+
+                {/* ground shadow */}
+                <ellipse cx="10" cy="33" rx="6" ry="1.5" fill="rgba(0,0,0,0.5)" />
+
+                {/* legs */}
+                <path d="M8.2 25.5 L7.7 31.6" stroke="url(#sigAlienBody)" strokeWidth="2" strokeLinecap="round" />
+                <path d="M11.8 25.5 L12.3 31.6" stroke="url(#sigAlienBody)" strokeWidth="2" strokeLinecap="round" />
+
+                {/* arms, slightly bent */}
+                <path d="M6.6 18 Q4.6 20.5 5.2 23.5" stroke="url(#sigAlienBody)" strokeWidth="1.7" strokeLinecap="round" fill="none" />
+                <path d="M13.4 18 Q15.4 20.5 14.8 23.5" stroke="url(#sigAlienBody)" strokeWidth="1.7" strokeLinecap="round" fill="none" />
+
+                {/* torso, narrow shoulders */}
+                <path d="M7.2 16.5 Q10 15.2 12.8 16.5 L12.2 26 Q10 27.2 7.8 26 Z" fill="url(#sigAlienBody)" />
+                {/* torso rim light */}
+                <path d="M7.6 17 Q8 21 8 25.4" stroke="rgba(220,240,228,0.35)" strokeWidth="0.5" fill="none" />
+
+                {/* elongated head, tapered chin */}
+                <path d="M10 1.2 C14.6 1.2 16.7 4.8 16.1 8.8 C15.6 12.4 12.9 15.4 10 15.4 C7.1 15.4 4.4 12.4 3.9 8.8 C3.3 4.8 5.4 1.2 10 1.2 Z" fill="url(#sigAlienHead)" />
+                {/* skull highlight */}
+                <path d="M6.4 3.6 Q8.2 2.2 10.6 2.5" stroke="rgba(235,245,238,0.5)" strokeWidth="0.6" fill="none" strokeLinecap="round" />
+
+                {/* slanted almond eyes with a faint glint */}
+                <path d="M5.2 7.4 C6.3 6 8.2 6.6 8.5 8.3 C8.7 9.8 7.2 10.9 6.1 10.1 C5.1 9.4 4.7 8.2 5.2 7.4 Z" fill="#0c1310" />
+                <path d="M14.8 7.4 C13.7 6 11.8 6.6 11.5 8.3 C11.3 9.8 12.8 10.9 13.9 10.1 C14.9 9.4 15.3 8.2 14.8 7.4 Z" fill="#0c1310" />
+                <circle cx="6.6" cy="7.8" r="0.4" fill="rgba(255,255,255,0.55)" />
+                <circle cx="13.2" cy="7.8" r="0.4" fill="rgba(255,255,255,0.55)" />
+
+                {/* leader's circlet: a slim metal band with a teal gem */}
+                {leader && (
+                    <g>
+                        <path d="M4.6 4.9 Q10 2.6 15.4 4.9" stroke="#9aa9b8" strokeWidth="1" fill="none" strokeLinecap="round" />
+                        <circle cx="10" cy="3.1" r="1.4" fill="rgba(94,234,212,0.25)" />
+                        <circle cx="10" cy="3.1" r="0.75" fill="#5eead4" />
+                    </g>
+                )}
+            </svg>
         </motion.div>
     </div>
 );
@@ -297,7 +330,7 @@ export const SignalRings = () => {
     // 3D elliptical orbit, sampled starting at the BACK (far/top) so it joins the
     // liftoff (rising up & away) and the landing (descending to centre) smoothly.
     const orbit = useMemo(() => {
-        const N = 36;
+        const N = 84;
         const x: number[] = [];
         const y: number[] = [];
         const scale: number[] = [];
@@ -321,17 +354,32 @@ export const SignalRings = () => {
     let ufoTransition: Transition;
     if (orbiting) {
         // Two loops along the true projected ground-plane ellipse, beginning and
-        // ending at the apex (above the pad), finishing just before the phase ends.
+        // ending at the apex (above the pad), timed to hand off exactly when the
+        // phase flips (no frozen hold).
         ufoAnimate = { x: orbit.x, y: orbit.y, scale: orbit.scale, zIndex: orbit.zIndex };
-        ufoTransition = { duration: 5.8, times: orbit.times, repeat: 1, ease: "linear" };
+        ufoTransition = { duration: 6, times: orbit.times, repeat: 1, ease: "linear" };
     } else if (phase === "ascend") {
-        // Vertical takeoff: straight up from the pad to the hover point above it.
-        ufoAnimate = { x: 0, y: APEX.y, scale: APEX.scale, rotate: 0, opacity: 1, zIndex: 5 };
-        ufoTransition = { duration: 1.5, ease: "easeOut" };
+        // Vertical takeoff: a slight crouch, then a smooth accelerating climb
+        ufoAnimate = {
+            x: 0,
+            y: [LAND_Y, LAND_Y + 3, APEX.y],
+            scale: [LAND_SCALE, LAND_SCALE * 0.99, APEX.scale],
+            rotate: 0,
+            opacity: 1,
+            zIndex: 5,
+        };
+        ufoTransition = { duration: 1.5, times: [0, 0.16, 1], ease: ["easeOut", [0.45, 0.05, 0.45, 1]] };
     } else if (phase === "descend") {
-        // Vertical landing: straight down from the apex onto the pad.
-        ufoAnimate = { x: 0, y: LAND_Y, scale: LAND_SCALE, rotate: 0, opacity: 1, zIndex: 20 };
-        ufoTransition = { duration: 1.7, ease: "easeInOut" };
+        // Vertical landing: glide down, brake just above the pad, settle softly
+        ufoAnimate = {
+            x: 0,
+            y: [APEX.y, LAND_Y - 6, LAND_Y],
+            scale: [APEX.scale, LAND_SCALE, LAND_SCALE],
+            rotate: 0,
+            opacity: 1,
+            zIndex: 20,
+        };
+        ufoTransition = { duration: 2.1, times: [0, 0.78, 1], ease: [[0.4, 0, 0.3, 1], "easeOut"] };
     } else {
         ufoAnimate = { x: 0, y: LAND_Y, scale: LAND_SCALE, rotate: 0, opacity: 1, zIndex: 20 };
         ufoTransition = { duration: 0.5 };
@@ -448,23 +496,23 @@ export const SignalRings = () => {
                     aAnimate = { x: ALIEN_CLUSTER[i].x, y: ALIEN_CLUSTER[i].y, scale: 1, opacity: 1 };
                     aTransition = { duration: 0 };
                 } else if (phase === "disembark") {
-                    aAnimate = { x: roam.x, y: roam.y, scale: [0, 1, 1, 1, 1], opacity: [0, 1, 1, 1, 1] };
+                    aAnimate = { x: roam.x, y: roam.y, rotate: 0, scale: [0, 1, 1, 1, 1], opacity: [0, 1, 1, 1, 1] };
                     aTransition = { duration: 4.0, times: ALIEN_TIMES, delay: i * 0.1, ease: "easeInOut" };
                 } else if (phase === "gather" || phase === "speak") {
-                    aAnimate = { x: ALIEN_CLUSTER[i].x, y: ALIEN_CLUSTER[i].y, scale: 1, opacity: 1 };
+                    aAnimate = { x: ALIEN_CLUSTER[i].x, y: ALIEN_CLUSTER[i].y, rotate: 0, scale: 1, opacity: 1 };
                     aTransition = { duration: 1.1, delay: i * 0.08, ease: "easeInOut" };
                 } else if (phase === "board") {
-                    aAnimate = { x: 0, y: LAND_Y, scale: 0, opacity: 0 };
+                    aAnimate = { x: 0, y: LAND_Y, rotate: 0, scale: 0, opacity: 0 };
                     aTransition = { duration: 1.0, delay: i * 0.12, ease: "easeIn" };
                 } else {
-                    aAnimate = { x: 0, y: LAND_Y, scale: 0, opacity: 0 };
+                    aAnimate = { x: 0, y: LAND_Y, rotate: 0, scale: 0, opacity: 0 };
                     aTransition = { duration: 0.3 };
                 }
                 return (
                     <motion.div
                         key={i}
                         className="absolute"
-                        style={{ left: "50%", top: "50%", marginLeft: -9, marginTop: -15, zIndex: 22 }}
+                        style={{ left: "50%", top: "50%", marginLeft: -10, marginTop: -17, zIndex: 22 }}
                         initial={{ x: 0, y: LAND_Y, scale: 0, opacity: 0 }}
                         animate={aAnimate}
                         transition={aTransition}

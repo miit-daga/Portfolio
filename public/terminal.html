@@ -557,7 +557,7 @@
             ls: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
             rm: ['documents', 'downloads', 'music', 'pictures', 'videos', 'secret_plans.txt'],
             theme: Object.keys(THEMES),
-            play: ['snake', 'invaders', 'dodge', 'tetris', 'typing'],
+            play: ['snake', 'invaders', 'dodge', 'tetris', 'typing', 'flappy'],
         };
 
         inputLine.addEventListener('input', () => {
@@ -1196,6 +1196,131 @@
             });
         }
 
+        // --- FLAPPY ROCKET (play flappy) ---
+        function startFlappyGame() {
+            return new Promise((resolve) => {
+                const W = 360, H = 420, RX = 84, RR = 9;
+                const GRAVITY = 0.34, FLAP = -5.6, MAXFALL = 7.2;
+                const COLW = 48, GAP = 138, COLSPEED = 2.2, COLDIST = 185;
+                const ui = makeGameOverlay('F L A P P Y   R O C K E T', W, H);
+                const ctx = ui.ctx, primary = ui.primary, accent = ui.accent, scoreBar = ui.scoreBar, hint = ui.hint, overlay = ui.overlay;
+                let high = 0; try { high = parseInt(localStorage.getItem('flappy-highscore') || '0', 10) || 0; } catch (e) {}
+                let ry, vy, cols, score, over, waiting, loop, t;
+
+                function updateBar() { scoreBar.innerHTML = "<span>SCORE <b style='color:" + primary + "'>" + score + "</b></span><span>HIGH <b style='color:" + primary + "'>" + Math.max(high, score) + "</b></span>"; }
+                function restartLoop() { clearInterval(loop); loop = setInterval(step, 1000 / 40); }
+                function spawnCol() {
+                    const cy = 70 + Math.random() * (H - 140 - GAP);
+                    cols.push({ x: W + 10, top: cy, passed: false, seed: Math.random() });
+                }
+                function reset() {
+                    ry = H / 2; vy = 0; cols = []; score = 0; over = false; waiting = true; t = 0;
+                    updateBar();
+                    hint.innerHTML = "Space / &uarr; to thrust &nbsp;&middot;&nbsp; Q to quit";
+                    restartLoop();
+                }
+                function flap() {
+                    if (over) return;
+                    if (waiting) waiting = false;
+                    vy = FLAP;
+                    if (typeof SoundFX !== 'undefined' && SoundFX.playTone) SoundFX.playTone(620, 'triangle', 0.06, 0.035);
+                }
+                function step() {
+                    if (over) return;
+                    t++;
+                    if (waiting) {
+                        ry = H / 2 + Math.sin(t / 12) * 8;
+                        draw(true);
+                        return;
+                    }
+                    vy = Math.min(MAXFALL, vy + GRAVITY);
+                    ry += vy;
+                    if (!cols.length || cols[cols.length - 1].x < W - COLDIST) spawnCol();
+                    for (const c of cols) c.x -= COLSPEED;
+                    cols = cols.filter(c => c.x + COLW > -10);
+                    for (const c of cols) {
+                        if (!c.passed && c.x + COLW < RX - RR) {
+                            c.passed = true; score++;
+                            if (typeof SoundFX !== 'undefined' && SoundFX.playTone) SoundFX.playTone(880, 'square', 0.05, 0.04);
+                            updateBar();
+                        }
+                        // Circle vs the two column rects
+                        if (RX + RR > c.x && RX - RR < c.x + COLW) {
+                            if (ry - RR < c.top || ry + RR > c.top + GAP) { gameOver(); return; }
+                        }
+                    }
+                    if (ry + RR > H - 4 || ry - RR < 4) { gameOver(); return; }
+                    draw(false);
+                }
+                function drawColumn(c) {
+                    ctx.fillStyle = '#3f4a5a';
+                    ctx.strokeStyle = 'rgba(148,163,184,0.4)';
+                    const tops = [[c.x, 0, COLW, c.top], [c.x, c.top + GAP, COLW, H - c.top - GAP]];
+                    for (const [x, y, w, h] of tops) {
+                        if (h <= 0) continue;
+                        ctx.beginPath();
+                        if (ctx.roundRect) ctx.roundRect(x, y, w, h, 6); else ctx.rect(x, y, w, h);
+                        ctx.fill(); ctx.stroke();
+                    }
+                    // Craters
+                    ctx.fillStyle = 'rgba(15,23,42,0.55)';
+                    const cr = [[0.3, c.top - 24], [0.68, c.top - 60], [0.45, c.top + GAP + 28], [0.72, c.top + GAP + 70]];
+                    for (let i = 0; i < cr.length; i++) {
+                        const cyy = cr[i][1];
+                        if (cyy < 8 || cyy > H - 8) continue;
+                        ctx.beginPath();
+                        ctx.arc(c.x + cr[i][0] * COLW, cyy, 4 + ((c.seed * 7 + i) % 3), 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+                function draw(idle) {
+                    ctx.fillStyle = '#05070a'; ctx.fillRect(0, 0, W, H);
+                    for (const c of cols) drawColumn(c);
+                    // Rocket: body + nose + flame
+                    const tilt = Math.max(-0.5, Math.min(0.7, vy * 0.07));
+                    ctx.save();
+                    ctx.translate(RX, ry);
+                    ctx.rotate(idle ? 0 : tilt);
+                    // flame
+                    if (!idle && vy < 0) {
+                        ctx.fillStyle = accent; ctx.shadowColor = accent; ctx.shadowBlur = 8;
+                        ctx.beginPath(); ctx.moveTo(-9, 3); ctx.lineTo(-17 - Math.random() * 4, 0); ctx.lineTo(-9, -3); ctx.closePath(); ctx.fill();
+                    }
+                    ctx.fillStyle = primary; ctx.shadowColor = primary; ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.moveTo(11, 0); ctx.lineTo(2, -6); ctx.lineTo(-9, -6); ctx.lineTo(-9, 6); ctx.lineTo(2, 6);
+                    ctx.closePath(); ctx.fill();
+                    ctx.shadowBlur = 0;
+                    // window
+                    ctx.fillStyle = '#05070a';
+                    ctx.beginPath(); ctx.arc(1, 0, 2.6, 0, Math.PI * 2); ctx.fill();
+                    ctx.restore();
+                    if (idle) {
+                        ctx.textAlign = 'center';
+                        ctx.fillStyle = '#94a3b8'; ctx.font = "12px 'Roboto Mono', monospace";
+                        ctx.fillText('press Space to launch', W / 2, H / 2 - 60);
+                    }
+                    if (over) endText(ctx, W, H, primary, score, high);
+                }
+                function gameOver() {
+                    over = true; clearInterval(loop);
+                    if (typeof SoundFX !== 'undefined' && SoundFX.powerDown) SoundFX.powerDown();
+                    if (score > high) { high = score; try { localStorage.setItem('flappy-highscore', String(high)); } catch (e) {} }
+                    hint.innerHTML = "R to restart &nbsp;&middot;&nbsp; Q to quit";
+                    updateBar(); draw(false);
+                }
+                function onKey(e) {
+                    const k = (e.key || '').toLowerCase();
+                    if ([' ', 'spacebar', 'arrowup', 'w'].indexOf(k) !== -1) { e.preventDefault(); flap(); return; }
+                    if (k === 'q' || k === 'escape') { e.preventDefault(); cleanup(); return; }
+                    if (k === 'r' && over) { e.preventDefault(); reset(); }
+                }
+                function cleanup() { clearInterval(loop); document.removeEventListener('keydown', onKey, true); overlay.remove(); resolve(); }
+                document.addEventListener('keydown', onKey, true);
+                reset();
+            });
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -1534,6 +1659,17 @@
                             "Faster than my git commits. ⌨️",
                             "Spell-check could never. 🛰️",
                             "Transmission complete. ✨",
+                        ],
+                    },
+                    flappy: {
+                        launch: startFlappyGame,
+                        hint: 'Space to thrust, Q to quit',
+                        quips: [
+                            "Gravity: 1. You: also pretty good. 🚀",
+                            "That asteroid came out of nowhere. Sure. 🪨",
+                            "Smooth flying... for a while there. 😬",
+                            "One more run. You know you want to. 🔁",
+                            "NASA called. They said 'almost'. ☎️",
                         ],
                     },
                 };

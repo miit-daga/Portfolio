@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/utils/cn";
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue, useMotionTemplate, useSpring, useTransform } from "framer-motion";
 import { IconArrowUpRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState, useRef } from "react";
@@ -67,6 +67,11 @@ const TiltCard = ({
   const mouseYSpring = useSpring(y);
   const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["10deg", "-10deg"]);
   const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-10deg", "10deg"]);
+
+  // Specular glare that follows the cursor across the glass
+  const sheenX = useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]);
+  const sheenY = useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]);
+  const sheen = useMotionTemplate`radial-gradient(260px circle at ${sheenX} ${sheenY}, rgba(255, 255, 255, 0.10), rgba(45, 212, 191, 0.04) 45%, transparent 70%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!ref.current) return;
@@ -136,6 +141,13 @@ const TiltCard = ({
             )}
           </div>
         </Card>
+        {/* Cursor-tracked specular sheen */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 z-30 rounded-2xl"
+          style={{ background: sheen }}
+          animate={{ opacity: hoveredIndex === idx ? 1 : 0 }}
+          transition={{ duration: 0.3 }}
+        />
       </div>
     </>
   );

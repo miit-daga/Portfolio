@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 interface AnimatedBackgroundProps {
@@ -291,11 +292,65 @@ const drawISS = (ctx: CanvasRenderingContext2D, x: number, y: number, angle: num
   ctx.restore();
 };
 
+// Shown when the visitor manages to click the drifting ISS
+const ISS_SARCASM = [
+  "Oh great, you poked a space station.",
+  "Yes, hello? This is the ISS. We're kind of busy up here.",
+  "Tapping the glass? Really? There are astronauts working in there.",
+  "You do realize that's government property. Several governments, actually.",
+  "Congratulations, you just interrupted an orbit.",
+  "Mission Control would like a word with you.",
+]
+const ISS_FACTS = [
+  "It travels at ~28,000 km/h, orbiting Earth once every ~90 minutes.",
+  "It has been continuously crewed since November 2000.",
+  "It is about the size of a football field and weighs ~420 tonnes.",
+  "Astronauts aboard see roughly 16 sunrises and sunsets every day.",
+  "It flies ~400 km up. That's a road trip's distance, straight up.",
+  "At ~$150 billion, it is the most expensive object ever built.",
+  "It is visible to the naked eye and is the third-brightest object in the night sky.",
+]
+
 export const AnimatedBackground = ({ children, className, isImploding = false }: AnimatedBackgroundProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
   const mouseRef = useRef({ x: 0, y: 0 });
   const didPlayImplosionSound = useRef(false);
+  const satellitePosRef = useRef<{ x: number; y: number }[]>([])
+  const [issModal, setIssModal] = useState<{ sarcasm: string; fact: string } | null>(null)
+  const issPausedRef = useRef(false)
+  const issFactIdx = useRef(Math.floor(Math.random() * ISS_FACTS.length))
+  const issSarcasmIdx = useRef(Math.floor(Math.random() * ISS_SARCASM.length))
+
+  // Easter egg: clicking the drifting ISS halts it mid-orbit and opens a modal.
+  // The canvas is pointer-transparent, so hit-test window clicks by position.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (issPausedRef.current) return
+      const target = e.target as Element | null
+      // Ignore interactive elements, and all clicks while Defense Mode is live
+      if (target?.closest("a, button, input, textarea, select, [role='button'], [data-defense-mode]")) return
+      if (document.querySelector("[data-defense-mode]")) return
+      for (const s of satellitePosRef.current) {
+        const dx = e.clientX - s.x
+        const dy = e.clientY - s.y
+        if (dx * dx + dy * dy <= 32 * 32) {
+          issFactIdx.current = (issFactIdx.current + 1) % ISS_FACTS.length
+          issSarcasmIdx.current = (issSarcasmIdx.current + 1) % ISS_SARCASM.length
+          issPausedRef.current = true
+          setIssModal({ sarcasm: ISS_SARCASM[issSarcasmIdx.current], fact: ISS_FACTS[issFactIdx.current] })
+          return
+        }
+      }
+    }
+    window.addEventListener("click", onClick)
+    return () => window.removeEventListener("click", onClick)
+  }, [])
+
+  const closeIssModal = () => {
+    setIssModal(null)
+    issPausedRef.current = false
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -697,12 +752,16 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       }
       for (let i = satellites.length - 1; i >= 0; i--) {
         const sat = satellites[i]
-        sat.x += sat.vx
-        sat.y += sat.vy
-        sat.life++
+        // Hold position (and lifetime) while someone is bothering the crew
+        if (!issPausedRef.current) {
+          sat.x += sat.vx
+          sat.y += sat.vy
+          sat.life++
+        }
         drawISS(ctx, sat.x, sat.y, Math.atan2(sat.vy, sat.vx))
         if (sat.life > sat.maxLife) satellites.splice(i, 1)
       }
+      satellitePosRef.current = satellites.map((s) => ({ x: s.x, y: s.y }))
 
       ctx.shadowColor = "transparent"; ctx.shadowBlur = 0
       animationFrame = requestAnimationFrame(drawSpace)
@@ -752,6 +811,46 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: -1 }}
       />
       <div className="relative z-10">{children}</div>
+
+      {/* ISS interruption modal (the station holds position while it's open) */}
+      <AnimatePresence>
+        {issModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9100] flex items-center justify-center px-4"
+          >
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeIssModal} />
+            <motion.div
+              initial={{ scale: 0.92, y: 14, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.92, y: 14, opacity: 0 }}
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-teal-500/30 bg-neutral-950/95 p-6 shadow-[0_0_40px_rgba(45,212,191,0.2)]"
+            >
+              <button
+                onClick={closeIssModal}
+                aria-label="Close"
+                className="absolute right-3 top-3 rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-teal-400/80">incoming transmission</p>
+              <p className="mt-3 text-base font-medium leading-snug text-white">{issModal.sarcasm}</p>
+              <p className="mt-4 text-xs uppercase tracking-wider text-neutral-500">Here&apos;s a random fact about the ISS</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-teal-100">{issModal.fact}</p>
+              <button
+                onClick={closeIssModal}
+                className="mt-5 w-full rounded-full border border-teal-500/40 bg-teal-500/15 px-5 py-2 text-sm font-medium text-teal-200 transition-colors hover:bg-teal-500/25"
+              >
+                Resume orbit
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

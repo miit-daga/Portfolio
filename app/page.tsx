@@ -29,6 +29,11 @@ import { BackToTop } from "@/components/BackToTop";
 import { SectionDivider } from "@/components/ui/section-divider";
 import { Reveal } from "@/components/ui/reveal";
 import { CollectiblesProvider, CollectibleHUD, Fragment as Collectible, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
+import { BlackHoleOverlay } from "@/components/ui/black-hole";
+import { WarpOverlay } from "@/components/ui/warp-overlay";
+import { ConstellationPuzzle, CONSTELLATION_STORAGE_KEY } from "@/components/ui/constellation-puzzle";
+import { DefenseMode } from "@/components/ui/defense-mode";
+import { IdleAlien } from "@/components/ui/idle-alien";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -36,6 +41,9 @@ const Home = () => {
 
   // COSMIC EVENT STATE
   const [isImploding, setIsImploding] = useState(false);
+  // The page content is far taller than the screen, so the implosion must pivot
+  // around the CURRENT viewport centre, not the element's geometric centre.
+  const [implodeOrigin, setImplodeOrigin] = useState("50% 50%");
 
   useEffect(() => {
     const hasEntered = sessionStorage.getItem("hasEnteredCosmos");
@@ -66,7 +74,42 @@ const Home = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isImploding]);
 
+  // Phase one of the implosion: a few visible elements get plucked into the
+  // hole one by one (WAAPI, outside React), before the wrapper takes the rest.
+  const suckElementsOneByOne = () => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const candidates = Array.from(
+      document.querySelectorAll<HTMLElement>("h1, h2, h3, .meteor-border, #about-me p, button, .pulse-border")
+    ).filter((el) => {
+      const r = el.getBoundingClientRect();
+      return r.width > 20 && r.height > 14 && r.top < vh * 0.95 && r.bottom > vh * 0.05 && r.left < vw && r.right > 0;
+    });
+    // Keep leaves only, so a card and its own heading don't both fly
+    const leaves = candidates.filter((el) => !candidates.some((o) => o !== el && el.contains(o)));
+    for (let i = leaves.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [leaves[i], leaves[j]] = [leaves[j], leaves[i]];
+    }
+    leaves.slice(0, 7).forEach((el, i) => {
+      const r = el.getBoundingClientRect();
+      const dx = vw / 2 - (r.left + r.width / 2);
+      const dy = vh / 2 - (r.top + r.height / 2);
+      const spin = i % 2 ? 260 : -260;
+      el.animate(
+        [
+          { transform: "translate(0px, 0px) scale(1) rotate(0deg)", opacity: "1", offset: 0 },
+          { transform: `translate(${dx * 0.12}px, ${dy * 0.12}px) scale(0.96) rotate(${spin / 30}deg)`, opacity: "1", offset: 0.35 },
+          { transform: `translate(${dx}px, ${dy}px) scale(0.04) rotate(${spin}deg)`, opacity: "0", offset: 1 },
+        ],
+        { duration: 700, delay: 180 + i * 135, easing: "cubic-bezier(0.55, 0, 1, 0.45)", fill: "forwards" }
+      );
+    });
+  };
+
   const triggerCosmicReset = () => {
+    setImplodeOrigin(`50% ${window.scrollY + window.innerHeight / 2}px`);
+    suckElementsOneByOne();
     setIsImploding(true);
 
     // 1. Wait for animation to finish (Black Hole Suck)
@@ -74,6 +117,8 @@ const Home = () => {
       // 2. Clear Session Logic
       sessionStorage.removeItem("hasEnteredCosmos");
       sessionStorage.removeItem(FRAGMENTS_STORAGE_KEY);
+      sessionStorage.removeItem(CONSTELLATION_STORAGE_KEY);
+      sessionStorage.removeItem("visitor-callsign");
 
       // 3. Scroll to top instantly
       window.scrollTo(0, 0);
@@ -159,27 +204,51 @@ const Home = () => {
               <CollectibleHUD isImploding={isImploding} onCosmicReset={triggerCosmicReset} />
             </div>
 
+            {/* The singularity itself - fixed at viewport centre, outside the imploding transform */}
+            {isImploding && <BlackHoleOverlay />}
+
+            {/* Hyperspace streaks on section warps (renders null while idle) */}
+            <WarpOverlay />
+
+            {/* Asteroid shooter over the live page (renders null until triggered) */}
+            <DefenseMode />
+
+            {/* Peek-a-boo alien after 30s of inactivity */}
+            {!isImploding && <IdleAlien />}
+
             {/* This Motion Div handles the Spaghettification of the UI */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={isImploding ? {
-                scale: 0,
-                opacity: 0,
-                rotate: 720, // Spin into the void
-                filter: "blur(20px)", // Blur as it accelerates
+                // Resist, shudder, then spaghettify into the hole: the centre is
+                // swallowed first while the edges stretch, lag, and finally follow.
+                scaleX: [1, 0.94, 0.975, 0.88, 0.94, 0.5, 0],
+                scaleY: [1, 0.955, 0.985, 0.9, 1.03, 1.28, 0],
+                rotate: [0, -5, 2.5, -9, 3.5, 140, 660],
+                rotateX: [0, 1.5, -1.5, 2.5, -2, 10, 24],
+                z: [0, 0, 0, 0, -40, -280, -1200],
+                x: [0, 7, -8, 9, -6, 0, 0],
+                opacity: [1, 1, 1, 1, 1, 0.9, 0],
+                filter: ["blur(0px)", "blur(0px)", "blur(0px)", "blur(1px)", "blur(1px)", "blur(5px)", "blur(8px)"],
               } : {
                 opacity: 1,
-                scale: 1,
+                scaleX: 1,
+                scaleY: 1,
                 rotate: 0,
+                rotateX: 0,
+                z: 0,
+                x: 0,
                 filter: "blur(0px)"
               }}
               transition={isImploding ? {
-                duration: 2,
-                ease: "anticipate" // Pull back then shoot
+                duration: 2.25,
+                times: [0, 0.16, 0.28, 0.42, 0.54, 0.8, 1],
+                ease: ["easeOut", "easeInOut", "easeOut", "easeInOut", "easeIn", "easeIn"],
               } : {
                 duration: 1.0
               }}
-              className="overflow-hidden relative w-full origin-center"
+              className="overflow-hidden relative w-full"
+              style={{ transformOrigin: implodeOrigin }}
             >
               {/* FIXED: Passing isImploding prop */}
               <FloatingNav navItems={navItems} isImploding={isImploding} />
@@ -193,6 +262,7 @@ const Home = () => {
                 >
                   <Paragraph para={aboutme} />
                   <Stats />
+                  <ConstellationPuzzle />
                 </div>
               </Reveal>
 
