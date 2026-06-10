@@ -372,7 +372,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         y: (e.clientY / window.innerHeight) - 0.5
       };
     };
-    window.addEventListener("mousemove", handleMouseMove);
+    // Parallax only for real pointers: on touch, taps fire synthetic mousemove
+    // jumps that make the planets snap around
+    if (window.matchMedia("(pointer: fine)").matches) {
+      window.addEventListener("mousemove", handleMouseMove);
+    }
 
     ctx.imageSmoothingEnabled = true
     bgCtx.imageSmoothingEnabled = true

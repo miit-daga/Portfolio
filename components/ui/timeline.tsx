@@ -91,7 +91,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
     if (pathRef.current && height > 0) {
       const len = pathRef.current.getTotalLength()
       setPathLength(len)
-      const SAMPLES_CACHE = 240
+      const SAMPLES_CACHE = 400
       const pts: { x: number; y: number }[] = []
       for (let i = 0; i <= SAMPLES_CACHE; i++) {
         const pt = pathRef.current.getPointAtLength((i / SAMPLES_CACHE) * len)
@@ -125,6 +125,9 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
     target: containerRef,
     offset: ["start 10%", "end 50%"],
   })
+  // Spring between scroll and the rocket: mobile scroll events arrive in
+  // bursts, so driving from a spring keeps the motion frame-smooth between them
+  const progressSpring = useSpring(scrollYProgress, { stiffness: 170, damping: 26, restDelta: 0.0001 })
 
   // Rocket transform + trail (motion values, no re-renders)
   const rocketX = useMotionValue(MID_X - ROCKET_W / 2)
@@ -153,13 +156,19 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
       if (pts.length < 2 || pathLength <= 0) return
       const p = Math.max(0, Math.min(1, latest))
       const f = p * (pts.length - 1)
-      const i = Math.min(pts.length - 2, Math.floor(f))
-      const u = f - i
-      const pt = {
-        x: pts[i].x + (pts[i + 1].x - pts[i].x) * u,
-        y: pts[i].y + (pts[i + 1].y - pts[i].y) * u,
+      const sample = (ff: number) => {
+        const j = Math.max(0, Math.min(pts.length - 2, Math.floor(ff)))
+        const u = Math.min(1, Math.max(0, ff - j))
+        return {
+          x: pts[j].x + (pts[j + 1].x - pts[j].x) * u,
+          y: pts[j].y + (pts[j + 1].y - pts[j].y) * u,
+        }
       }
-      const theta = (Math.atan2(pts[i + 1].y - pts[i].y, pts[i + 1].x - pts[i].x) * 180) / Math.PI
+      const pt = sample(f)
+      // Central difference keeps the heading continuous (per-segment angles snap)
+      const behind = sample(f - 2)
+      const ahead = sample(f + 2)
+      const theta = (Math.atan2(ahead.y - behind.y, ahead.x - behind.x) * 180) / Math.PI
 
       rocketCX.set(pt.x)
       rocketCY.set(pt.y)
@@ -184,7 +193,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
     [pathLength, ballYs],
   )
 
-  useMotionValueEvent(scrollYProgress, "change", (latest) => {
+  useMotionValueEvent(progressSpring, "change", (latest) => {
     if (shouldReduceMotion) return
     const delta = latest - prevProgress.current
     // Deadzone avoids flicker from tiny scroll jitters
