@@ -92,8 +92,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning>
       <body className={`${outfit.className} ${spaceGrotesk.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
-          {/* NEW: Noise Overlay Div */}
+          {/* Cinematic grade: animated film grain + edge vignette */}
           <div className="bg-noise" />
+          <div className="bg-vignette" />
           <StardustTrail />
 
           {children}

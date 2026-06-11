@@ -36,6 +36,7 @@ import { DefenseMode } from "@/components/ui/defense-mode";
 import { IdleAlien } from "@/components/ui/idle-alien";
 import { MobileNotice } from "@/components/ui/mobile-notice";
 import { FlightPath } from "@/components/ui/flight-path";
+import { AmbientGlow } from "@/components/ui/ambient-glow";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -213,6 +214,9 @@ const Home = () => {
 
             {/* The singularity itself - fixed at viewport centre, outside the imploding transform */}
             {isImploding && <BlackHoleOverlay />}
+
+            {/* Section-keyed ambient tint behind the page content */}
+            {!isImploding && <AmbientGlow />}
 
             {/* Hyperspace streaks on section warps (renders null while idle) */}
             <WarpOverlay />

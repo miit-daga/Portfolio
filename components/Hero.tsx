@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion"
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
+import { HeroNebula } from "./ui/hero-nebula"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
@@ -156,6 +157,10 @@ const Hero = () => {
       className="h-dvh relative overflow-hidden"
     >
       <BackgroundGradientAnimation>
+        {/* Painted below the gradient orbs (later DOM order wins at z-0),
+            so the orbs' hard-light blend glazes over the cloud structure.
+            Must never be a live canvas - see the note in hero-nebula.tsx */}
+        <HeroNebula />
         <ShootingStar disabled={!!shouldReduceMotion} />
         <AstronautBuddy className="left-[6%] top-24 lg:left-[8%] lg:top-auto lg:bottom-[22%]" />
         <div className="absolute z-50 inset-0 flex flex-col lg:flex-row items-center justify-center text-white font-bold px-4 pt-16 pb-24 lg:py-0 pointer-events-none w-full h-full gap-6 sm:gap-10 lg:gap-24">

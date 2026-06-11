@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     motion,
     useScroll,
@@ -45,6 +45,50 @@ const Checkpoint = ({ progress, frac }: { progress: MotionValue<number>; frac: n
                 boxShadow: "0 0 6px 1px rgba(251,191,36,0.9)",
             }}
         />
+    );
+};
+
+// Journey's end: the rocket breaks off the bar and launches off the top-right
+// corner while a sign-off pill fades in at the bottom of the viewport.
+// With reduced motion only the pill shows.
+const Finale = ({ reduceMotion, onDone }: { reduceMotion: boolean; onDone: () => void }) => {
+    useEffect(() => {
+        const t = setTimeout(onDone, 4600);
+        return () => clearTimeout(t);
+    }, [onDone]);
+    return (
+        <>
+            {!reduceMotion && (
+                <motion.div
+                    className="fixed z-[6001] h-6 w-6 pointer-events-none"
+                    style={{ top: -9, right: 6, transformOrigin: "50% 50%" }}
+                    initial={{ x: 0, y: 0, rotate: 90, opacity: 1 }}
+                    animate={{
+                        // Ignition shudder on the bar, then an arcing launch off-screen
+                        x: [0, -1.5, 1.5, -1, 26, 90],
+                        y: [0, 0.5, -0.5, 0, -34, -130],
+                        rotate: [90, 90, 88, 92, 50, 45],
+                        scale: [1, 1.04, 1.04, 1.08, 1.1, 1],
+                        opacity: [1, 1, 1, 1, 1, 0],
+                    }}
+                    transition={{ duration: 1.5, times: [0, 0.14, 0.28, 0.42, 0.75, 1], ease: "easeIn" }}
+                >
+                    <div className="relative h-full w-full drop-shadow-[0_0_10px_rgba(45,212,191,0.9)]">
+                        <RocketIcon isIgnited />
+                    </div>
+                </motion.div>
+            )}
+            <motion.div
+                className="fixed bottom-8 left-0 right-0 z-[6001] flex justify-center pointer-events-none"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: [0, 1, 1, 0], y: [10, 0, 0, -6] }}
+                transition={{ duration: 3.6, times: [0, 0.12, 0.85, 1], delay: reduceMotion ? 0 : 0.9 }}
+            >
+                <span className="rounded-full border border-teal-400/40 bg-black/75 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.25em] text-teal-200 backdrop-blur-sm shadow-[0_0_18px_rgba(45,212,191,0.25)]">
+                    transmission complete &middot; thanks for flying
+                </span>
+            </motion.div>
+        </>
     );
 };
 
@@ -163,6 +207,11 @@ export const ScrollProgress = () => {
     // reaches the end - not when raw scroll hits 100% (the rocket trails behind).
     const [burstKey, setBurstKey] = useState(0);
     const armed = useRef(true);
+    // The finale starts disarmed so a reload that restores scroll to the
+    // bottom doesn't launch the rocket before anyone has scrolled anywhere
+    const [finaleKey, setFinaleKey] = useState(0);
+    const [finaleActive, setFinaleActive] = useState(false);
+    const finaleArmed = useRef(false);
     useMotionValueEvent(scaleX, "change", (v) => {
         if (v >= 0.99 && armed.current) {
             armed.current = false;
@@ -170,7 +219,17 @@ export const ScrollProgress = () => {
         } else if (v < 0.9) {
             armed.current = true;
         }
+        if (v >= 0.995 && finaleArmed.current) {
+            finaleArmed.current = false;
+            setFinaleActive(true);
+            setFinaleKey((k) => k + 1);
+        } else if (v < 0.85) {
+            finaleArmed.current = true;
+        }
     });
+
+    // Stable identity so the finale's own timeout isn't reset by scroll renders
+    const handleFinaleDone = useCallback(() => setFinaleActive(false), []);
 
     // Hide the bar while the mobile menu is open (its rocket overlaps the close button)
     const [menuOpen, setMenuOpen] = useState(false);
@@ -216,7 +275,12 @@ export const ScrollProgress = () => {
             </div>
 
             {/* Arrival burst */}
-            {burstKey > 0 && !shouldReduceMotion && <ArrivalBurst key={burstKey} />}
+            {burstKey > 0 && !shouldReduceMotion && <ArrivalBurst key={`burst-${burstKey}`} />}
+
+            {/* Journey's end: launch + sign-off */}
+            {finaleActive && (
+                <Finale key={`finale-${finaleKey}`} reduceMotion={!!shouldReduceMotion} onDone={handleFinaleDone} />
+            )}
 
             {/* Trailing sparks */}
             {!shouldReduceMotion && (
@@ -247,10 +311,12 @@ export const ScrollProgress = () => {
                 </span>
             </motion.div>
 
-            {/* The Rocket Ship Leader */}
+            {/* The Rocket Ship Leader (yields to its finale double mid-launch) */}
             <motion.div
                 className="absolute top-1/2 -translate-y-1/2 -ml-3 w-6 h-6 z-10"
                 style={{ left: rocketX }}
+                animate={{ opacity: finaleActive ? 0 : 1 }}
+                transition={{ duration: 0.15 }}
             >
                 {/* Pulsing glow halo */}
                 {!shouldReduceMotion && (

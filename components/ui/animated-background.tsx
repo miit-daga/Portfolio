@@ -32,6 +32,7 @@ type ShootingStar = {
   fadeOutStart: number; trail: { x: number; y: number; opacity: number }[];
   active: boolean; color: { r: number; g: number; b: number };
   size: number; distance: "near" | "medium" | "far";
+  comet?: boolean; // the once-a-session night-owl special: bigger, slower, longer tail
 }
 
 type Planet = {
@@ -429,6 +430,15 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const SHOOTING_STAR_INTERVAL_MIN = 2000
     const SHOOTING_STAR_INTERVAL_MAX = 3500
 
+    // --- Time-of-day sky: the visitor's local clock tunes the heavens ---
+    // Night gets denser, brighter stars; day washes them out a little and
+    // adds a thin atmosphere along the top edge; dawn/dusk warm that band.
+    const hour = new Date().getHours()
+    const isNight = hour >= 20 || hour < 5
+    const isDay = hour >= 7 && hour < 17
+    const AREA_PER_STAR = isNight ? 1800 : isDay ? 2800 : 2250
+    const STAR_BASE_BRIGHTNESS = isNight ? 0.5 : isDay ? 0.3 : 0.4
+
     // --- State ---
     let stars: Star[] = []
     let potentialTwinklers: Star[] = []
@@ -506,7 +516,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       activeTwinklers = []
 
       // Generate Stars
-      const starCount = Math.floor((canvas.width * canvas.height) / 2250)
+      const starCount = Math.floor((canvas.width * canvas.height) / AREA_PER_STAR)
       for (let i = 0; i < starCount; i++) {
         const canTwinkle = Math.random() < TWINKLE_CHANCE
         const x = Math.random() * canvas.width;
@@ -515,7 +525,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
         const star: Star = {
           x, y, originalX: x, originalY: y, size,
-          brightness: 0.4 + Math.random() * 0.5,
+          brightness: STAR_BASE_BRIGHTNESS + Math.random() * 0.5,
           color: getStarColor(),
           canTwinkle,
           twinklePhase: canTwinkle ? Math.random() * Math.PI * 2 : 0,
@@ -570,6 +580,31 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       })
     }
 
+    // A single grand comet for the night owls, once per session - slower and
+    // far bigger than a shooting star, crossing high in the sky
+    const createComet = () => {
+      if (isImploding) return
+      const fromLeft = Math.random() < 0.5
+      const vx = (fromLeft ? 1 : -1) * (0.9 + Math.random() * 0.3)
+      const maxLife = Math.ceil((canvas.width + 160) / Math.abs(vx)) + 80
+      shootingStars.push({
+        x: fromLeft ? -80 : canvas.width + 80,
+        y: canvas.height * (0.1 + Math.random() * 0.2),
+        vx,
+        vy: 0.15 + Math.random() * 0.1,
+        brightness: 1.2,
+        life: 0,
+        maxLife,
+        fadeOutStart: maxLife * 0.85,
+        trail: [],
+        active: true,
+        color: { r: 175, g: 240, b: 255 },
+        size: 3.4,
+        distance: "near",
+        comet: true,
+      })
+    }
+
     // Occasional artificial satellite drifting slowly across the sky (desktop
     // only: too small to spot or tap on phones)
     const createSatellite = () => {
@@ -618,6 +653,22 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
       const centerX = canvas.width / 2;
       const centerY = canvas.height / 2;
+
+      // Thin atmosphere along the top edge during the visitor's daylight
+      // hours; dawn and dusk get a warmer band instead
+      if (!isImploding && !isNight) {
+        const atmoHeight = canvas.height * 0.22
+        const atmo = bgCtx.createLinearGradient(0, 0, 0, atmoHeight)
+        if (isDay) {
+          atmo.addColorStop(0, "rgba(105, 155, 222, 0.10)")
+          atmo.addColorStop(1, "rgba(105, 155, 222, 0)")
+        } else {
+          atmo.addColorStop(0, "rgba(240, 150, 90, 0.09)")
+          atmo.addColorStop(1, "rgba(168, 100, 140, 0)")
+        }
+        bgCtx.fillStyle = atmo
+        bgCtx.fillRect(0, 0, canvas.width, atmoHeight)
+      }
 
       // 1. Draw Planets (Behind Stars)
       planets.forEach(planet => {
@@ -748,7 +799,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         let fadeFactor = 1
         if (ss.life > ss.fadeOutStart) fadeFactor = 1 - (ss.life - ss.fadeOutStart) / (ss.maxLife - ss.fadeOutStart)
         if (ss.active) ss.trail.push({ x: ss.x, y: ss.y, opacity: ss.brightness * fadeFactor })
-        const maxTrailLength = ss.distance === "near" ? 80 : ss.distance === "medium" ? 60 : 40
+        const maxTrailLength = ss.comet ? 150 : ss.distance === "near" ? 80 : ss.distance === "medium" ? 60 : 40
         if (ss.trail.length > maxTrailLength) ss.trail.shift()
 
         if (ss.active) {
@@ -768,7 +819,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         if (ss.active) {
           const headBrightness = ss.brightness * fadeFactor * 0.9
           ctx.shadowColor = `rgba(${ss.color.r}, ${ss.color.g}, ${ss.color.b}, ${headBrightness})`
-          ctx.shadowBlur = 4; ctx.fillStyle = `rgba(${ss.color.r}, ${ss.color.g}, ${ss.color.b}, ${headBrightness})`
+          ctx.shadowBlur = ss.comet ? 14 : 4; ctx.fillStyle = `rgba(${ss.color.r}, ${ss.color.g}, ${ss.color.b}, ${headBrightness})`
           ctx.beginPath(); ctx.arc(ss.x, ss.y, ss.size, 0, Math.PI * 2); ctx.fill()
         }
 
@@ -836,7 +887,18 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     twinkleIntervalHandle = window.setInterval(manageTwinkling, TWINKLE_INTERVAL)
     window.addEventListener("resize", handleResize)
 
+    // The deep-night reward: visitors between 1 and 5 AM get one comet,
+    // shortly after settling in, once per session
+    let cometTimeout: number | undefined
+    if (hour >= 1 && hour < 5 && !isImploding && !sessionStorage.getItem("nightCometShown")) {
+      cometTimeout = window.setTimeout(() => {
+        sessionStorage.setItem("nightCometShown", "true")
+        createComet()
+      }, 9000 + Math.random() * 9000)
+    }
+
     return () => {
+      if (cometTimeout) clearTimeout(cometTimeout)
       window.removeEventListener("resize", handleResize)
       window.removeEventListener("mousemove", handleMouseMove)
       document.removeEventListener("visibilitychange", handleVisibility)

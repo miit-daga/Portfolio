@@ -22,17 +22,90 @@ img {
   color: white;
 }
 
-/* --- NEW: Noise Texture Overlay --- */
+/* --- Film grain overlay ---
+   Oversized so it can jitter via transform (compositor-only) while still
+   covering the viewport; steps() makes the jumps read as live grain. */
 .bg-noise {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
+  top: -30vh;
+  left: -30vw;
+  width: 160vw;
+  height: 160vh;
   pointer-events: none;
   z-index: 50;
   opacity: 0.05; /* Adjust for subtlety */
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Animate only for fine pointers (desktops) that haven't asked for calm -
+   a perpetual compositor layer isn't worth it on phone batteries */
+@media (prefers-reduced-motion: no-preference) and (pointer: fine) {
+  .bg-noise {
+    animation: film-grain 0.9s steps(1) infinite;
+  }
+}
+
+@keyframes film-grain {
+  0%, 100% { transform: translate(0, 0); }
+  11% { transform: translate(-3%, -2%); }
+  22% { transform: translate(2%, -4%); }
+  33% { transform: translate(-1%, 3%); }
+  44% { transform: translate(4%, 1%); }
+  55% { transform: translate(-4%, 2%); }
+  66% { transform: translate(1%, -1%); }
+  77% { transform: translate(3%, 4%); }
+  88% { transform: translate(-2%, 1%); }
+}
+
+/* --- Cinematic vignette ---
+   Clear centre, gently deepening blacks toward the corners, like looking
+   through a viewport window */
+.bg-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background: radial-gradient(
+    ellipse 130% 110% at 50% 45%,
+    transparent 58%,
+    rgba(0, 0, 0, 0.14) 78%,
+    rgba(0, 0, 0, 0.38) 100%
+  );
+}
+
+/* --- Hero nebula layers ---
+   Pre-rendered shader snapshots on plain divs; two moments of cloud-time
+   drift against each other and crossfade so the nebula reads as alive.
+   Scale stays above 1 so the pan never reveals the image edges. */
+.nebula-layer {
+  background-size: cover;
+  background-position: center;
+  transform: scale(1.08);
+}
+
+.nebula-layer-b {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nebula-layer {
+    animation: nebula-drift 46s ease-in-out infinite alternate;
+  }
+  .nebula-layer-b {
+    animation:
+      nebula-drift 46s ease-in-out infinite alternate-reverse,
+      nebula-fade 23s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes nebula-drift {
+  from { transform: scale(1.08) translate(-1.5%, 1%); }
+  to { transform: scale(1.2) translate(1.5%, -1.5%); }
+}
+
+@keyframes nebula-fade {
+  from { opacity: 0; }
+  to { opacity: 0.9; }
 }
 
 /* --- Cosmic scrollbar (Chrome, Safari, Edge) --- */
