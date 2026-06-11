@@ -3,9 +3,9 @@ import { useEffect, useRef, useState } from "react";
 import { useInView, useReducedMotion } from "framer-motion";
 
 // A slowly swaying wireframe globe with a glowing signal arc from the
-// visitor's rough location (estimated from their timezone, no permission
-// popups) to home base in Kolkata, plus a ping pulse and a mono telemetry
-// readout.
+// visitor's location (IP-geolocated by Vercel's edge headers, with a
+// timezone-based fallback for localhost; no permission popups either way) to
+// home base in Kolkata, plus a ping pulse and a mono telemetry readout.
 const BASE = { lat: 22.57, lon: 88.36 }; // Kolkata
 const LIGHTSPEED_KM_S = 299792;
 
@@ -86,23 +86,39 @@ export const SignalGlobe = () => {
     const inView = useInView(wrapRef, { margin: "-40px" });
     const [origin, setOrigin] = useState<{ lat: number; lon: number; city: string } | null>(null);
 
-    // Resolve the visitor's rough position from their timezone
+    // Resolve the visitor's position: IP geolocation via /api/visitor-location
+    // (Vercel edge headers, city-accurate), falling back to the timezone
+    // estimate on localhost or if the lookup fails
     useEffect(() => {
-        try {
-            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
-            const hit = TZ_COORDS[tz];
-            const raw = (tz.split("/").pop() || "your sector").replace(/_/g, " ");
-            const city = CITY_RENAMES[raw] ?? raw;
-            if (hit) {
-                setOrigin({ lat: hit[0], lon: hit[1], city });
-            } else {
+        const fromTimezone = (): { lat: number; lon: number; city: string } => {
+            try {
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+                const hit = TZ_COORDS[tz];
+                const raw = (tz.split("/").pop() || "your sector").replace(/_/g, " ");
+                const city = CITY_RENAMES[raw] ?? raw;
+                if (hit) return { lat: hit[0], lon: hit[1], city };
                 // Longitude from the UTC offset (15 degrees per hour), latitude guessed
-                const lon = -new Date().getTimezoneOffset() / 4;
-                setOrigin({ lat: 20, lon, city });
+                return { lat: 20, lon: -new Date().getTimezoneOffset() / 4, city };
+            } catch {
+                return { lat: 20, lon: 0, city: "your sector" };
             }
-        } catch {
-            setOrigin({ lat: 20, lon: 0, city: "your sector" });
-        }
+        };
+
+        let cancelled = false;
+        fetch("/api/visitor-location")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+            .then((d) => {
+                if (cancelled) return;
+                if (d && Number.isFinite(d.lat) && Number.isFinite(d.lon)) {
+                    setOrigin({ lat: d.lat, lon: d.lon, city: (d.city as string) || fromTimezone().city });
+                } else {
+                    setOrigin(fromTimezone());
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     useEffect(() => {
