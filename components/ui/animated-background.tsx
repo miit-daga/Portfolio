@@ -433,7 +433,10 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     // --- Time-of-day sky: the visitor's local clock tunes the heavens ---
     // Night gets denser, brighter stars; day washes them out a little and
     // adds a thin atmosphere along the top edge; dawn/dusk warm that band.
-    const hour = new Date().getHours()
+    // Preview any state with ?sky=<0-23> in the URL (e.g. /?sky=2)
+    const skyParam = new URLSearchParams(window.location.search).get("sky")
+    const skyOverride = skyParam !== null && !Number.isNaN(Number(skyParam))
+    const hour = skyOverride ? ((Number(skyParam) % 24) + 24) % 24 : new Date().getHours()
     const isNight = hour >= 20 || hour < 5
     const isDay = hour >= 7 && hour < 17
     const AREA_PER_STAR = isNight ? 1800 : isDay ? 2800 : 2250
@@ -889,12 +892,14 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
     // The deep-night reward: visitors between 1 and 5 AM get one comet,
     // shortly after settling in, once per session
+    // The ?sky= override skips the once-per-session guard (and the wait) so
+    // the comet can be previewed repeatedly
     let cometTimeout: number | undefined
-    if (hour >= 1 && hour < 5 && !isImploding && !sessionStorage.getItem("nightCometShown")) {
+    if (hour >= 1 && hour < 5 && !isImploding && (skyOverride || !sessionStorage.getItem("nightCometShown"))) {
       cometTimeout = window.setTimeout(() => {
-        sessionStorage.setItem("nightCometShown", "true")
+        if (!skyOverride) sessionStorage.setItem("nightCometShown", "true")
         createComet()
-      }, 9000 + Math.random() * 9000)
+      }, skyOverride ? 4000 : 9000 + Math.random() * 9000)
     }
 
     return () => {
