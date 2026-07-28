@@ -2,6 +2,7 @@
 import React from 'react';
 import { HoverEffectPublications } from "@/components/ui/card-hover-effect-publications"; // New import
 import Heading from "@/components/Heading";
+import { accentVars, getSection } from "@/constants/sections";
 
 const Publications = [
     {
@@ -46,8 +47,8 @@ const PublicationsSection = () => {
     }));
 
     return (
-        <div className="max-w-5xl mx-auto px-8 py-16" id="publications">
-            <Heading text="Publications & Patents" />
+        <div className="max-w-5xl mx-auto px-8 py-16" id="publications" style={accentVars(getSection("publications"))}>
+            <Heading section="publications" />
             <p className="mt-4 text-center text-sm md:text-base text-neutral-400">
                 A few highlights below, drawn from 8 Scopus-indexed papers (with more under review), plus a book chapter and a filed patent.
             </p>

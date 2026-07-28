@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { SignalRings } from "./ui/signal-rings";
 import { CrewCard } from "./ui/crew-card";
 import { SignalGlobe } from "./ui/signal-globe";
+import { accentVars, getSection } from "@/constants/sections";
 
 type ContactType = "email" | "phone" | null;
 
@@ -78,8 +79,8 @@ export function Contact() {
     };
 
     return (
-        <div className="relative w-full overflow-hidden pt-16 pb-10" id="contact">
-            <Heading text="Let's Connect" />
+        <div className="relative w-full overflow-hidden pt-16 pb-10" id="contact" style={accentVars(getSection("contact"))}>
+            <Heading section="contact" />
 
             <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center mt-6">
 

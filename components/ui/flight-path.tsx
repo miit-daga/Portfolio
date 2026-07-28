@@ -2,12 +2,20 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { scrollToSection } from "@/lib/scroll-to-section";
+import { SECTIONS } from "@/constants/sections";
 
 // Vertical flight-path minimap pinned to the right edge (desktop only).
 // Each section is a tiny waypoint planet at its true position along the
 // journey; a glowing ship marker tracks the live scroll position. Clicking a
 // waypoint glides there (with hyperspace streaks on long jumps, same as the
 // navbar). The hero sits at the top as the launchpad.
+//
+// Waypoint colours are derived from constants/sections.ts, so a planet here
+// always matches the heading, divider and ambient tint of the section it flies
+// to. This file used to carry a second, conflicting palette.
+const darken = (rgb: [number, number, number], f: number) =>
+    `rgb(${rgb.map((c) => Math.round(c * f)).join(", ")})`;
+
 const WAYPOINTS: { id: string; label: string; planet: React.CSSProperties; ringed?: boolean }[] = [
     {
         id: "",
@@ -17,63 +25,16 @@ const WAYPOINTS: { id: string; label: string; planet: React.CSSProperties; ringe
             boxShadow: "0 0 6px rgba(226,232,240,0.8)",
         },
     },
-    {
-        id: "about-me",
-        label: "About",
+    ...SECTIONS.map((s) => ({
+        id: s.id,
+        // "Skills & Achievements" is too wide for the rail; the others read fine.
+        label: s.id === "skills-achievements" ? "Skills" : s.label,
+        ringed: s.id === "projects",
         planet: {
-            background: "radial-gradient(circle at 35% 30%, #99f6e4, #14b8a6 60%, #0f766e)",
-            boxShadow: "0 0 6px rgba(45,212,191,0.8)",
-        },
-    },
-    {
-        id: "workex",
-        label: "Work",
-        planet: {
-            background: "radial-gradient(circle at 35% 30%, #93c5fd, #3b82f6 60%, #1d4ed8)",
-            boxShadow: "0 0 6px rgba(96,165,250,0.8)",
-        },
-    },
-    {
-        id: "education",
-        label: "Education",
-        planet: {
-            background: "radial-gradient(circle at 35% 30%, #c4b5fd, #8b5cf6 60%, #6d28d9)",
-            boxShadow: "0 0 6px rgba(167,139,250,0.8)",
-        },
-    },
-    {
-        id: "skills-achievements",
-        label: "Skills",
-        planet: {
-            background: "radial-gradient(circle at 35% 30%, #a5f3fc, #06b6d4 60%, #0e7490)",
-            boxShadow: "0 0 6px rgba(34,211,238,0.8)",
-        },
-    },
-    {
-        id: "projects",
-        label: "Projects",
-        ringed: true,
-        planet: {
-            background: "radial-gradient(circle at 35% 30%, #fde68a, #f59e0b 60%, #b45309)",
-            boxShadow: "0 0 6px rgba(245,158,11,0.8)",
-        },
-    },
-    {
-        id: "publications",
-        label: "Publications",
-        planet: {
-            background: "radial-gradient(circle at 35% 30%, #a5b4fc, #6366f1 60%, #4338ca)",
-            boxShadow: "0 0 6px rgba(129,140,248,0.8)",
-        },
-    },
-    {
-        id: "contact",
-        label: "Contact",
-        planet: {
-            background: "radial-gradient(circle at 35% 30%, #fdba74, #f97316 60%, #c2410c)",
-            boxShadow: "0 0 6px rgba(251,146,60,0.8)",
-        },
-    },
+            background: `radial-gradient(circle at 35% 30%, ${s.light}, ${s.hex} 60%, ${darken(s.rgb, 0.55)})`,
+            boxShadow: `0 0 6px rgba(${s.rgb.join(",")},0.8)`,
+        } as React.CSSProperties,
+    })),
 ];
 
 export const FlightPath = () => {

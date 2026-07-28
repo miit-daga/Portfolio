@@ -208,6 +208,11 @@ html {
   to { --meteor-angle: 360deg; }
 }
 
+/* Sections hand their own hue down via --accent-rgb / --accent-rgb-2
+   (see constants/sections.ts). The teal fallback lives inside each var()
+   reference rather than as a declaration here: declaring it on .meteor-border
+   would set the property on the element itself and shadow the value the
+   section wrapper is trying to pass down. */
 .meteor-border {
   position: relative;
 }
@@ -221,8 +226,8 @@ html {
   background: conic-gradient(
     from var(--meteor-angle),
     rgba(255, 255, 255, 0.08) 0%,
-    rgba(45, 212, 191, 0.7) 5%,
-    rgba(59, 130, 246, 0.5) 10%,
+    rgba(var(--accent-rgb, 45, 212, 191), 0.7) 5%,
+    rgba(var(--accent-rgb-2, 59, 130, 246), 0.5) 10%,
     rgba(255, 255, 255, 0.08) 15%,
     rgba(255, 255, 255, 0.08) 100%
   );
@@ -272,7 +277,7 @@ html {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(45, 212, 191, 0.5), rgba(59, 130, 246, 0.3));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb, 45, 212, 191), 0.5), rgba(var(--accent-rgb-2, 59, 130, 246), 0.3));
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
     linear-gradient(#fff 0 0);

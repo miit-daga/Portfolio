@@ -5,6 +5,29 @@ import Heading from "./Heading";
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { IconChevronDown } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { accentVars, getSection } from "@/constants/sections";
+
+const WORKEX = getSection("workex");
+
+// The impact numbers used to be buried mid-paragraph in the expanded body,
+// where nobody reads them. Surfaced here as scannable chips.
+const MetricChips = ({ metrics }: { metrics: string[] }) => (
+  <div className="mt-3 flex flex-wrap gap-1.5">
+    {metrics.map((m) => (
+      <span
+        key={m}
+        className="rounded-md border px-2 py-0.5 font-mono text-[11px] tabular-nums tracking-tight"
+        style={{
+          borderColor: `rgba(${WORKEX.rgb.join(",")}, 0.35)`,
+          background: `rgba(${WORKEX.rgb.join(",")}, 0.08)`,
+          color: WORKEX.light,
+        }}
+      >
+        {m}
+      </span>
+    ))}
+  </div>
+);
 
 // --- 3D Tilt Card Logic ---
 const ExperienceCard = ({
@@ -12,12 +35,14 @@ const ExperienceCard = ({
   role,
   date,
   points,
+  metrics,
   children,
 }: {
   company: string;
   role: string;
   date: string;
   points: string[];
+  metrics?: string[];
   children: React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -91,10 +116,15 @@ const ExperienceCard = ({
             </motion.div>
           </div>
 
+          {metrics && metrics.length > 0 && <MetricChips metrics={metrics} />}
+
           <ul className="mt-3 space-y-2">
             {points.map((point, idx) => (
               <li key={idx} className="flex items-start gap-2 text-sm md:text-base text-neutral-300">
-                <span className="mt-2 h-1.5 w-1.5 min-w-[6px] rounded-full bg-teal-500/70" />
+                <span
+                  className="mt-2 h-1.5 w-1.5 min-w-[6px] rounded-full"
+                  style={{ background: `rgba(${WORKEX.rgb.join(",")}, 0.7)` }}
+                />
                 <span>{point}</span>
               </li>
             ))}
@@ -186,12 +216,13 @@ export function WorkExp() {
             "Reduced pipeline processing time from 6 mins to <30 seconds using caching & optimization.",
             "Fixed critical data discrepancies across 80+ units by resolving UTC/IST bugs.",
           ]}
+          metrics={["6 min \u2192 30 s", "35 s \u2192 <5 s", "80+ units fixed", "-40% response lag"]}
         >
           <p>
             Improved the reliability and performance of operational data systems across Tata Power’s Maithon, PPGCL, and Jojobera plants by automating daily logging workflows and modernizing backend infrastructure. Replaced manual CSV-based processes with a cloud-hosted PostgreSQL database, orchestrated using AWS Step Functions and scheduled cron jobs. This made data collection for blower states and temperature violations significantly more consistent and maintainable. Fixed critical data issues, including a UTC to IST time conversion bug and incorrect API usage, which had caused discrepancies across over 80 units. These fixes helped restore accuracy in real-time dashboards and improved trust in key operational metrics.
           </p>
           <p>
-            Focused on speeding up pipelines and dashboards that were slowing down decision-making. Reduced a core processing pipeline’s runtime from six minutes to under thirty seconds and cut dashboard response times from over forty seconds to under five. Achieved this through caching, endpoint optimization, and pushing heavy aggregation work into the database after identifying missing indexes. Built a real-time mill runtime tracking system with reliable job execution by isolating the scheduler in a dedicated thread. Also restructured legacy services into a modular, asynchronous design, which improved scalability and reduced response lag by forty percent.
+            Focused on speeding up pipelines and dashboards that were slowing down decision-making. Reduced a core processing pipeline’s runtime from six minutes to under thirty seconds and cut dashboard response times from about thirty-five seconds to under five. Achieved this through caching, endpoint optimization, and pushing heavy aggregation work into the database after identifying missing indexes. Built a real-time mill runtime tracking system with reliable job execution by isolating the scheduler in a dedicated thread. Also restructured legacy services into a modular, asynchronous design, which improved scalability and reduced response lag by forty percent.
           </p>
           <p>
             Enhanced the platform’s analytical capabilities by integrating an existing time-series forecasting model for anomaly detection into the upgraded codebase, ensuring it worked smoothly after migration. On top of that, built a new suite of diagnostic APIs for LRSB health tracking, including caution flags and historical inactivity reports, which enabled a shift toward predictive maintenance and improved system visibility for plant operators.
@@ -211,6 +242,7 @@ export function WorkExp() {
             "Optimized API workflows to reduce backend latency by over 40%.",
             "Developed a headless SaaS inventory platform featuring bulk asynchronous S3 uploads.",
           ]}
+          metrics={["1,000+ actions/mo", "-40% latency"]}
         >
           <p>
             Developed backend systems for multiple high-impact projects within the company. Led the development of a comprehensive business management platform for Xceed Electronics, featuring core functionalities such as real-time in-house inventory tracking, order enquiry processing, and secure, role-based admin operations. The platform also integrated the Waldom API to source and manage an extended range of products. Optimized API workflows to reduce backend latency by over 40%. Deployed the application on AWS to ensure scalability and reliability. The system currently handles over 1,000 inventory and order-related actions per month.
@@ -233,6 +265,7 @@ export function WorkExp() {
             "Improved load times by 35% through SEO strategies and UI component optimization.",
             "Integrated real-time product features to enhance early brand presence.",
           ]}
+          metrics={["-35% load time"]}
         >
           <p>
             Played a key role in building the digital foundation for Seculinx, a smart home automation startup focused on AI-powered, intuitive living experiences. Designed and developed a high-performance, SEO-optimized website that showcased Seculinx's vision for intelligent home systems and energy-efficient automation.
@@ -246,8 +279,8 @@ export function WorkExp() {
   ];
 
   return (
-    <div className="relative w-full overflow-clip py-16" id="workex">
-      <Heading text="Work Experience" />
+    <div className="relative w-full overflow-clip py-16" id="workex" style={accentVars(WORKEX)}>
+      <Heading section="workex" />
       <Timeline data={data} />
     </div>
   );

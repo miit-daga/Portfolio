@@ -14,6 +14,78 @@ type PublicationItem = {
   status?: string;
 };
 
+// The venue is the single strongest credibility signal on the card, and it used
+// to render as 11px grey mono, the least important-looking text in the block.
+// Each publisher now gets a proper badge in its own colour family.
+//
+// Text only, deliberately: publisher logos are trademarked and self-hosting
+// them on a personal site is a licensing question worth avoiding.
+type VenueStyle = { border: string; bg: string; text: string; dot: string };
+
+const VENUE_STYLES: { match: RegExp; style: VenueStyle }[] = [
+  {
+    // Nature Portfolio's house colour is a deep green with warm sand type.
+    match: /nature|scientific reports/i,
+    style: {
+      border: "rgba(52, 168, 121, 0.45)",
+      bg: "rgba(52, 168, 121, 0.12)",
+      text: "#6ee7b7",
+      dot: "#34a879",
+    },
+  },
+  {
+    match: /elsevier|array/i,
+    style: {
+      border: "rgba(255, 111, 0, 0.45)",
+      bg: "rgba(255, 111, 0, 0.12)",
+      text: "#fdba74",
+      dot: "#ff6f00",
+    },
+  },
+  {
+    match: /ieee/i,
+    style: {
+      border: "rgba(0, 98, 155, 0.55)",
+      bg: "rgba(0, 98, 155, 0.18)",
+      text: "#7dd3fc",
+      dot: "#00629b",
+    },
+  },
+  {
+    match: /patent/i,
+    style: {
+      border: "rgba(245, 158, 11, 0.45)",
+      bg: "rgba(245, 158, 11, 0.12)",
+      text: "#fcd34d",
+      dot: "#f59e0b",
+    },
+  },
+];
+
+const NEUTRAL_VENUE: VenueStyle = {
+  border: "rgba(255,255,255,0.15)",
+  bg: "rgba(255,255,255,0.05)",
+  text: "#a3a3a3",
+  dot: "#737373",
+};
+
+function venueStyle(venue: string): VenueStyle {
+  return VENUE_STYLES.find((v) => v.match.test(venue))?.style ?? NEUTRAL_VENUE;
+}
+
+const VenueBadge = ({ venue }: { venue: string }) => {
+  const s = venueStyle(venue);
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide"
+      style={{ borderColor: s.border, background: s.bg, color: s.text }}
+    >
+      <span aria-hidden className="h-1.5 w-1.5 rounded-full" style={{ background: s.dot }} />
+      {venue}
+    </span>
+  );
+};
+
 export const HoverEffectPublications = ({
   items,
   className,
@@ -153,7 +225,7 @@ const TiltCard = ({
             >
               {isPatent ? "Patent" : "Journal"}
             </span>
-            {item.venue && <span className="font-mono text-[11px] text-neutral-500">{item.venue}</span>}
+            {item.venue && <VenueBadge venue={item.venue} />}
           </div>
 
           <CardTitle className="pr-12">{item.title}</CardTitle>

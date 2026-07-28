@@ -4,19 +4,42 @@ import { AnimatePresence, motion, useMotionValue, useMotionTemplate, useSpring, 
 import Link from "next/link";
 import { useState, useRef } from "react";
 
+export type ProjectItem = {
+  title: string;
+  description: string;
+  link: string;
+  languages?: Record<string, number>;
+  /** Repo homepage, if set. Becomes a small npm / Colab / Live pill. */
+  homepage?: string | null;
+  /** Curated highlights get an index badge and a brighter border. */
+  featured?: boolean;
+};
+
+// A repo's homepage becomes a labelled pill, named after where it points.
+function linkPill(homepage?: string | null): { label: string; href: string } | null {
+  if (!homepage) return null;
+  try {
+    const host = new URL(homepage).hostname.replace(/^www\./, "");
+    if (host.endsWith("npmjs.com")) return { label: "npm", href: homepage };
+    if (host.includes("colab.research.google")) return { label: "Colab", href: homepage };
+    return { label: "Live", href: homepage };
+  } catch {
+    return null;
+  }
+}
+
 export const HoverEffect = ({
   items,
   className,
   column = 3,
+  groupId = "default",
 }: {
-  items: {
-    title: string;
-    description: string;
-    link: string;
-    languages?: Record<string, number>;
-  }[];
+  items: ProjectItem[];
   className?: string;
   column?: 2 | 3;
+  /** Scopes the shared-layout highlight. Two grids on one page must not
+      collide on the same layoutId, or the highlight animates between them. */
+  groupId?: string;
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -32,6 +55,7 @@ export const HoverEffect = ({
           hoveredIndex={hoveredIndex}
           setHoveredIndex={setHoveredIndex}
           column={column}
+          groupId={groupId}
         />
       ))}
     </div>
@@ -45,12 +69,14 @@ const TiltCard = ({
   hoveredIndex,
   setHoveredIndex,
   column,
+  groupId,
 }: {
-  item: { title: string; description: string; link: string; languages?: Record<string, number> };
+  item: ProjectItem;
   idx: number;
   hoveredIndex: number | null;
   setHoveredIndex: (idx: number | null) => void;
   column: 2 | 3;
+  groupId: string;
 }) => {
   const ref = useRef<HTMLAnchorElement>(null);
   const x = useMotionValue(0);
@@ -117,7 +143,7 @@ const TiltCard = ({
             {hoveredIndex === idx && (
               <motion.span
                 className="absolute inset-0 h-full w-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 block rounded-3xl"
-                layoutId="hoverBackground"
+                layoutId={`hoverBackground-${groupId}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -129,7 +155,14 @@ const TiltCard = ({
 
           {/* Card Content with Lift */}
           <div style={{ transform: "translateZ(20px)" }} className="h-full">
-            <Card className="w-full h-full" isHovered={hoveredIndex === idx} languages={item.languages}>
+            <Card
+              className="w-full h-full"
+              isHovered={hoveredIndex === idx}
+              languages={item.languages}
+              featured={item.featured}
+              featuredIndex={idx}
+              homepage={item.homepage}
+            >
               <CardTitle>{item.title}</CardTitle>
               <CardDescription>{item.description}</CardDescription>
             </Card>
@@ -152,16 +185,23 @@ export const Card = ({
   children,
   isHovered = false,
   languages,
+  featured = false,
+  featuredIndex = 0,
+  homepage,
 }: {
   className?: string;
   children: React.ReactNode;
   isHovered?: boolean;
   languages?: Record<string, number>;
+  featured?: boolean;
+  featuredIndex?: number;
+  homepage?: string | null;
 }) => {
   const langEntries = languages
     ? Object.entries(languages).sort(([, a], [, b]) => b - a)
     : [];
   const totalBytes = langEntries.reduce((sum, [, bytes]) => sum + bytes, 0);
+  const pill = linkPill(homepage);
 
   return (
     <motion.div
@@ -174,6 +214,9 @@ export const Card = ({
         backdropFilter: "blur(120px)",
         WebkitBackdropFilter: "blur(120px)",
         background: "rgba(0, 0, 0, 0.6)",
+        // Featured cards sit a touch brighter so the curated block reads as
+        // deliberate without changing the grid geometry.
+        boxShadow: featured ? "inset 0 0 0 1px rgba(255,255,255,0.06)" : undefined,
       }}
       animate={{
         scale: isHovered ? 1.02 : 1,
@@ -185,7 +228,47 @@ export const Card = ({
     >
       <div className="relative z-50">
         <div className="p-4">
+          {/* Featured index + live/npm link, both visible at rest */}
+          {(featured || pill) && (
+            <div className="mb-1 flex items-center justify-between gap-2">
+              {featured ? (
+                <span
+                  className="font-mono text-[10px] uppercase tracking-[0.22em]"
+                  style={{ color: "rgb(var(--accent-rgb, 45, 212, 191))" }}
+                >
+                  featured · {String(featuredIndex + 1).padStart(2, "0")}
+                </span>
+              ) : (
+                <span />
+              )}
+              {pill && (
+                <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 font-mono text-[10px] tracking-wide text-neutral-300">
+                  {pill.label}
+                </span>
+              )}
+            </div>
+          )}
           {children}
+
+          {/* Top languages, readable without hovering. The animated breakdown
+              below stays as the hover reward; on touch it never fired at all. */}
+          {langEntries.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {langEntries.slice(0, 3).map(([lang]) => (
+                <span
+                  key={lang}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-zinc-400"
+                >
+                  <span
+                    aria-hidden
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{ background: langColor(lang) }}
+                  />
+                  {lang}
+                </span>
+              ))}
+            </div>
+          )}
           {langEntries.length > 0 && (
             <motion.div
               className="mt-5 overflow-hidden"

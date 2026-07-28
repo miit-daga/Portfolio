@@ -1,25 +1,19 @@
 "use client"
 
 import { useEffect, useRef } from "react"
+import { SECTIONS } from "@/constants/sections"
 
 // Scroll-linked ambient tint: each section warms the sky with its own hue so
 // the page reads as one continuous voyage through different regions of space.
-// Deliberately faint - the starfield stays the hero of the backdrop, and the
-// hues steer away from the site's omnipresent teal.
+// The starfield stays the hero of the backdrop, so this is kept subtle, but it
+// now shares its palette with the headings, dividers and minimap rather than
+// keeping a private copy that could drift out of step.
 
 type Stop = { id: string; rgb: [number, number, number] }
 
-const STOPS: Stop[] = [
-  { id: "about-me", rgb: [56, 189, 248] }, // sky
-  { id: "workex", rgb: [251, 146, 60] }, // amber
-  { id: "education", rgb: [96, 165, 250] }, // blue
-  { id: "skills-achievements", rgb: [167, 139, 250] }, // violet
-  { id: "projects", rgb: [244, 114, 182] }, // rose
-  { id: "publications", rgb: [129, 140, 248] }, // indigo
-  { id: "contact", rgb: [251, 191, 36] }, // gold
-]
+const STOPS: Stop[] = SECTIONS.map((s) => ({ id: s.id, rgb: s.rgb }))
 
-const PEAK_ALPHA = 0.085
+const PEAK_ALPHA = 0.11
 
 export const AmbientGlow = () => {
   const ref = useRef<HTMLDivElement>(null)

@@ -277,42 +277,42 @@ const Home = () => {
                 </div>
               </Reveal>
 
-              <SectionDivider variant="comet" />
+              <SectionDivider variant="comet" section="workex" />
               <Reveal>
                 <div className="relative">
                   <WorkExp />
                   <Collectible id="workex" className="top-10 right-6 md:right-16" />
                 </div>
               </Reveal>
-              <SectionDivider variant="planet" />
+              <SectionDivider variant="planet" section="education" />
               <Reveal>
                 <div className="relative">
                   <Education />
                   <Collectible id="education" className="top-12 left-6 md:left-16" />
                 </div>
               </Reveal>
-              <SectionDivider variant="constellation" />
+              <SectionDivider variant="constellation" section="skills-achievements" />
               <Reveal>
                 <div className="relative">
                   <SkillsAndAchievements />
                   <Collectible id="skills" className="bottom-12 right-8 md:right-20" />
                 </div>
               </Reveal>
-              <SectionDivider variant="nova" />
+              <SectionDivider variant="nova" section="projects" />
               <Reveal>
                 <div className="relative">
                   <Projects />
                   <Collectible id="projects" className="top-12 left-8 md:left-20" />
                 </div>
               </Reveal>
-              <SectionDivider variant="galaxy" />
+              <SectionDivider variant="galaxy" section="publications" />
               <Reveal>
                 <div className="relative">
                   <Publications />
                   <Collectible id="publications" className="bottom-14 right-8 md:right-24" />
                 </div>
               </Reveal>
-              <SectionDivider variant="rocket" />
+              <SectionDivider variant="rocket" section="contact" />
               <Reveal>
                 <Contact />
               </Reveal>
