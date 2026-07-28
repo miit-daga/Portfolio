@@ -549,6 +549,11 @@
         const overlay = document.getElementById('start-overlay');
         let isTyping = false;
         let bootSkipped = false; // when true, boot typing fast-forwards instantly
+        // When set, the next Enter feeds this resolver instead of running a
+        // command. Used for the masked admin-key prompt, so the key never lands
+        // in commandHistory (which is persisted to localStorage).
+        let pendingPrompt = null;
+
         // GitHub repo list, fetched once per page load. `projects` is cheap to
         // re-render but the fetch (plus a language lookup per repo) is not.
         let projectsCache = null;
@@ -583,7 +588,7 @@
         inputLine.addEventListener('input', () => {
             const raw = inputLine.value;
             ghostInput.value = '';
-            if (!raw) return;
+            if (pendingPrompt || !raw) return;
             const spaceIdx = raw.indexOf(' ');
             if (spaceIdx !== -1) {
                 // "<cmd> <partial-arg>" -> suggest a matching argument
@@ -1842,7 +1847,8 @@
             for (const e of data.entries) {
                 await typeRaw(
                     `<span class="highlight-name">${escapeHtml(e.name)}</span> ` +
-                    `<span class="highlight-date">· ${relativeTime(e.at)}</span>`
+                    `<span class="highlight-date">· ${relativeTime(e.at)}</span> ` +
+                    `<span class="highlight-dim">#${escapeHtml(e.id)}</span>`
                 );
                 await typeRaw(`  <span class="highlight-dim">&gt;</span> ${escapeHtml(e.message)}`);
             }
@@ -1897,6 +1903,75 @@
             );
         }
 
+        // Masked, one-shot input. Never echoed, never stored.
+        function promptSecret(label) {
+            return new Promise((resolve) => {
+                const row = document.createElement('div');
+                row.className = 'output';
+                row.innerHTML = `<span class="highlight-value">${label}</span>`;
+                outputContainer.appendChild(row);
+                inputLine.type = 'password';
+                inputLine.value = '';
+                ghostInput.value = '';
+                inputLine.disabled = false;
+                inputLine.focus();
+                terminal.scrollTop = terminal.scrollHeight;
+                pendingPrompt = (value) => {
+                    pendingPrompt = null;
+                    inputLine.type = 'text';
+                    inputLine.value = '';
+                    inputLine.disabled = true;
+                    resolve(value);
+                };
+            });
+        }
+
+        // Guestbook moderation. Kept out of help, man and autocomplete so it is
+        // not stumbled upon, but the command name is in this file and therefore
+        // public: the server-side GUESTBOOK_ADMIN_KEY is the actual gate.
+        async function jettison(target) {
+            if (!target) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">jettison: which entry?</span>');
+                await typeRaw('Usage: jettison &lt;id&gt;   or   jettison all');
+                await typeRaw(`Run <span class="nav-link" onclick="runCommandFromClick('guestbook')">guestbook</span> to list ids.`);
+                return;
+            }
+            // The listing prints ids as "#ff597805", so accept a pasted hash.
+            const cleaned = target.replace(/^#/, '').trim();
+            const id = cleaned.toLowerCase() === 'all' ? '*' : cleaned;
+            const key = await promptSecret('admin key &middot; input hidden, Esc to cancel');
+            if (key === null) {
+                await typeRaw('<span class="highlight-dim">Cancelled.</span>');
+                return;
+            }
+
+            await typeSpinner('Authorising', 500);
+            let res, data;
+            try {
+                res = await fetch('/api/guestbook', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, key }),
+                });
+                data = await res.json();
+            } catch {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">Could not reach the guestbook.</span>');
+                return;
+            }
+            if (!res.ok) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml((data && data.error) || 'Rejected.')}</span>`);
+                return;
+            }
+            SoundFX.powerDown();
+            await typeLine(
+                `Jettisoned ${data.removed} ${data.removed === 1 ? 'entry' : 'entries'}. ${data.remaining} remaining.`,
+                12,
+            );
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -1946,6 +2021,13 @@
             // Handle ssh before the switch (takes an argument)
             if (cmd === 'ssh' || cmd.startsWith('ssh ')) {
                 await runSsh(command.substring(3).trim());
+                endTurn();
+                return;
+            }
+
+            // Handle jettison before the switch (guestbook moderation)
+            if (cmd === 'jettison' || cmd.startsWith('jettison ')) {
+                await jettison(command.substring(8).trim());
                 endTurn();
                 return;
             }
@@ -2609,6 +2691,15 @@
         window.runCommandFromClick = (command) => runCommand(command);
 
         inputLine.addEventListener('keydown', (e) => {
+            // A masked prompt is open: resolve on Enter, cancel on Escape, and
+            // swallow history/completion so the hidden value cannot be recalled.
+            if (pendingPrompt) {
+                if (e.key === 'Enter') { e.preventDefault(); pendingPrompt(inputLine.value); }
+                else if (e.key === 'Escape') { e.preventDefault(); pendingPrompt(null); }
+                else if (e.key === 'Tab' || e.key.startsWith('Arrow')) { e.preventDefault(); }
+                return;
+            }
+
             if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 || e.key === 'Backspace') {
                 SoundFX.typing(e.key);
             }

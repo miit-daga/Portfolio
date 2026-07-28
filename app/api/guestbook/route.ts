@@ -128,6 +128,80 @@ export async function GET(request: Request) {
   }
 }
 
+/**
+ * Length-independent comparison, so a wrong key cannot be narrowed down by
+ * timing how long the rejection took.
+ */
+function keyMatches(supplied: string, expected: string): boolean {
+  if (supplied.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < supplied.length; i++) {
+    diff |= supplied.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Remove one entry, or all of them with id "*".
+ *
+ * Authorised by GUESTBOOK_ADMIN_KEY, which lives only on the server. The
+ * terminal command that calls this is visible in the client bundle; the key is
+ * what actually gates it, so treat it like a password.
+ */
+export async function DELETE(request: Request) {
+  if (!process.env.GUESTBOOK_GIST_ID) {
+    return NextResponse.json({ error: "The guestbook is not configured yet." }, { status: 503 });
+  }
+  const adminKey = process.env.GUESTBOOK_ADMIN_KEY;
+  if (!adminKey) {
+    return NextResponse.json(
+      { error: "No admin key is configured on the server." },
+      { status: 503 },
+    );
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Malformed request." }, { status: 400 });
+  }
+  const { id, key } = (body ?? {}) as { id?: unknown; key?: unknown };
+
+  if (typeof key !== "string" || !keyMatches(key, adminKey)) {
+    // Deliberate delay: the only defence against someone hammering this.
+    await new Promise((r) => setTimeout(r, 600));
+    return NextResponse.json({ error: "Rejected." }, { status: 401 });
+  }
+  if (typeof id !== "string" || !id.trim()) {
+    return NextResponse.json({ error: "Which entry?" }, { status: 400 });
+  }
+
+  try {
+    const entries = await readEntries();
+    const target = id.trim().replace(/^#/, "");
+
+    if (target === "*") {
+      await writeEntries([]);
+      return NextResponse.json({ ok: true, removed: entries.length, remaining: 0 });
+    }
+
+    const kept = entries.filter((e) => e.id !== target);
+    if (kept.length === entries.length) {
+      return NextResponse.json({ error: `No entry with id ${target}.` }, { status: 404 });
+    }
+    await writeEntries(kept);
+    return NextResponse.json({
+      ok: true,
+      removed: entries.length - kept.length,
+      remaining: kept.length,
+    });
+  } catch (error) {
+    console.error("Guestbook delete failed:", error);
+    return NextResponse.json({ error: "Could not update the guestbook." }, { status: 502 });
+  }
+}
+
 export async function POST(request: Request) {
   if (!process.env.GUESTBOOK_GIST_ID) {
     return NextResponse.json(
