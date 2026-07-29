@@ -414,7 +414,8 @@
             "projects", "publications", "contact", "socials", "resume", "guestbook", "sign",
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
-            "rm", "mkdir", "reboot", "history", "play"
+            "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
+            "stats", "alias", "unalias"
           ]
         };
 
@@ -575,6 +576,9 @@
             theme: Object.keys(THEMES),
             play: ['snake', 'invaders', 'dodge', 'tetris', 'typing', 'flappy'],
             ssh: ['miit@mothership'],
+            ping: ['mothership'],
+            resume: ['--plain'],
+            unalias: () => Object.keys(aliases).sort(),
             // Lazy: MANUAL is declared further down, so reading it eagerly here
             // would hit the temporal dead zone at module init.
             man: () => Object.keys(MANUAL).sort(),
@@ -1377,6 +1381,7 @@
             'brief', 'about', 'experience', 'education', 'skills',
             'achievements', 'projects', 'publications', 'contact', 'socials',
             'guestbook', 'man', 'ls', 'history', 'neofetch', 'date', 'pwd', 'whoami',
+            'find', 'tree', 'fortune', 'stats', 'alias',
         ]);
         const PIPE_STAGES = ['grep', 'wc', 'head', 'tail'];
 
@@ -1537,6 +1542,13 @@
             head:         { syn: '<command> | head [-n N]',  sum: 'First N lines, default 10. Counts lines rather than entries, so a heading eats into N.' },
             tail:         { syn: '<command> | tail [-n N]',  sum: 'Last N lines, default 10.' },
             man:          { syn: 'man <command>',           sum: 'Show the manual entry for a command.' },
+            find:         { syn: 'find <term>',              sum: 'Search experience, education, skills, achievements, publications and projects at once, and report where the term appears. Unlike grep, which filters a single command\'s output.' },
+            tree:         { syn: 'tree',                     sum: 'The home directory, drawn out. Still read-only.' },
+            ping:         { syn: 'ping <host>',              sum: 'Four simulated packets. Nothing leaves your browser. One host answers more slowly than the rest.' },
+            fortune:      { syn: 'fortune',                  sum: 'One piece of hard-won engineering wisdom, no repeats until the pool runs dry.' },
+            stats:        { syn: 'stats',                    sum: 'Commands run, history depth, aliases, and every arcade high score.' },
+            alias:        { syn: 'alias [name=command]',     sum: 'List aliases, or define one: alias p=projects. Saved across visits. Expands the first word only, one level deep, so aliases cannot loop.' },
+            unalias:      { syn: 'unalias <name>',           sum: 'Remove an alias. unalias -a removes all of them.' },
             theme:        { syn: 'theme <colour>',          sum: 'Recolour the terminal. Presets, or any CSS colour.' },
             play:         { syn: 'play <game>',             sum: 'Launch an arcade game. Six available.' },
             top:          { syn: 'top',                     sum: 'Live process monitor. Q or Esc to quit.' },
@@ -1972,6 +1984,469 @@
             );
         }
 
+
+        // ===================================================================
+        // ADDITIONS: aliases, chaining, deep links, find, tree, ping,
+        // fortune, stats, resume --plain. Everything below is additive; no
+        // existing command body is modified.
+        // ===================================================================
+
+        let commandsThisSession = 0;
+
+        // --- ALIASES -------------------------------------------------------
+        const ALIAS_KEY = 'term-aliases';
+        const MAX_ALIASES = 50;
+        const ALIAS_NAME_RE = /^[a-z][a-z0-9_-]{0,15}$/i;
+        let aliases = {};
+        try {
+            const parsed = JSON.parse(localStorage.getItem(ALIAS_KEY) || '{}');
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) aliases = parsed;
+        } catch (e) { aliases = {}; }
+        function saveAliases() {
+            try { localStorage.setItem(ALIAS_KEY, JSON.stringify(aliases)); } catch (e) {}
+        }
+
+        // Expands the FIRST word only, and only one level deep, so
+        // `alias a=b` together with `alias b=a` can never loop.
+        function expandAlias(segment) {
+            const trimmed = (segment || '').trim();
+            if (!trimmed) return trimmed;
+            const sp = trimmed.search(/\s/);
+            const head = (sp === -1 ? trimmed : trimmed.slice(0, sp)).toLowerCase();
+            const tail = sp === -1 ? '' : trimmed.slice(sp);
+            const target = aliases[head];
+            return target ? target + tail : trimmed;
+        }
+
+        async function manageAlias(arg) {
+            const names = Object.keys(aliases).sort();
+            if (!arg) {
+                SoundFX.enter();
+                if (!names.length) {
+                    await typeRaw('<span class="highlight-dim">No aliases set.</span>');
+                    await typeRaw('Usage: alias &lt;name&gt;=&lt;command&gt;   e.g. <span class="highlight-value">alias p=projects</span>');
+                    return;
+                }
+                await typeRaw('<div class="section-title">Aliases</div>');
+                for (const n of names) {
+                    await typeRaw(`  <span class="highlight-name">${escapeHtml(n)}</span>=<span class="highlight-value">${escapeHtml(aliases[n])}</span>`);
+                }
+                return;
+            }
+
+            const eq = arg.indexOf('=');
+            if (eq === -1) {
+                const name = arg.trim().toLowerCase();
+                if (aliases[name]) {
+                    SoundFX.enter();
+                    await typeRaw(`<span class="highlight-name">${escapeHtml(name)}</span>=<span class="highlight-value">${escapeHtml(aliases[name])}</span>`);
+                } else {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">alias: ${escapeHtml(name)}: not found</span>`);
+                }
+                return;
+            }
+
+            const name = arg.slice(0, eq).trim().toLowerCase();
+            const value = arg.slice(eq + 1).trim();
+            if (!ALIAS_NAME_RE.test(name)) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">alias: names must start with a letter and be 1-16 characters of a-z, 0-9, - or _</span>');
+                return;
+            }
+            if (!value) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">alias: give it something to expand to, or use unalias to remove it</span>');
+                return;
+            }
+            if (value.length > 120) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">alias: that expansion is too long (120 characters max)</span>');
+                return;
+            }
+            if (!aliases[name] && names.length >= MAX_ALIASES) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">alias: ${MAX_ALIASES} is the limit. Remove one with unalias first.</span>`);
+                return;
+            }
+            aliases[name] = value;
+            saveAliases();
+            SoundFX.successChime();
+            await typeRaw(`<span class="highlight-name">${escapeHtml(name)}</span>=<span class="highlight-value">${escapeHtml(value)}</span>`);
+            if (MOCK_DATA.commands.includes(name)) {
+                await typeRaw(`<span class="highlight-dim">Heads up: this shadows the built-in '${escapeHtml(name)}'. unalias ${escapeHtml(name)} restores it.</span>`);
+            }
+        }
+
+        async function removeAlias(name) {
+            const key = (name || '').trim().toLowerCase();
+            if (!key) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">unalias: which one?</span>');
+                await typeRaw('Usage: unalias &lt;name&gt;');
+                return;
+            }
+            if (key === '-a' || key === 'all') {
+                const n = Object.keys(aliases).length;
+                aliases = {};
+                saveAliases();
+                SoundFX.enter();
+                await typeLine(`Removed ${n} alias${n === 1 ? '' : 'es'}.`, 10);
+                return;
+            }
+            if (!aliases[key]) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">unalias: ${escapeHtml(key)}: not found</span>`);
+                return;
+            }
+            delete aliases[key];
+            saveAliases();
+            SoundFX.enter();
+            await typeLine(`Removed alias '${key}'.`, 10);
+        }
+
+        // --- COMMAND CHAINING ----------------------------------------------
+        // `a && b` runs b only if a was a command we recognise; `a ; b` always
+        // runs b. Splitting happens before pipes, matching shell precedence.
+        const CHAIN_LIMIT = 10;
+
+        // Commands whose argument is free-form text. `sign hi; bye` must post the
+        // whole message, not post "hi" and then try to run "bye".
+        const RAW_TAIL = new Set(['sign', 'alias', 'find', 'theme']);
+
+        function splitChain(input) {
+            const whole = String(input || '').trim();
+            const base = expandAlias(whole).split(/\s+/)[0].toLowerCase();
+            if (RAW_TAIL.has(base)) return whole ? [{ text: whole, sep: null }] : [];
+
+            const out = [];
+            let rest = String(input || '');
+            let sep = null;
+            for (let guard = 0; guard < 64; guard++) {
+                const m = rest.match(/(&&|;)/);
+                if (!m) { out.push({ text: rest.trim(), sep }); break; }
+                out.push({ text: rest.slice(0, m.index).trim(), sep });
+                sep = m[1];
+                rest = rest.slice(m.index + m[1].length);
+            }
+            return out.filter((seg) => seg.text).slice(0, CHAIN_LIMIT);
+        }
+
+        // Commands that exist but are deliberately absent from the public list.
+        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias']);
+        function isKnownCommand(text) {
+            const base = (text || '').trim().split(/\s+/)[0].toLowerCase();
+            if (!base) return false;
+            return MOCK_DATA.commands.includes(base) || HIDDEN_COMMANDS.has(base);
+        }
+
+        // --- DEEP LINKS ----------------------------------------------------
+        // terminal.html?cmd=publications runs that command once the boot
+        // finishes. Anything destructive, self-repeating or able to write on a
+        // visitor's behalf is refused, so a crafted link cannot act for them.
+        const URL_CMD_BLOCKED = new Set([
+            'reboot', 'exit', 'home', 'back',   // would loop or close the tab
+            'sign', 'jettison',                  // would write or delete
+            'clear', 'mute',                     // pointless from a link
+        ]);
+
+        function runUrlCommand() {
+            let raw = '';
+            try {
+                raw = (new URLSearchParams(window.location.search).get('cmd') || '').trim();
+            } catch (e) { return; }
+            if (!raw) return;
+            if (raw.length > 120) return;
+
+            // Drop the parameter immediately: a reload must not re-run it, and
+            // that also removes any chance of a self-triggering loop.
+            try { history.replaceState(null, '', window.location.pathname); } catch (e) {}
+
+            const segments = splitChain(raw);
+            if (!segments.length) return;
+            const refused = segments.some((seg) => {
+                const base = expandAlias(seg.text).trim().split(/\s+/)[0].toLowerCase();
+                return URL_CMD_BLOCKED.has(base);
+            });
+            if (refused) return;
+
+            window.setTimeout(() => { if (!isTyping) runCommand(raw); }, 450);
+        }
+
+        // --- find ----------------------------------------------------------
+        // grep filters one command's output; this searches everything at once.
+        function countMatches(haystack, needle) {
+            if (!haystack) return 0;
+            const hay = haystack.toLowerCase();
+            let n = 0, i = 0;
+            // Plain indexOf, never a regex, so a query full of metacharacters
+            // is just a query.
+            while ((i = hay.indexOf(needle, i)) !== -1) { n++; i += needle.length; }
+            return n;
+        }
+
+        async function ensureProjects() {
+            if (projectsCache) return projectsCache;
+            try {
+                const res = await fetch('/api/github-repos');
+                if (!res.ok) return null;
+                const data = await res.json();
+                if (Array.isArray(data)) { projectsCache = data; return data; }
+            } catch (e) { /* offline: searched sections are reported below */ }
+            return null;
+        }
+
+        async function findAcross(term) {
+            const q = (term || '').trim().toLowerCase();
+            if (!q) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">find: what am I looking for?</span>');
+                await typeRaw('Usage: find &lt;term&gt;');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('find aws')">find aws</span>.`);
+                return;
+            }
+            if (q.length < 2) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">find: use at least two characters, or everything matches.</span>');
+                return;
+            }
+
+            SoundFX.enter();
+            await typeRaw(`<div class="section-title">Searching for "${escapeHtml(term.trim())}"</div>`);
+
+            const hits = [];
+            const add = (cmd, label, n) => { if (n > 0) hits.push({ cmd, label, n }); };
+
+            add('about', 'Introduction', countMatches(MOCK_DATA.about, q));
+
+            for (const job of MOCK_DATA.experience) {
+                const blob = [job.company, job.role, job.date]
+                    .concat(job.metrics || [], job.points || []).join(' ');
+                add('experience', job.company, countMatches(blob, q));
+            }
+            for (const edu of MOCK_DATA.education) {
+                const blob = [edu.institution, edu.degree, edu.date, edu.note].join(' ');
+                add('education', edu.institution, countMatches(blob, q));
+            }
+            for (const [category, list] of Object.entries(MOCK_DATA.skills)) {
+                add('skills', category, countMatches(list.join(' '), q));
+            }
+            for (const a of MOCK_DATA.achievements) {
+                add('achievements', a.title.split('|')[0].trim(), countMatches(a.title + ' ' + a.description, q));
+            }
+            for (const pub of MOCK_DATA.publications) {
+                const blob = [pub.venue, pub.kind, pub.title].join(' ');
+                add('publications', pub.venue, countMatches(blob, q));
+            }
+
+            const repos = await ensureProjects();
+            if (repos) {
+                for (const r of repos) {
+                    const blob = [r.name, r.description || '', Object.keys(r.languages || {}).join(' ')].join(' ');
+                    add('projects', r.name, countMatches(blob, q));
+                }
+            }
+
+            if (!hits.length) {
+                SoundFX.error();
+                await typeRaw('<span class="highlight-dim">No matches anywhere.</span>');
+                if (!repos) await typeRaw('<span class="highlight-dim">(projects could not be reached, so they were not searched)</span>');
+                return;
+            }
+
+            const pad = (t, n) => (t.length > n ? t.slice(0, n - 1) + '…' : t.padEnd(n));
+            for (const h of hits) {
+                await typeRaw(
+                    `  <span class="nav-link" onclick="runCommandFromClick('${h.cmd}')">${pad(h.cmd, 13)}</span>` +
+                    `<span class="highlight-name">${escapeHtml(pad(h.label, 34))}</span>` +
+                    `<span class="highlight-dim">${h.n} match${h.n === 1 ? '' : 'es'}</span>`
+                );
+            }
+            const total = hits.reduce((s, h) => s + h.n, 0);
+            await typeRaw(`<span class="highlight-dim">${total} match${total === 1 ? '' : 'es'} across ${hits.length} place${hits.length === 1 ? '' : 's'}. Click a section to open it.</span>`);
+            if (!repos) await typeRaw('<span class="highlight-dim">(projects could not be reached, so they were not searched)</span>');
+        }
+
+        // --- tree ----------------------------------------------------------
+        const TREE = [
+            ['/home/miit-daga', ''],
+            ['├── Documents', 'dir'],
+            ['│   ├── resume.pdf', ''],
+            ['│   └── patents/', 'dir'],
+            ['├── Downloads', 'dir'],
+            ['│   └── definitely_not_malware.sh', ''],
+            ['├── Music', 'dir'],
+            ['│   └── lofi_beats_to_debug_to.mp3', ''],
+            ['├── Pictures', 'dir'],
+            ['│   └── screenshot_of_the_bug.png', ''],
+            ['├── Videos', 'dir'],
+            ['│   └── the_demo_that_worked_once.mp4', ''],
+            ['└── secret_plans.txt', 'secret'],
+        ];
+
+        async function showTree() {
+            SoundFX.dataBurst();
+            const body = TREE.map(([line, kind]) => {
+                if (kind === 'dir') return `<span style="color:var(--term-accent);font-weight:700">${escapeHtml(line)}</span>`;
+                if (kind === 'secret') return `<span style="color:#fff">${escapeHtml(line)}</span>`;
+                return escapeHtml(line);
+            }).join('\n');
+            await typeRaw(`<div style="white-space:pre">${body}</div>`);
+            await typeRaw('<span class="highlight-dim">5 directories, 7 files. Read-only, as ever.</span>');
+        }
+
+        // --- ping ----------------------------------------------------------
+        async function pingHost(target) {
+            const host = (target || '').trim();
+            if (!host) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">ping: no host given</span>');
+                await typeRaw('Usage: ping &lt;host&gt;');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('ping mothership')">ping mothership</span>.`);
+                return;
+            }
+            const safe = escapeHtml(host.slice(0, 40));
+            const mothership = /mothership/i.test(host);
+            SoundFX.enter();
+            await typeRaw(`PING ${safe} (${mothership ? '::1' : '127.0.0.1'}): 56 data bytes`);
+
+            const times = [];
+            for (let i = 0; i < 4; i++) {
+                await new Promise((r) => setTimeout(r, 260));
+                // Nothing leaves the browser; this is theatre, not a probe.
+                const ms = mothership
+                    ? 4.2e10 + Math.random() * 1e9
+                    : 12 + Math.random() * 30;
+                times.push(ms);
+                if (typeof SoundFX !== 'undefined') SoundFX.playTone(880, 'sine', 0.04, 0.03);
+                await typeRaw(
+                    `64 bytes from ${safe}: icmp_seq=${i} ttl=${mothership ? 1 : 55} ` +
+                    `time=<span class="highlight-value">${mothership ? ms.toExponential(2) : ms.toFixed(1)}</span> ms`
+                );
+            }
+            const avg = times.reduce((a, b) => a + b, 0) / times.length;
+            await typeRaw(`\n--- ${safe} ping statistics ---`);
+            await typeRaw('4 packets transmitted, 4 received, 0.0% packet loss');
+            await typeRaw(
+                `round-trip min/avg/max = ${mothership ? Math.min(...times).toExponential(2) : Math.min(...times).toFixed(1)}/` +
+                `${mothership ? avg.toExponential(2) : avg.toFixed(1)}/` +
+                `${mothership ? Math.max(...times).toExponential(2) : Math.max(...times).toFixed(1)} ms`
+            );
+            if (mothership) {
+                await typeLine('That is roughly four light-years each way. Worth the wait.', 12);
+            }
+        }
+
+        // --- fortune -------------------------------------------------------
+        const FORTUNES = [
+            'There are two hard problems in computer science: cache invalidation, naming things, and off-by-one errors.',
+            'It works on my machine, and my machine is going into production.',
+            'Weeks of coding can save you hours of planning.',
+            'The best time to write tests was before the bug. The second best time is now.',
+            'A distributed system is one where a machine you have never heard of can ruin your afternoon.',
+            'Space is big. Your node_modules folder is bigger.',
+            'Premature optimisation is the root of all evil. Mature optimisation is the root of most of it too.',
+            'Any sufficiently advanced configuration file is indistinguishable from a programming language.',
+            'The universe is under no obligation to make your build reproducible.',
+            'Documentation is a love letter you write to your future self.',
+            'If the launch window is tight, the code review will be tighter.',
+            'Gravity is a harsh code reviewer. It rejects on the first failure.',
+            'Nobody has ever said "I wish this error message were vaguer".',
+            'The rocket does not care how elegant your abstraction was.',
+        ];
+        const fortuneBag = [];
+        async function tellFortune() {
+            if (!fortuneBag.length) {
+                const pool = FORTUNES.map((_, i) => i);
+                for (let i = pool.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pool[i], pool[j]] = [pool[j], pool[i]];
+                }
+                fortuneBag.push(...pool);
+            }
+            SoundFX.enter();
+            await typeLine(FORTUNES[fortuneBag.pop()], 12);
+        }
+
+        // --- stats ---------------------------------------------------------
+        const SCORE_KEYS = [
+            ['snake-highscore', 'Snake'],
+            ['invaders-highscore', 'Invaders'],
+            ['dodge-highscore', 'Meteor Dodge'],
+            ['tetris-highscore', 'Tetris'],
+            ['typing-highscore', 'Typing'],
+            ['flappy-highscore', 'Flappy Rocket'],
+            ['defense-highscore', 'Defense Mode'],
+        ];
+
+        async function showStats() {
+            SoundFX.dataBurst();
+            const read = (k) => {
+                try { return parseInt(localStorage.getItem(k) || '0', 10) || 0; } catch (e) { return 0; }
+            };
+            let theme = 'teal', historyLen = 0;
+            try { theme = localStorage.getItem('term-theme') || 'teal'; } catch (e) {}
+            try { historyLen = (JSON.parse(localStorage.getItem('term-history') || '[]') || []).length; } catch (e) {}
+
+            const rows = SCORE_KEYS.map(([key, label]) => {
+                const v = read(key);
+                return `  <span class="highlight-name">${label.padEnd(16)}</span>` +
+                       (v ? `<span class="highlight-value">${v}</span>` : '<span class="highlight-dim">not played</span>');
+            }).join('\n');
+
+            const played = SCORE_KEYS.filter(([k]) => read(k) > 0).length;
+            await typeRaw('<div class="section-title">Session Stats</div>');
+            await typeRaw(
+                `<div style="white-space:pre">` +
+                `  <span class="highlight-name">${'commands run'.padEnd(16)}</span><span class="highlight-value">${commandsThisSession}</span>\n` +
+                `  <span class="highlight-name">${'history depth'.padEnd(16)}</span><span class="highlight-value">${historyLen}</span>\n` +
+                `  <span class="highlight-name">${'aliases'.padEnd(16)}</span><span class="highlight-value">${Object.keys(aliases).length}</span>\n` +
+                `  <span class="highlight-name">${'theme'.padEnd(16)}</span><span class="highlight-value">${escapeHtml(theme)}</span>\n` +
+                `</div>`
+            );
+            await typeRaw('<div class="help-category">High scores</div>');
+            await typeRaw(`<div style="white-space:pre">${rows}</div>`);
+            await typeRaw(
+                played === SCORE_KEYS.length
+                    ? '<span class="highlight-value">Every game played. Nothing left to conquer here.</span>'
+                    : `<span class="highlight-dim">${played} of ${SCORE_KEYS.length} played. 'play' for the rest.</span>`
+            );
+        }
+
+        // --- resume --plain ------------------------------------------------
+        async function plainResume() {
+            SoundFX.dataBurst();
+            await typeRaw('<div class="section-title">Miit Daga</div>');
+            await typeRaw(`<span class="highlight-dim">Software Developer · Kolkata, India · <a href="mailto:${MOCK_DATA.email}" class="nav-link">${MOCK_DATA.email}</a></span>`);
+
+            await typeRaw('<div class="help-category">Experience</div>');
+            for (const job of MOCK_DATA.experience) {
+                await typeRaw(`  <span class="highlight-name">${escapeHtml(job.role.split('·')[0].trim())}</span>, ${escapeHtml(job.company)} <span class="highlight-date">· ${escapeHtml(job.date)}</span>`);
+                for (const pt of job.points) await typeRaw(`    <span class="highlight-dim">-</span> ${escapeHtml(pt)}`);
+            }
+
+            await typeRaw('<div class="help-category">Education</div>');
+            for (const edu of MOCK_DATA.education) {
+                await typeRaw(`  <span class="highlight-name">${escapeHtml(edu.degree)}</span>, ${escapeHtml(edu.institution)} <span class="highlight-date">· ${escapeHtml(edu.date)}</span> <span class="highlight-value">${escapeHtml(edu.note)}</span>`);
+            }
+
+            await typeRaw('<div class="help-category">Skills</div>');
+            for (const [cat, list] of Object.entries(MOCK_DATA.skills)) {
+                await typeRaw(`  <span class="highlight-name">${escapeHtml(cat)}</span>: ${escapeHtml(list.join(', '))}`);
+            }
+
+            await typeRaw('<div class="help-category">Selected publications</div>');
+            for (const pub of MOCK_DATA.publications) {
+                await typeRaw(`  <span class="highlight-value">[${escapeHtml(pub.kind)}]</span> ${escapeHtml(pub.title)} <span class="highlight-date">· ${escapeHtml(pub.venue)}</span>`);
+            }
+
+            await typeRaw('<div class="help-category">Achievements</div>');
+            for (const a of MOCK_DATA.achievements) {
+                await typeRaw(`  <span class="highlight-dim">-</span> ${escapeHtml(a.title)}`);
+            }
+            await typeRaw(`<span class="highlight-dim">The PDF lives behind <span class="nav-link" onclick="runCommandFromClick('resume')">resume</span>.</span>`);
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -1990,10 +2465,22 @@
             inputLine.disabled = true;
 
             try {
-                if (isPipeline(command)) {
-                    await runPipeline(command);
-                } else {
-                    await executeCommand(command);
+                // Chain first (shell precedence), expand the alias on each
+                // segment, then hand off to the existing dispatch untouched.
+                const chain = splitChain(command);
+                let failed = false;
+                for (let i = 0; i < chain.length; i++) {
+                    if (chain[i].sep === '&&' && failed) break;
+                    const text = expandAlias(chain[i].text);
+                    // No command reports a status, so "&&" gates on whether the
+                    // next one is a command we actually recognise.
+                    failed = !isKnownCommand(text);
+                    commandsThisSession++;
+                    if (isPipeline(text)) {
+                        await runPipeline(text);
+                    } else {
+                        await executeCommand(text);
+                    }
                 }
             } finally {
                 // Safety net only: every path through executeCommand and
@@ -2029,6 +2516,40 @@
                     `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
+                endTurn();
+                return;
+            }
+
+            // find: search every section at once
+            if (cmd === 'find' || cmd.startsWith('find ')) {
+                await findAcross(command.substring(4));
+                endTurn();
+                return;
+            }
+
+            // ping: simulated, nothing leaves the browser
+            if (cmd === 'ping' || cmd.startsWith('ping ')) {
+                await pingHost(command.substring(4));
+                endTurn();
+                return;
+            }
+
+            // alias / unalias
+            if (cmd === 'alias' || cmd.startsWith('alias ')) {
+                await manageAlias(command.substring(5).trim());
+                endTurn();
+                return;
+            }
+            if (cmd === 'unalias' || cmd.startsWith('unalias ')) {
+                await removeAlias(command.substring(7).trim());
+                endTurn();
+                return;
+            }
+
+            // resume --plain prints in the terminal; bare `resume` is untouched
+            // below and still opens the PDF.
+            if (cmd === 'resume --plain' || cmd === 'resume -p') {
+                await plainResume();
                 endTurn();
                 return;
             }
@@ -2396,8 +2917,10 @@
                     const helpCategories = {
                         'Profile': ['brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
-                        'System': ['man', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'exit', 'reboot'],
-                        'Shell': ['sudo', 'whoami', 'ls', 'pwd', 'cd', 'ssh', 'vim', 'cat', 'rm', 'mkdir'],
+                        'Search': ['find', 'grep'],
+                        'System': ['man', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
+                        'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'ping', 'ssh', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
+                        'Fun': ['fortune'],
                         'Arcade': ['play'],
                     };
                     let helpHtml = '<div class="section-title">Available Commands</div>';
@@ -2465,6 +2988,15 @@
                     break;
                 case 'guestbook':
                     await showGuestbook();
+                    break;
+                case 'tree':
+                    await showTree();
+                    break;
+                case 'fortune':
+                    await tellFortune();
+                    break;
+                case 'stats':
+                    await showStats();
                     break;
                 case 'top':
                     SoundFX.dataBurst();
@@ -2815,6 +3347,7 @@
                 inputLine.focus();
                 isTyping = false;
                 try { sessionStorage.setItem('mdos-booted', '1'); } catch (e) {}
+                runUrlCommand();
             };
 
             // Auto-skip the full boot if we've already booted this session
