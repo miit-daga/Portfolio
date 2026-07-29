@@ -416,7 +416,7 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet"
+            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open"
           ]
         };
 
@@ -592,6 +592,7 @@
                    'https://api.ipify.org?format=json'],
             scp: ['resume.pdf', 'secret_plans.txt'],
             telnet: ['mothership'],
+            open: Object.keys(OPEN_SECTIONS).sort(),
             resume: ['--plain'],
             unalias: () => Object.keys(aliases).sort(),
             // Lazy: MANUAL is declared further down, so reading it eagerly here
@@ -1570,6 +1571,7 @@
             logout:        { syn: 'logout',                  sum: 'Hand the prompt back to intruder.' },
             scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real and downloads straight to your disk; the rest will talk you out of it. Use `resume` instead if you would rather read it in the browser. Try ls or tree first.' },
             telnet:        { syn: 'telnet <host> [port]',    sum: 'Attempts a connection and fails, because browsers cannot open raw TCP and telnet has been indefensible for two decades. Use ssh.' },
+            open:          { syn: 'open <section|path|url>', sum: 'Frame a page inside the terminal. Esc closes it. Sections of the portfolio always work; third-party sites usually refuse to be framed, and no browser API can tell you whether one did, so there is an open-in-tab button rather than a guess.' },
             theme:        { syn: 'theme <colour>',          sum: 'Recolour the terminal. Presets, or any CSS colour.' },
             play:         { syn: 'play <game>',             sum: 'Launch an arcade game. Six available.' },
             top:          { syn: 'top',                     sum: 'Live process monitor. Q or Esc to quit.' },
@@ -2135,7 +2137,7 @@
 
         // Commands whose argument is free-form text. `sign hi; bye` must post the
         // whole message, not post "hi" and then try to run "bye".
-        const RAW_TAIL = new Set(['sign', 'alias', 'find', 'theme', 'curl']);
+        const RAW_TAIL = new Set(['sign', 'alias', 'find', 'theme', 'curl', 'open']);
 
         function splitChain(input) {
             const whole = String(input || '').trim();
@@ -2892,6 +2894,153 @@
             }
         }
 
+
+        // --- open ----------------------------------------------------------
+        // Frames a page inside the terminal. There is no way to detect from
+        // JavaScript whether a cross-origin site refused framing: the load
+        // event fires either way, there is no error event for an
+        // X-Frame-Options block, and contentDocument throws for every
+        // cross-origin frame whether it rendered or not. So we do not pretend
+        // to detect it. We always frame, always offer a tab, and say so.
+        const OPEN_SECTIONS = {
+            home: '/', site: '/', portfolio: '/',
+            about: '/#about-me',
+            work: '/#workex', experience: '/#workex',
+            education: '/#education',
+            skills: '/#skills-achievements', achievements: '/#skills-achievements',
+            projects: '/#projects',
+            publications: '/#publications', patents: '/#publications',
+            contact: '/#contact',
+        };
+
+        function openFrame(url, label, sameOrigin) {
+            return new Promise((resolve) => {
+                const root = getComputedStyle(document.documentElement);
+                const primary = (root.getPropertyValue('--term-primary') || '#2dd4bf').trim();
+                const accent = (root.getPropertyValue('--term-accent') || '#67e8f9').trim();
+
+                const overlay = document.createElement('div');
+                overlay.style.cssText =
+                    "position:fixed;inset:0;z-index:9000;display:flex;flex-direction:column;" +
+                    "background:rgba(0,0,0,0.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);" +
+                    "font-family:'Roboto Mono',monospace;padding:18px;gap:10px;";
+
+                const bar = document.createElement('div');
+                bar.style.cssText =
+                    "display:flex;align-items:center;gap:12px;color:" + primary + ";font-size:12px;flex-wrap:wrap;";
+
+                const title = document.createElement('span');
+                title.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;";
+                title.textContent = label;
+
+                const mkBtn = (text) => {
+                    const b = document.createElement('button');
+                    b.textContent = text;
+                    b.style.cssText =
+                        "font-family:inherit;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;" +
+                        "background:transparent;color:" + accent + ";border:1px solid " + accent +
+                        ";border-radius:5px;padding:4px 10px;cursor:pointer;";
+                    return b;
+                };
+                const tabBtn = mkBtn('open in tab');
+                const closeBtn = mkBtn('esc');
+
+                const frame = document.createElement('iframe');
+                frame.src = url;
+                // No allow-top-navigation: a framed page must not be able to
+                // steer the terminal somewhere else.
+                frame.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups');
+                if (!sameOrigin) frame.setAttribute('referrerpolicy', 'no-referrer');
+                frame.style.cssText =
+                    "flex:1;width:100%;border:1px solid " + primary + ";border-radius:8px;background:#000;" +
+                    "box-shadow:0 0 22px " + primary + "44;";
+
+                const note = document.createElement('div');
+                note.style.cssText = "color:#888;font-size:11px;min-height:14px;";
+                note.textContent = sameOrigin ? '' : 'Framing a third-party site. Many refuse.';
+
+                bar.appendChild(title);
+                bar.appendChild(tabBtn);
+                bar.appendChild(closeBtn);
+                overlay.appendChild(bar);
+                overlay.appendChild(frame);
+                overlay.appendChild(note);
+                document.body.appendChild(overlay);
+
+                // Not detection, just an honest nudge on a timer.
+                let hintTimer = 0;
+                if (!sameOrigin) {
+                    hintTimer = window.setTimeout(() => {
+                        note.innerHTML = 'Still blank? Most sites refuse to be framed. Use <b style="color:' + accent + '">open in tab</b>.';
+                    }, 2500);
+                }
+
+                function cleanup() {
+                    window.clearTimeout(hintTimer);
+                    document.removeEventListener('keydown', onKey, true);
+                    overlay.remove();
+                    resolve();
+                }
+                function onKey(e) {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        cleanup();
+                    }
+                }
+                tabBtn.addEventListener('click', () => {
+                    window.open(url, '_blank', 'noopener');
+                });
+                closeBtn.addEventListener('click', cleanup);
+                document.addEventListener('keydown', onKey, true);
+
+                if (typeof SoundFX !== 'undefined') SoundFX.dataBurst();
+            });
+        }
+
+        async function runOpen(argline) {
+            const target = (argline || '').trim();
+            if (!target) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">open: what should I open?</span>');
+                await typeRaw('Usage: open &lt;section|path|url&gt;');
+                await typeRaw('Sections: ' + Object.keys(OPEN_SECTIONS).sort()
+                    .map((k) => `<span class="nav-link" onclick="runCommandFromClick('open ${k}')">${k}</span>`).join('  '));
+                return;
+            }
+
+            const shorthand = OPEN_SECTIONS[target.toLowerCase()];
+            let resolved;
+            if (shorthand) {
+                // ?embed=1 tells the portfolio to skip its enter screen, which
+                // an iframe would otherwise inherit from this tab's session.
+                const [path, hash] = shorthand.split('#');
+                resolved = new URL(`${path}${path.includes('?') ? '&' : '?'}embed=1${hash ? '#' + hash : ''}`, window.location.origin);
+            } else {
+                try { resolved = new URL(target, window.location.origin); }
+                catch (e) {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">open: could not resolve '${escapeHtml(target.slice(0, 60))}'</span>`);
+                    return;
+                }
+            }
+
+            if (resolved.protocol !== 'http:' && resolved.protocol !== 'https:') {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">open: only http and https can be opened</span>`);
+                return;
+            }
+
+            const sameOrigin = resolved.origin === window.location.origin;
+            SoundFX.enter();
+            await typeLine(`Opening ${resolved.host}${resolved.pathname}${resolved.hash}...`, 8);
+            if (!sameOrigin) {
+                await typeRaw('<span class="highlight-dim">Third-party sites usually refuse to be framed. There is a tab button if it comes up blank.</span>');
+            }
+            await openFrame(resolved.toString(), shorthand ? `portfolio ${target.toLowerCase()}` : resolved.host + resolved.pathname, sameOrigin);
+            await typeRaw('<span class="highlight-dim">Frame closed.</span>');
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -2962,6 +3111,13 @@
                     `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
+                endTurn();
+                return;
+            }
+
+            // open: frame a page inside the terminal
+            if (cmd === 'open' || cmd.startsWith('open ')) {
+                await runOpen(command.substring(4));
                 endTurn();
                 return;
             }
@@ -3395,7 +3551,7 @@
                         'Profile': ['brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
                         'Search': ['find', 'grep'],
-                        'Network': ['curl', 'ping', 'ssh', 'scp', 'telnet'],
+                        'Network': ['curl', 'open', 'ping', 'ssh', 'scp', 'telnet'],
                         'System': ['man', 'login', 'logout', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
                         'Fun': ['fortune'],

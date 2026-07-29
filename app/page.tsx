@@ -52,8 +52,12 @@ const Home = () => {
   showEnterScreenRef.current = showEnterScreen;
 
   useEffect(() => {
+    // The terminal's `open` command frames this page with ?embed=1. A preview
+    // should land on the site itself; an iframe shares the tab's sessionStorage,
+    // so without this it would inherit the portal screen.
+    const embedded = new URLSearchParams(window.location.search).get("embed") === "1";
     const hasEntered = sessionStorage.getItem("hasEnteredCosmos");
-    if (!hasEntered) {
+    if (!hasEntered && !embedded) {
       setShowEnterScreen(true);
     }
     setIsLoaded(true);
