@@ -16,6 +16,11 @@ export const dynamic = "force-dynamic";
 const ALLOWED_HOSTS = new Set([
   "api.github.com",
   "api.wheretheiss.at",
+  "api.open-notify.org",        // who is in space right now
+  "api.spacexdata.com",         // launches, rockets, capsules
+  "api.le-systeme-solaire.net", // every body in the solar system
+  "api.sunrise-sunset.org",     // sunrise/sunset for any coordinates
+  "api.ipify.org",              // the caller's own IP
 ]);
 
 const MAX_BYTES = 64 * 1024;

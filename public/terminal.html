@@ -41,7 +41,8 @@
             display: none; /* Safari and Chrome */
         }
         .prompt::before {
-            content: 'intruder@miit-daga:~$ \00a0';
+            /* Driven by --term-user so `login` can change it; see applyUser(). */
+            content: var(--term-user, 'intruder') '@miit-daga:~$ \00a0';
             color: var(--term-primary);
             font-weight: 700;
         }
@@ -156,7 +157,7 @@
 
     <div id="terminal" onclick="document.getElementById('input-line').focus()">
         <div id="output-container"></div>
-        <div class="flex items-center">
+        <div id="prompt-row" class="flex items-center">
             <span class="prompt"></span>
             <div class="input-container">
                 <input type="text" id="ghost-input" disabled>
@@ -415,7 +416,7 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias", "curl"
+            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet"
           ]
         };
 
@@ -548,6 +549,13 @@
         const ghostInput = document.getElementById('ghost-input');
         const terminal = document.getElementById('terminal');
         const overlay = document.getElementById('start-overlay');
+        const promptRow = document.getElementById('prompt-row');
+
+        // A real shell shows no prompt while a command is running. Ours used to
+        // leave an empty one sitting below, with output arriving above it.
+        function setPromptVisible(visible) {
+            if (promptRow) promptRow.style.display = visible ? '' : 'none';
+        }
         let isTyping = false;
         let bootSkipped = false; // when true, boot typing fast-forwards instantly
         // When set, the next Enter feeds this resolver instead of running a
@@ -577,7 +585,10 @@
             play: ['snake', 'invaders', 'dodge', 'tetris', 'typing', 'flappy'],
             ssh: ['miit@mothership'],
             ping: ['mothership'],
-            curl: ['/api/github-repos', '/api/guestbook', 'https://api.wheretheiss.at/v1/satellites/25544'],
+            curl: ['/api/github-repos', '/api/guestbook', 'https://api.wheretheiss.at/v1/satellites/25544',
+                   'https://api.open-notify.org/astros.json', 'https://api.ipify.org?format=json'],
+            scp: ['resume.pdf', 'secret_plans.txt'],
+            telnet: ['mothership'],
             resume: ['--plain'],
             unalias: () => Object.keys(aliases).sort(),
             // Lazy: MANUAL is declared further down, so reading it eagerly here
@@ -721,6 +732,7 @@
         // no-ops. Safe to call more than once.
         function endTurn() {
             if (captureBuffer) return;
+            setPromptVisible(true);
             inputLine.disabled = false;
             inputLine.focus();
             isTyping = false;
@@ -1551,6 +1563,10 @@
             stats:        { syn: 'stats',                    sum: 'Commands run, history depth, aliases, and every arcade high score.' },
             alias:        { syn: 'alias [name=command]',     sum: 'List aliases, or define one: alias p=projects. Saved across visits. Expands the first word only, one level deep, so aliases cannot loop.' },
             unalias:      { syn: 'unalias <name>',           sum: 'Remove an alias. unalias -a removes all of them.' },
+            login:         { syn: 'login <name>',            sum: 'Put your own name on the prompt. 1-16 characters of a-z, 0-9, - or _. Remembered on this device.' },
+            logout:        { syn: 'logout',                  sum: 'Hand the prompt back to intruder.' },
+            scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real; the rest will talk you out of it. Try ls or tree first.' },
+            telnet:        { syn: 'telnet <host> [port]',    sum: 'Attempts a connection and fails, because browsers cannot open raw TCP and telnet has been indefensible for two decades. Use ssh.' },
             theme:        { syn: 'theme <colour>',          sum: 'Recolour the terminal. Presets, or any CSS colour.' },
             play:         { syn: 'play <game>',             sum: 'Launch an arcade game. Six available.' },
             top:          { syn: 'top',                     sum: 'Live process monitor. Q or Esc to quit.' },
@@ -1928,6 +1944,7 @@
                 inputLine.value = '';
                 ghostInput.value = '';
                 inputLine.disabled = false;
+                setPromptVisible(true);
                 inputLine.focus();
                 terminal.scrollTop = terminal.scrollHeight;
                 pendingPrompt = (value) => {
@@ -1935,6 +1952,7 @@
                     inputLine.type = 'text';
                     inputLine.value = '';
                     inputLine.disabled = true;
+                    setPromptVisible(false);
                     resolve(value);
                 };
             });
@@ -2592,6 +2610,214 @@
             }
         }
 
+
+        // --- USER ----------------------------------------------------------
+        const USER_KEY = 'term-user';
+        const DEFAULT_USER = 'intruder';
+        // Also the guard that makes it safe to interpolate into a CSS string:
+        // no quotes, no backslashes, nothing that could escape the literal.
+        const USER_RE = /^[a-z0-9_-]{1,16}$/i;
+
+        let termUser = DEFAULT_USER;
+        try {
+            const saved = localStorage.getItem(USER_KEY);
+            if (saved && USER_RE.test(saved)) termUser = saved;
+        } catch (e) {}
+
+        function applyUser(name) {
+            termUser = name;
+            document.documentElement.style.setProperty('--term-user', `"${name}"`);
+        }
+        applyUser(termUser);
+
+        async function login(arg) {
+            const name = (arg || '').trim();
+            if (!name) {
+                SoundFX.enter();
+                await typeRaw(`Logged in as <span class="highlight-value">${escapeHtml(termUser)}</span>.`);
+                await typeRaw('Usage: login &lt;name&gt; &nbsp;&middot;&nbsp; logout restores the default');
+                return;
+            }
+            if (!USER_RE.test(name)) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">login: names are 1-16 characters of a-z, 0-9, - or _</span>');
+                return;
+            }
+            if (name.toLowerCase() === termUser.toLowerCase()) {
+                SoundFX.enter();
+                await typeLine(`Already ${termUser}.`, 12);
+                return;
+            }
+            applyUser(name);
+            try { localStorage.setItem(USER_KEY, name); } catch (e) {}
+            SoundFX.successChime();
+            await typeLine(`Welcome aboard, ${name}.`, 12);
+            if (name.toLowerCase() === 'root') {
+                await typeRaw('<span class="highlight-dim">Calling yourself root does not make you root. Enjoy the title.</span>');
+            }
+        }
+
+        async function logout() {
+            if (termUser === DEFAULT_USER) {
+                SoundFX.enter();
+                await typeLine('You were never logged in. Intruder it is.', 12);
+                return;
+            }
+            applyUser(DEFAULT_USER);
+            try { localStorage.removeItem(USER_KEY); } catch (e) {}
+            SoundFX.powerDown();
+            await typeLine('Signed out. Back to intruder.', 12);
+        }
+
+
+        // --- shuffle bag ---------------------------------------------------
+        // Random order, no repeat until the pool is exhausted. Same idea the
+        // UFO leader and the peek-a-boo alien already use.
+        function bagPick(pool, bag) {
+            if (!bag.length) {
+                const order = pool.map((_, i) => i);
+                for (let i = order.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [order[i], order[j]] = [order[j], order[i]];
+                }
+                bag.push(...order);
+            }
+            return pool[bag.pop()];
+        }
+
+        // --- scp -----------------------------------------------------------
+        // Exactly one file here is genuinely transferable, so that one really
+        // does arrive. Everything else gets talked out of it.
+        const SCP_KNOWN = {
+            'secret_plans.txt': 'Permission denied. The Council of Cats has placed this file under eternal protection. 🐱',
+            'definitely_not_malware.sh': "I am not transferring a file called 'definitely_not_malware.sh'. I have standards.",
+            'lofi_beats_to_debug_to.mp3': 'That playlist is load-bearing. It stays where it is.',
+            'screenshot_of_the_bug.png': 'The bug is fixed. The screenshot is all that survives it. Let it rest.',
+            'the_demo_that_worked_once.mp4': 'It worked once, on my machine. Transferring it would only disappoint you.',
+        };
+        const SCP_DIRS = ['documents', 'downloads', 'music', 'pictures', 'videos', 'patents'];
+        const SCP_UNKNOWN = [
+            'No such file or directory. Try ls or tree first.',
+            'You cannot copy a file that has never existed. Ambitious, though.',
+            'That file is in another castle. 🏰',
+            'Searched everywhere. Found only disappointment and one resume.',
+            'stat: cannot stat it, cannot find it, cannot help you.',
+            'Nothing by that name. The filesystem is small and I know all of it.',
+            'That one got lost in a merge conflict years ago.',
+        ];
+        const scpBag = [];
+
+        // scp-style transfer line that updates in place.
+        function scpProgress(name, kb) {
+            return new Promise((resolve) => {
+                const row = document.createElement('div');
+                row.className = 'output';
+                outputContainer.appendChild(row);
+                const steps = 16;
+                const started = Date.now();
+                let i = 0;
+                const tick = () => {
+                    const pct = Math.round((i / steps) * 100);
+                    const sent = Math.round((kb * i) / steps);
+                    const elapsed = Math.max(0.2, (Date.now() - started) / 1000);
+                    const rate = (sent / 1024 / elapsed).toFixed(1);
+                    row.innerHTML =
+                        `<span class="highlight-name">${escapeHtml(name)}</span>  ` +
+                        `<span class="highlight-value">${String(pct).padStart(3)}%</span>  ` +
+                        `${String(sent).padStart(5)}KB  ${String(rate).padStart(4)}MB/s  ` +
+                        `00:${String(Math.round(elapsed)).padStart(2, '0')}`;
+                    terminal.scrollTop = terminal.scrollHeight;
+                    if (i++ < steps) window.setTimeout(tick, 55);
+                    else resolve();
+                };
+                tick();
+            });
+        }
+
+        async function runScp(argline) {
+            const tokens = tokenize(argline).filter((t) => !t.startsWith('-'));
+            if (!tokens.length) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">scp: no source given</span>');
+                await typeRaw('Usage: scp &lt;file&gt; &lt;destination&gt;');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('scp resume.pdf .')">scp resume.pdf .</span>.`);
+                return;
+            }
+
+            // Strip any user@host: prefix; the local name is what matters here.
+            const source = tokens[0].split(':').pop().split('/').pop().toLowerCase();
+
+            if (source === 'resume.pdf' || source === 'resume') {
+                SoundFX.enter();
+                await typeRaw('<span class="highlight-dim">Establishing secure copy channel...</span>');
+                await scpProgress('resume.pdf', 1247);
+                SoundFX.successChime();
+                await typeLine('Transfer complete. Opening resume.pdf...', 10);
+                window.open(MOCK_DATA.resumeUrl, '_blank', 'noopener');
+                // Popup blockers can eat a window.open this far from the click.
+                await typeRaw(`<span class="highlight-dim">Did nothing open? <a href="${MOCK_DATA.resumeUrl}" target="_blank" rel="noopener noreferrer" class="nav-link">Grab it here</a>.</span>`);
+                return;
+            }
+
+            if (SCP_DIRS.includes(source.replace(/\/$/, ''))) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">scp: ${escapeHtml(source)}: not a regular file (use -r, which I have not implemented)</span>`);
+                return;
+            }
+
+            const known = SCP_KNOWN[source];
+            SoundFX.error();
+            if (known) {
+                await typeLine(known, 10);
+            } else {
+                await typeRaw(`<span class="error-text">scp: ${escapeHtml(tokens[0].slice(0, 40))}: No such file or directory</span>`);
+                await typeLine(bagPick(SCP_UNKNOWN, scpBag), 10);
+            }
+        }
+
+        // --- telnet --------------------------------------------------------
+        // Browsers cannot open raw TCP, and the only way around that would be a
+        // WebSocket-to-TCP bridge on the server, which is a port scanner wearing
+        // a hat. So telnet fails, exactly as it does everywhere else in 2026.
+        const TELNET_LINES = [
+            'Nothing has answered telnet since your parents had dial-up.',
+            'telnet sends every keystroke in the clear. That is why nobody runs it.',
+            'Port 23 has been closed since roughly the second Bush administration.',
+            'You are trying to whisper secrets across a crowded room. Use ssh.',
+            'The last telnet server was decommissioned and nobody attended the funeral.',
+            'Somewhere, a network security engineer just felt a chill.',
+            'Unencrypted, unauthenticated, unloved. Three strikes.',
+            'I could open that port. I could also leave my front door open.',
+            'This is a museum exhibit, not a protocol.',
+            'Even the mothership upgraded. And they still use tape drives.',
+        ];
+        const telnetBag = [];
+
+        async function runTelnet(argline) {
+            const tokens = tokenize(argline);
+            const host = (tokens[0] || '').trim();
+            if (!host) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">telnet: no host given</span>');
+                await typeRaw('Usage: telnet &lt;host&gt; [port]');
+                return;
+            }
+            const port = /^\d+$/.test(tokens[1] || '') ? tokens[1] : '23';
+            const safe = escapeHtml(host.slice(0, 40));
+
+            SoundFX.enter();
+            await typeRaw(`Trying ${safe}...`);
+            await typeSpinner(`Connecting to ${host.slice(0, 40)} port ${port}`, 700);
+            SoundFX.error();
+            await typeRaw(`<span class="error-text">telnet: Unable to connect to remote host: Connection refused</span>`);
+            await typeLine(bagPick(TELNET_LINES, telnetBag), 12);
+            if (/mothership/i.test(host)) {
+                await typeRaw(`They only accept keys. Try <span class="nav-link" onclick="runCommandFromClick('ssh miit@mothership')">ssh miit@mothership</span>.`);
+            } else {
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('ssh miit@mothership')">ssh miit@mothership</span> instead.`);
+            }
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -2608,6 +2834,7 @@
             inputLine.value = '';
             ghostInput.value = '';
             inputLine.disabled = true;
+            setPromptVisible(false);
 
             try {
                 // Chain first (shell precedence), expand the alias on each
@@ -2661,6 +2888,30 @@
                     `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
+                endTurn();
+                return;
+            }
+
+            // scp / telnet
+            if (cmd === 'scp' || cmd.startsWith('scp ')) {
+                await runScp(command.substring(3));
+                endTurn();
+                return;
+            }
+            if (cmd === 'telnet' || cmd.startsWith('telnet ')) {
+                await runTelnet(command.substring(6));
+                endTurn();
+                return;
+            }
+
+            // login / logout: the visitor picks the name on the prompt
+            if (cmd === 'login' || cmd.startsWith('login ')) {
+                await login(command.substring(5));
+                endTurn();
+                return;
+            }
+            if (cmd === 'logout') {
+                await logout();
                 endTurn();
                 return;
             }
@@ -3070,8 +3321,8 @@
                         'Profile': ['brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
                         'Search': ['find', 'grep'],
-                        'Network': ['curl', 'ping', 'ssh'],
-                        'System': ['man', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
+                        'Network': ['curl', 'ping', 'ssh', 'scp', 'telnet'],
+                        'System': ['man', 'login', 'logout', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
                         'Fun': ['fortune'],
                         'Arcade': ['play'],
@@ -3313,7 +3564,7 @@
                     try { themeName = localStorage.getItem('term-theme') || 'teal'; } catch (e) {}
                     await typeRaw(
                         `<div style="white-space:pre">` +
-                        `<span class="highlight-value">intruder</span>@<span class="highlight-value">miit-daga</span>\n` +
+                        `<span class="highlight-value">${termUser}</span>@<span class="highlight-value">miit-daga</span>\n` +
                         `-----------------------------\n` +
                         `<span class="highlight-value">OS</span>:       MIIT-DAGA-OS v1.0\n` +
                         `<span class="highlight-value">Host</span>:     Portfolio Terminal\n` +
@@ -3331,7 +3582,7 @@
                 // --- FUN EASTER EGGS ---
                 case 'whoami':
                     SoundFX.enter();
-                    await typeLine("intruder, but a welcome one. Make yourself at home. 🛋️", 10);
+                    await typeLine(`${termUser}, but a welcome one. Make yourself at home. 🛋️`, 10);
                     break;
                 case 'date':
                     SoundFX.enter();
@@ -3488,6 +3739,7 @@
 
             isTyping = true;
             inputLine.disabled = true;
+            setPromptVisible(false);
 
             const skipBoot = () => { bootSkipped = true; };
             let skipHintEl = null;
@@ -3496,6 +3748,7 @@
                 document.removeEventListener('click', skipBoot);
                 if (skipHintEl) skipHintEl.remove(); // hint goes away once boot completes
                 bootSkipped = false; // restore normal typing speed for command output
+                setPromptVisible(true);
                 inputLine.disabled = false;
                 inputLine.focus();
                 isTyping = false;
@@ -3509,7 +3762,7 @@
             if (alreadyBooted) {
                 SoundFX.dataBurst();
                 await typeRaw(`<div class="ascii-art">${ASCII_ART}</div>`);
-                await typeLine("Welcome back, intruder. Type 'help' for a list of commands.", 5);
+                await typeLine(`Welcome back, ${termUser}. Type 'help' for a list of commands.`, 5);
                 finishReady();
                 return;
             }
@@ -3547,7 +3800,7 @@
             await typeSpinner("Loading profile", 500);
 
             SoundFX.successChime();
-            await typeLine("Access granted. Welcome, intruder.", 30);
+            await typeLine(`Access granted. Welcome, ${termUser}.`, 30);
             await typeLine("\nType 'help' for a list of commands.", 30);
             finishReady();
         };
