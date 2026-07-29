@@ -1573,7 +1573,7 @@
             unalias:      { syn: 'unalias <name>',           sum: 'Remove an alias. unalias -a removes all of them.' },
             login:         { syn: 'login <name>',            sum: 'Put your own name on the prompt. 1-16 characters of a-z, 0-9, - or _. Remembered on this device.' },
             logout:        { syn: 'logout',                  sum: 'Hand the prompt back to intruder.' },
-            screensaver:   { syn: 'screensaver [seconds|on|off]', sum: 'MIIT-DOS bouncing off the walls after a minute idle, changing colour on every bounce. Corner hits are counted and kept. No argument starts it now; a number sets the idle delay; off disables it. Never interrupts a command, a game or a prompt.' },
+            screensaver:   { syn: 'screensaver [seconds|on|off]', sum: 'A line bounces off the walls after a minute idle, changing colour on every bounce, and it is a different line each time. Corner hits are counted and kept. No argument starts it now; a number sets the idle delay; off disables it. Never interrupts a command, a game or a prompt.' },
             scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real and downloads straight to your disk; the rest will talk you out of it. Use `resume` instead if you would rather read it in the browser. Try ls or tree first.' },
             telnet:        { syn: 'telnet <host> [port]',    sum: 'Attempts a connection and fails, because browsers cannot open raw TCP and telnet has been indefensible for two decades. Use ssh.' },
             leaderboard:   { syn: 'leaderboard [game]',      sum: 'Top ten per game, shared by everyone who has posted. Scores are produced on the player\'s own machine, so the server can only reject the impossible, not verify the plausible. Read it in that spirit.' },
@@ -3452,6 +3452,25 @@
         // the corner hit everyone actually waits for. Idle only: it never
         // interrupts a command, a game, a prompt or the boot, because all of
         // those hold isTyping.
+        // A screensaver of the author's own name would be a bit much. These lean
+        // on old-terminal and deep-space idiom instead; NO CARRIER is the modem
+        // hangup message, which is the most screensaver-shaped phrase there is.
+        const SAVER_LINES = [
+            'NO CARRIER',
+            'NO SIGNAL',
+            'AWAITING INPUT',
+            'SESSION ADRIFT',
+            'USER NOT FOUND',
+            'STILL THERE?',
+            'LOW POWER MODE',
+            'DRIFTING',
+            'SIGNAL LOST',
+            'OUT TO LUNCH',
+            'GONE FOR SNACKS',
+            'ZZZ',
+        ];
+        const saverBag = [];
+
         const SAVER_IDLE_KEY = 'term-saver-idle';
         const SAVER_CORNER_KEY = 'term-saver-corners';
         const SAVER_DEFAULT_MS = 60000;
@@ -3497,7 +3516,8 @@
                     "overflow:hidden;cursor:none;font-family:'Roboto Mono',monospace;";
 
                 const logo = document.createElement('div');
-                logo.textContent = 'MIIT-DOS';
+                // New line each time it wakes, so it is not the same joke twice.
+                logo.textContent = bagPick(SAVER_LINES, saverBag);
                 logo.style.cssText =
                     "position:absolute;font-weight:700;font-size:34px;letter-spacing:0.18em;" +
                     "white-space:nowrap;will-change:transform;color:" + primary + ";";
