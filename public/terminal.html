@@ -415,7 +415,7 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias"
+            "stats", "alias", "unalias", "curl"
           ]
         };
 
@@ -577,6 +577,7 @@
             play: ['snake', 'invaders', 'dodge', 'tetris', 'typing', 'flappy'],
             ssh: ['miit@mothership'],
             ping: ['mothership'],
+            curl: ['/api/github-repos', '/api/guestbook', 'https://api.wheretheiss.at/v1/satellites/25544'],
             resume: ['--plain'],
             unalias: () => Object.keys(aliases).sort(),
             // Lazy: MANUAL is declared further down, so reading it eagerly here
@@ -1381,7 +1382,7 @@
             'brief', 'about', 'experience', 'education', 'skills',
             'achievements', 'projects', 'publications', 'contact', 'socials',
             'guestbook', 'man', 'ls', 'history', 'neofetch', 'date', 'pwd', 'whoami',
-            'find', 'tree', 'fortune', 'stats', 'alias',
+            'find', 'tree', 'fortune', 'stats', 'alias', 'curl',
         ]);
         const PIPE_STAGES = ['grep', 'wc', 'head', 'tail'];
 
@@ -1544,6 +1545,7 @@
             man:          { syn: 'man <command>',           sum: 'Show the manual entry for a command.' },
             find:         { syn: 'find <term>',              sum: 'Search experience, education, skills, achievements, publications and projects at once, and report where the term appears. Unlike grep, which filters a single command\'s output.' },
             tree:         { syn: 'tree',                     sum: 'The home directory, drawn out. Still read-only.' },
+            curl:         { syn: 'curl [-i|-I] [-s] [-X <method>] [-d <data>] <url>', sum: 'Real HTTP. Paths on this origin are fetched directly, so -X and -d work against them. api.github.com and api.wheretheiss.at are proxied read-only; every other host is refused, because browsers cannot fetch arbitrary origins. JSON is pretty-printed, bodies are capped, and a payload containing | or ; should be avoided since this shell has no quoting outside -d.' },
             ping:         { syn: 'ping <host>',              sum: 'Four simulated packets. Nothing leaves your browser. One host answers more slowly than the rest.' },
             fortune:      { syn: 'fortune',                  sum: 'One piece of hard-won engineering wisdom, no repeats until the pool runs dry.' },
             stats:        { syn: 'stats',                    sum: 'Commands run, history depth, aliases, and every arcade high score.' },
@@ -2112,7 +2114,7 @@
 
         // Commands whose argument is free-form text. `sign hi; bye` must post the
         // whole message, not post "hi" and then try to run "bye".
-        const RAW_TAIL = new Set(['sign', 'alias', 'find', 'theme']);
+        const RAW_TAIL = new Set(['sign', 'alias', 'find', 'theme', 'curl']);
 
         function splitChain(input) {
             const whole = String(input || '').trim();
@@ -2447,6 +2449,149 @@
             await typeRaw(`<span class="highlight-dim">The PDF lives behind <span class="nav-link" onclick="runCommandFromClick('resume')">resume</span>.</span>`);
         }
 
+
+        // --- curl ----------------------------------------------------------
+        // Real requests, not theatre. Same-origin paths are fetched directly;
+        // the two allowlisted external hosts go through /api/curl, because a
+        // browser cannot fetch arbitrary origins and no client-side trick
+        // changes that. Anything else says so plainly.
+        const CURL_MAX_DISPLAY = 4000;
+
+        // Quote-aware, so -d '{"name":"x y"}' survives as one token.
+        function tokenize(input) {
+            const out = [];
+            let cur = '', quote = null, started = false;
+            for (const ch of String(input || '')) {
+                if (quote) {
+                    if (ch === quote) quote = null;
+                    else cur += ch;
+                } else if (ch === "'" || ch === '"') {
+                    quote = ch; started = true;
+                } else if (/\s/.test(ch)) {
+                    if (cur || started) { out.push(cur); cur = ''; started = false; }
+                } else cur += ch;
+            }
+            if (cur || started) out.push(cur);
+            return out;
+        }
+
+        async function curlUsage(message) {
+            SoundFX.error();
+            if (message) await typeRaw(`<span class="error-text">curl: ${escapeHtml(message)}</span>`);
+            await typeRaw('Usage: curl [-i|-I] [-s] [-X &lt;method&gt;] [-d &lt;data&gt;] &lt;url&gt;');
+            await typeRaw(
+                `Try <span class="nav-link" onclick="runCommandFromClick('curl /api/github-repos')">curl /api/github-repos</span>` +
+                ` or <span class="nav-link" onclick="runCommandFromClick('man curl')">man curl</span>.`
+            );
+        }
+
+        async function runCurl(argline) {
+            const tokens = tokenize(argline);
+            let url = '', method = '', data = null, showHeaders = false, headOnly = false;
+
+            for (let i = 0; i < tokens.length; i++) {
+                const t = tokens[i];
+                if (t === '-i' || t === '--include') showHeaders = true;
+                else if (t === '-I' || t === '--head') { headOnly = true; showHeaders = true; }
+                else if (t === '-s' || t === '--silent') { /* accepted; output is always quiet */ }
+                else if (t === '-X' || t === '--request') {
+                    const v = tokens[++i];
+                    if (!v) return curlUsage('option -X requires a method');
+                    method = v.toUpperCase();
+                } else if (t === '-d' || t === '--data') {
+                    const v = tokens[++i];
+                    if (v === undefined) return curlUsage('option -d requires data');
+                    data = v;
+                } else if (t.length > 1 && t.startsWith('-')) {
+                    return curlUsage(`option ${t} is unknown`);
+                } else if (!url) url = t;
+            }
+
+            if (!url) return curlUsage('');
+
+            let target;
+            try { target = new URL(url, window.location.origin); }
+            catch (e) { return curlUsage(`could not resolve '${url}'`); }
+            if (target.protocol !== 'http:' && target.protocol !== 'https:') {
+                return curlUsage(`unsupported protocol: ${target.protocol.replace(':', '')}`);
+            }
+
+            const sameOrigin = target.origin === window.location.origin;
+            if (!method) method = headOnly ? 'HEAD' : (data !== null ? 'POST' : 'GET');
+            if (!sameOrigin && method !== 'GET' && method !== 'HEAD') {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">curl: the proxy is read-only.</span>');
+                await typeRaw('-X and -d work against this origin only, so nothing can be POSTed at a third party from here.');
+                return;
+            }
+
+            SoundFX.enter();
+            let result;
+            try {
+                if (sameOrigin) {
+                    const init = { method, cache: 'no-store' };
+                    if (data !== null && method !== 'GET' && method !== 'HEAD') {
+                        init.body = data;
+                        init.headers = { 'Content-Type': 'application/json' };
+                    }
+                    const res = await fetch(target.toString(), init);
+                    const headers = {};
+                    res.headers.forEach((v, k) => { headers[k] = v; });
+                    result = {
+                        status: res.status,
+                        statusText: res.statusText,
+                        headers,
+                        body: method === 'HEAD' ? '' : await res.text(),
+                        truncated: false,
+                    };
+                } else {
+                    const res = await fetch('/api/curl?url=' + encodeURIComponent(target.toString()));
+                    const payload = await res.json();
+                    if (!res.ok || payload.error) {
+                        SoundFX.error();
+                        await typeRaw(`<span class="error-text">curl: (0) ${escapeHtml(payload.error || 'proxy refused the request')}</span>`);
+                        if (Array.isArray(payload.allowed)) {
+                            await typeRaw(`Browsers block cross-origin fetches. Proxied hosts: <span class="highlight-value">${escapeHtml(payload.allowed.join(' '))}</span>`);
+                        }
+                        return;
+                    }
+                    result = payload;
+                }
+            } catch (e) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">curl: (7) failed to connect to ${escapeHtml(target.host)}</span>`);
+                return;
+            }
+
+            const bad = result.status >= 400;
+            if (showHeaders) {
+                const line = `HTTP/1.1 ${result.status} ${result.statusText || ''}`.trim();
+                await typeRaw(`<span class="${bad ? 'error-text' : 'highlight-value'}">${escapeHtml(line)}</span>`);
+                for (const [k, v] of Object.entries(result.headers || {})) {
+                    await typeRaw(`<span class="highlight-dim">${escapeHtml(k)}:</span> ${escapeHtml(String(v))}`);
+                }
+                if (!headOnly) await typeRaw('');
+            }
+            if (headOnly) return;
+
+            let body = String(result.body ?? '');
+            // Pretty-print JSON; leave anything else exactly as it arrived.
+            try { body = JSON.stringify(JSON.parse(body), null, 2); } catch (e) { /* not JSON */ }
+
+            const overLong = body.length > CURL_MAX_DISPLAY;
+            if (overLong) body = body.slice(0, CURL_MAX_DISPLAY);
+            if (!body) {
+                await typeRaw('<span class="highlight-dim">(empty response)</span>');
+            } else {
+                // Escaped without exception: a response could be HTML, and this
+                // lands in innerHTML.
+                await typeRaw(`<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`);
+            }
+            if (overLong || result.truncated) {
+                await typeRaw(`<span class="highlight-dim">[truncated${result.truncated ? ' upstream' : ''} at ${overLong ? CURL_MAX_DISPLAY : '64KB'}]</span>`);
+            }
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -2516,6 +2661,13 @@
                     `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
+                endTurn();
+                return;
+            }
+
+            // curl: real HTTP, same-origin direct and allowlisted hosts proxied
+            if (cmd === 'curl' || cmd.startsWith('curl ')) {
+                await runCurl(command.substring(4));
                 endTurn();
                 return;
             }
@@ -2918,8 +3070,9 @@
                         'Profile': ['brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
                         'Search': ['find', 'grep'],
+                        'Network': ['curl', 'ping', 'ssh'],
                         'System': ['man', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
-                        'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'ping', 'ssh', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
+                        'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
                         'Fun': ['fortune'],
                         'Arcade': ['play'],
                     };
@@ -2957,7 +3110,7 @@
                         row('SHIPPED', `3 published npm packages · quick-seed, flowsquire, env-guard`) + `\n` +
                         row('RESEARCH', `8 Scopus-indexed papers · 1 patent filed`) + `\n` +
                         row('', `<span class="highlight-dim">Scientific Reports · Array (Elsevier) · IEEE Access</span>`) + `\n` +
-                        row('AWARDS', `2× hackathon runner-up · Yantra 2025, GraVITas 2024`) + `\n` +
+                        row('AWARDS', `2× hackathon winner · Yantra 2025, GraVITas 2024`) + `\n` +
                         row('EDUCATION', `B.Tech IT, VIT · CGPA 9.22 / 10 · 2022–2026`) + `\n\n` +
                         row('CONTACT', `<a href="mailto:${MOCK_DATA.email}" class="nav-link">${MOCK_DATA.email}</a>`) + `\n` +
                         row('LINKS', MOCK_DATA.socials.map(s => `<a href="${s.url}" target="_blank" class="nav-link">${s.name}</a>`).join('  ') +
