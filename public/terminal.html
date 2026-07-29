@@ -2394,6 +2394,31 @@
         }
 
         // --- stats ---------------------------------------------------------
+        // Ceilings derived from each game's own mechanics. Two are provable; the
+        // rest are set well past any plausible human run, because wrongly
+        // accusing someone who is simply good would be worse than missing a
+        // tamper.
+        const SCORE_LIMITS = {
+            'snake-highscore':    { max: 483,     why: 'the grid is 22 by 22, so 483 is literally every cell' },
+            'defense-highscore':  { max: 340,     why: 'the session is 45 seconds, at most 34 asteroids spawn, and each is worth 10' },
+            'flappy-highscore':   { max: 2200,    why: 'columns arrive every 1.65s, so that is an hour of unbroken flight' },
+            'dodge-highscore':    { max: 36000,   why: 'the counter ticks ten a second, so that is an hour without a scratch' },
+            'invaders-highscore': { max: 100000,  why: 'that is ten thousand aliens' },
+            'typing-highscore':   { max: 100000,  why: 'roughly fifteen thousand words, none of them mistyped' },
+            'tetris-highscore':   { max: 2000000, why: 'more lines than the piece bag has ever produced' },
+        };
+
+        const CHEAT_QUIPS = [
+            'localStorage is right there, isn\'t it.',
+            'The record stands. It is not real, but it stands.',
+            'I admire the commitment to the bit.',
+            'Someone has been editing devtools rather than playing.',
+            'The arithmetic disagrees. The curiosity is noted.',
+            'Fair enough. You found the seam.',
+            'Left as it is. Earning it would have been slower.',
+        ];
+        const cheatBag = [];
+
         const SCORE_KEYS = [
             ['snake-highscore', 'Snake'],
             ['invaders-highscore', 'Invaders'],
@@ -2413,10 +2438,18 @@
             try { theme = localStorage.getItem('term-theme') || 'teal'; } catch (e) {}
             try { historyLen = (JSON.parse(localStorage.getItem('term-history') || '[]') || []).length; } catch (e) {}
 
+            const flagged = [];
             const rows = SCORE_KEYS.map(([key, label]) => {
                 const v = read(key);
-                return `  <span class="highlight-name">${label.padEnd(16)}</span>` +
-                       (v ? `<span class="highlight-value">${v}</span>` : '<span class="highlight-dim">not played</span>');
+                const limit = SCORE_LIMITS[key];
+                const impossible = v !== 0 && limit && (v > limit.max || v < 0);
+                if (impossible) flagged.push({ label, v, limit });
+                const cell = v === 0
+                    ? '<span class="highlight-dim">not played</span>'
+                    : impossible
+                        ? `<span class="error-text">${v}</span> <span class="highlight-dim">?</span>`
+                        : `<span class="highlight-value">${v}</span>`;
+                return `  <span class="highlight-name">${label.padEnd(16)}</span>${cell}`;
             }).join('\n');
 
             const played = SCORE_KEYS.filter(([k]) => read(k) > 0).length;
@@ -2436,6 +2469,20 @@
                     ? '<span class="highlight-value">Every game played. Nothing left to conquer here.</span>'
                     : `<span class="highlight-dim">${played} of ${SCORE_KEYS.length} played. 'play' for the rest.</span>`
             );
+
+            // A score the game cannot emit says more about the visitor than a
+            // real one would, so it gets acknowledged rather than corrected.
+            if (flagged.length) {
+                await typeRaw('');
+                for (const f of flagged) {
+                    await typeRaw(
+                        `<span class="error-text">${escapeHtml(f.label)} ${f.v}</span> ` +
+                        `<span class="highlight-dim">exceeds ${f.limit.max}: ${escapeHtml(f.limit.why)}.</span>`
+                    );
+                }
+                SoundFX.glitch();
+                await typeLine(bagPick(CHEAT_QUIPS, cheatBag), 12);
+            }
         }
 
         // --- resume --plain ------------------------------------------------
