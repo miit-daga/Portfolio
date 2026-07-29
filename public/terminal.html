@@ -592,7 +592,8 @@
                    'https://api.ipify.org?format=json'],
             scp: ['resume.pdf', 'secret_plans.txt'],
             telnet: ['mothership'],
-            open: () => Object.keys(OPEN_SECTIONS).sort(),
+            open: () => Object.keys(OPEN_SECTIONS).sort()
+                .concat(['info.cern.ch', 'en.wikipedia.org', 'news.ycombinator.com', 'xkcd.com']),
             leaderboard: () => Object.keys(LB_GAMES),
             submit: () => Object.keys(LB_GAMES),
             resume: ['--plain'],
@@ -3031,7 +3032,7 @@
                 let hintTimer = 0;
                 if (!sameOrigin) {
                     hintTimer = window.setTimeout(() => {
-                        note.innerHTML = 'Still blank? Most sites refuse to be framed. Use <b style="color:' + accent + '">open in tab</b>.';
+                        note.innerHTML = 'Blank, or "refused to connect"? That site sends X-Frame-Options. Use <b style="color:' + accent + '">open in tab</b>.';
                     }, 2500);
                 }
 
@@ -3066,6 +3067,13 @@
                 await typeRaw('Usage: open &lt;section|path|url&gt;');
                 await typeRaw('Sections: ' + Object.keys(OPEN_SECTIONS).sort()
                     .map((k) => `<span class="nav-link" onclick="runCommandFromClick('open ${k}')">${k}</span>`).join('  '));
+                // Most large sites send X-Frame-Options and simply refuse. These
+                // were checked and do not, so the first attempt is not a coin flip.
+                await typeRaw(
+                    '<span class="highlight-dim">Most big sites refuse to be framed (google, github, mdn). These do not:</span> ' +
+                    ['info.cern.ch', 'en.wikipedia.org', 'news.ycombinator.com', 'xkcd.com']
+                        .map((h) => `<span class="nav-link" onclick="runCommandFromClick('open ${h}')">${h}</span>`).join('  ')
+                );
                 return;
             }
 
