@@ -3464,6 +3464,10 @@
 
         let saverActive = false;
         let saverDismiss = null;
+        // The keydown that runs `screensaver` is still bubbling toward window
+        // when startSaver has already built the overlay synchronously, so
+        // without this the launching keystroke dismisses it instantly.
+        let saverStartedAt = 0;
         let lastActivity = Date.now();
 
         function saverCorners() {
@@ -3480,6 +3484,7 @@
         function startSaver() {
             return new Promise((resolve) => {
                 saverActive = true;
+                saverStartedAt = Date.now();
                 const root = getComputedStyle(document.documentElement);
                 const primary = (root.getPropertyValue('--term-primary') || '#2dd4bf').trim();
                 const accent = (root.getPropertyValue('--term-accent') || '#67e8f9').trim();
@@ -3571,7 +3576,7 @@
         // Any input dismisses it, and also feeds the idle clock.
         function noteActivity() {
             lastActivity = Date.now();
-            if (saverActive && saverDismiss) {
+            if (saverActive && saverDismiss && Date.now() - saverStartedAt > 250) {
                 saverDismiss();
                 if (!isTyping) inputLine.focus();
             }
