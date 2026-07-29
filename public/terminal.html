@@ -538,7 +538,7 @@
                 const d = levenshtein(input, cmd);
                 if (d < bestDist) { bestDist = d; best = cmd; }
             }
-            return bestDist <= 3 ? best : null;
+            return bestDist <= 3 && best !== input ? best : null;
         }
 
         // --- TERMINAL LOGIC ---
@@ -2010,6 +2010,28 @@
         async function executeCommand(command) {
             command = command.trim();
             const cmd = command.toLowerCase();
+
+            // A pipe filter used on its own. Real shells answer this with usage,
+            // not "command not found", and ours has the extra job of teaching
+            // the syntax to someone who has not seen it yet.
+            const bareStage = cmd.split(/\s+/)[0];
+            if (PIPE_STAGES.includes(bareStage)) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${bareStage}: nothing piped in.</span>`);
+                const args = bareStage === 'grep' ? ' [-i] [-v] <pattern>'
+                    : bareStage === 'wc' ? ' -l'
+                    : ' [-n N]';
+                await typeRaw(
+                    `${bareStage} filters another command's output. ` +
+                    `Usage: <span class="highlight-value">${escapeHtml('<command> | ' + bareStage + args)}</span>`
+                );
+                await typeRaw(
+                    `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
+                    ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
+                );
+                endTurn();
+                return;
+            }
 
             // Handle man before the switch (takes an argument)
             if (cmd === 'man' || cmd.startsWith('man ')) {
