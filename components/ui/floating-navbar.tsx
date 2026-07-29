@@ -103,56 +103,86 @@ export const FloatingNav = ({
     }
   });
 
-  // --- Intersection Observer for Sections ---
+  // --- Active section from scroll position ---
+  // Mirrors ScrollProgress, which measures offsetTop against the viewport
+  // centre and is reliable. This previously used an IntersectionObserver that
+  // picked by intersectionRatio, a fraction *of the section*, so it compared
+  // short sections against tall ones; once the sections were rebuilt at
+  // different heights it stopped resolving and the hash froze.
   useEffect(() => {
     const sectionLinks = navItems.filter((item) => item.link.startsWith("#"));
-    const lastSectionLink = sectionLinks[sectionLinks.length - 1]?.link;
 
-    // Track each section's current visibility so we can pick the most-visible one.
-    const ratios = new Map<string, number>();
-
-    const observerOptions = {
-      root: null,
-      rootMargin: "-20% 0px -35% 0px",
-      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
+    // Position up the offset chain, immune to the reveal animations' translateY
+    // that getBoundingClientRect would otherwise include.
+    const offsetTopOf = (el: HTMLElement) => {
+      let y = 0;
+      let node: HTMLElement | null = el;
+      while (node) {
+        y += node.offsetTop;
+        node = node.offsetParent as HTMLElement | null;
+      }
+      return y;
     };
 
-    const observerCallback = (entries: IntersectionObserverEntry[]) => {
-      if (window.scrollY < 100) return;
+    let tops: { link: string; top: number }[] = [];
 
-      entries.forEach((entry) => {
-        ratios.set(`#${entry.target.id}`, entry.isIntersecting ? entry.intersectionRatio : 0);
+    const measure = () => {
+      tops = sectionLinks.flatMap((item) => {
+        const el = document.getElementById(item.link.substring(1));
+        return el ? [{ link: item.link, top: offsetTopOf(el) }] : [];
       });
+    };
 
-      // Bottom-of-page guard: short final sections can't reach the center band,
-      // so force-highlight the last section once we're near the bottom.
-      const nearBottom =
-        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
-      if (nearBottom && lastSectionLink) {
-        setActiveSection(lastSectionLink);
+    const update = () => {
+      if (window.scrollY < 100) {
+        setActiveSection((prev) => (prev === "" ? prev : ""));
         return;
       }
-
-      // Otherwise pick whichever observed section is most visible.
-      let best = "";
-      let bestRatio = 0;
-      ratios.forEach((ratio, link) => {
-        if (ratio > bestRatio) {
-          bestRatio = ratio;
-          best = link;
-        }
-      });
-      if (best) setActiveSection(best);
+      if (!tops.length) return;
+      const center = window.scrollY + window.innerHeight / 2;
+      let current = tops[0].link;
+      for (const t of tops) if (center >= t.top) current = t.link;
+      // Short final sections never reach the centre line, so pin the last one
+      // once we are against the bottom of the document.
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+      if (nearBottom) current = tops[tops.length - 1].link;
+      setActiveSection((prev) => (prev === current ? prev : current));
     };
 
-    const observer = new IntersectionObserver(observerCallback, observerOptions);
+    measure();
+    update();
 
-    sectionLinks.forEach((item) => {
-      const element = document.getElementById(item.link.substring(1));
-      if (element) observer.observe(element);
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        update();
+      });
+    };
+
+    // Projects loads asynchronously and the reveals settle late, both of which
+    // move every section below them.
+    const ro = new ResizeObserver(() => {
+      measure();
+      update();
     });
+    ro.observe(document.body);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", measure);
+    const settle = setTimeout(() => {
+      measure();
+      update();
+    }, 800);
 
-    return () => observer.disconnect();
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", measure);
+      clearTimeout(settle);
+    };
   }, [navItems]);
 
   // Keep the URL hash in sync with the section in view. Debounced so the

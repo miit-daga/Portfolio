@@ -2400,7 +2400,11 @@
         // tamper.
         const SCORE_LIMITS = {
             'snake-highscore':    { max: 483,     why: 'the grid is 22 by 22, so 483 is literally every cell' },
-            'defense-highscore':  { max: 340,     why: 'the session is 45 seconds, at most 34 asteroids spawn, and each is worth 10' },
+            // Frame-stepped simulation of the real spawn ramp gives exactly 36
+            // asteroids in the 45s session, so a perfect round scores 360. The
+            // cap sits above that: flagging someone who actually cleared the
+            // board would be far worse than missing a tamper.
+            'defense-highscore':  { max: 400,     why: 'the session is 45 seconds and only 36 asteroids can spawn, at 10 points each' },
             'flappy-highscore':   { max: 2200,    why: 'columns arrive every 1.65s, so that is an hour of unbroken flight' },
             'dodge-highscore':    { max: 36000,   why: 'the counter ticks ten a second, so that is an hour without a scratch' },
             'invaders-highscore': { max: 100000,  why: 'that is ten thousand aliens' },
