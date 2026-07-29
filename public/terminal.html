@@ -1560,7 +1560,7 @@
             man:          { syn: 'man <command>',           sum: 'Show the manual entry for a command.' },
             find:         { syn: 'find <term>',              sum: 'Search experience, education, skills, achievements, publications and projects at once, and report where the term appears. Unlike grep, which filters a single command\'s output.' },
             tree:         { syn: 'tree',                     sum: 'The home directory, drawn out. Still read-only.' },
-            curl:         { syn: 'curl [-i|-I] [-s] [-X <method>] [-d <data>] <url>', sum: 'Real HTTP. Paths on this origin are fetched directly, so -X and -d work against them. api.github.com and api.wheretheiss.at are proxied read-only; every other host is refused, because browsers cannot fetch arbitrary origins. JSON is pretty-printed, bodies are capped, and a payload containing | or ; should be avoided since this shell has no quoting outside -d.' },
+            curl:         { syn: 'curl [-i|-I] [-s] [-X <method>] [-d <data>] <url>', sum: 'Real HTTP. Paths on this origin are fetched directly, so -X and -d work against them. api.github.com and api.wheretheiss.at are proxied read-only; every other host is refused, because browsers cannot fetch arbitrary origins. JSON is pretty-printed. HTML responses are summarised (title, size, first few lines) rather than dumped, since a page of markup is noise here; -i still shows the headers. A payload containing | or ; should be avoided, as this shell has no quoting outside -d.' },
             ping:         { syn: 'ping <host>',              sum: 'Four simulated packets. Nothing leaves your browser. One host answers more slowly than the rest.' },
             fortune:      { syn: 'fortune',                  sum: 'One piece of hard-won engineering wisdom, no repeats until the pool runs dry.' },
             stats:        { syn: 'stats',                    sum: 'Commands run, history depth, aliases, and every arcade high score.' },
@@ -2596,20 +2596,55 @@
             if (headOnly) return;
 
             let body = String(result.body ?? '');
-            // Pretty-print JSON; leave anything else exactly as it arrived.
+            if (!body) {
+                await typeRaw('<span class="highlight-dim">(empty response)</span>');
+                return;
+            }
+
+            const ctype = (result.headers && result.headers['content-type']) || '';
+            const looksHtml = /text\/html/i.test(ctype) || /^\s*<(!doctype|html)\b/i.test(body);
+
+            // A page of markup dumped into a terminal is noise. Real curl does
+            // print it, and `-i` still shows the headers, but the useful default
+            // here is a summary: this shell exists to read APIs.
+            if (looksHtml) {
+                // Capped by characters, not lines: this site's HTML is minified
+                // onto a single line, so a line-based preview would still be
+                // the whole document.
+                const HTML_PREVIEW = 280;
+                const title = (/<title[^>]*>([^<]*)<\/title>/i.exec(body) || [])[1];
+                const kb = (body.length / 1024).toFixed(1);
+                if (title) {
+                    await typeRaw(`<span class="highlight-name">${escapeHtml(title.trim())}</span>`);
+                }
+                await typeRaw(
+                    `<span class="highlight-dim">${escapeHtml(ctype.split(';')[0] || 'text/html')} ` +
+                    `&middot; ${kb}KB${result.truncated ? '+ (truncated upstream)' : ''} ` +
+                    `&middot; ${body.length.toLocaleString()} characters</span>`
+                );
+                const snippet = body.slice(0, HTML_PREVIEW);
+                await typeRaw(
+                    `<div style="white-space:pre-wrap">${escapeHtml(snippet)}` +
+                    `${body.length > HTML_PREVIEW ? '<span class="highlight-dim">…</span>' : ''}</div>`
+                );
+                if (body.length > HTML_PREVIEW) {
+                    await typeRaw(
+                        '<span class="highlight-dim">[HTML is summarised rather than dumped. ' +
+                        'Use -i for the headers, or open the page in a browser.]</span>'
+                    );
+                }
+                return;
+            }
+
+            // Pretty-print JSON; leave any other text exactly as it arrived.
             try { body = JSON.stringify(JSON.parse(body), null, 2); } catch (e) { /* not JSON */ }
 
             const overLong = body.length > CURL_MAX_DISPLAY;
             if (overLong) body = body.slice(0, CURL_MAX_DISPLAY);
-            if (!body) {
-                await typeRaw('<span class="highlight-dim">(empty response)</span>');
-            } else {
-                // Escaped without exception: a response could be HTML, and this
-                // lands in innerHTML.
-                await typeRaw(`<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`);
-            }
+            // Escaped without exception: this lands in innerHTML.
+            await typeRaw(`<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`);
             if (overLong || result.truncated) {
-                await typeRaw(`<span class="highlight-dim">[truncated${result.truncated ? ' upstream' : ''} at ${overLong ? CURL_MAX_DISPLAY : '64KB'}]</span>`);
+                await typeRaw(`<span class="highlight-dim">[truncated${result.truncated ? ' upstream' : ''} at ${overLong ? CURL_MAX_DISPLAY + ' chars' : '64KB'}]</span>`);
             }
         }
 
