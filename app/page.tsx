@@ -37,6 +37,7 @@ import { IdleAlien } from "@/components/ui/idle-alien";
 import { MobileNotice } from "@/components/ui/mobile-notice";
 import { FlightPath } from "@/components/ui/flight-path";
 import { AmbientGlow } from "@/components/ui/ambient-glow";
+import { scrollToSection } from "@/lib/scroll-to-section";
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
@@ -137,6 +138,23 @@ const Home = () => {
       window.location.reload();
     }, 2500); // 2.5s duration matches the sound effect
   };
+
+  // Honour a #hash once the sections actually exist. The browser tries on load,
+  // but this component renders null until isLoaded, so there is nothing to
+  // scroll to at that moment and it gives up. Affects any deep link to the
+  // site, not only the terminal's framed preview.
+  useEffect(() => {
+    if (!isLoaded || showEnterScreen) return;
+    const id = window.location.hash.slice(1);
+    if (!id) return;
+    // scrollToSection re-reads the target's live position each frame, which
+    // matters here because Projects loads asynchronously and shifts the page
+    // underneath the scroll.
+    const t = setTimeout(() => {
+      if (document.getElementById(id)) scrollToSection(`#${id}`);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [isLoaded, showEnterScreen]);
 
   const handleEnterComplete = () => {
     setShowEnterScreen(false);
