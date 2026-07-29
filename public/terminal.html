@@ -1243,7 +1243,7 @@
             return new Promise((resolve) => {
                 const W = 360, H = 420, RX = 84, RR = 9;
                 const GRAVITY = 0.34, FLAP = -5.6, MAXFALL = 7.2;
-                const COLW = 48, GAP = 138, COLSPEED = 2.2, COLDIST = 185;
+                const COLW = 48, GAP = 138, COLSPEED = 2.2, COLDIST = 145;
                 const ui = makeGameOverlay('F L A P P Y   R O C K E T', W, H);
                 const ctx = ui.ctx, primary = ui.primary, accent = ui.accent, scoreBar = ui.scoreBar, hint = ui.hint, overlay = ui.overlay;
                 let high = 0; try { high = parseInt(localStorage.getItem('flappy-highscore') || '0', 10) || 0; } catch (e) {}
