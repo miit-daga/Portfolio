@@ -1565,7 +1565,7 @@
             unalias:      { syn: 'unalias <name>',           sum: 'Remove an alias. unalias -a removes all of them.' },
             login:         { syn: 'login <name>',            sum: 'Put your own name on the prompt. 1-16 characters of a-z, 0-9, - or _. Remembered on this device.' },
             logout:        { syn: 'logout',                  sum: 'Hand the prompt back to intruder.' },
-            scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real; the rest will talk you out of it. Try ls or tree first.' },
+            scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real and downloads straight to your disk; the rest will talk you out of it. Use `resume` instead if you would rather read it in the browser. Try ls or tree first.' },
             telnet:        { syn: 'telnet <host> [port]',    sum: 'Attempts a connection and fails, because browsers cannot open raw TCP and telnet has been indefensible for two decades. Use ssh.' },
             theme:        { syn: 'theme <colour>',          sum: 'Recolour the terminal. Presets, or any CSS colour.' },
             play:         { syn: 'play <game>',             sum: 'Launch an arcade game. Six available.' },
@@ -2734,6 +2734,28 @@
             });
         }
 
+        // A Drive /view link opens the viewer. The download endpoint sends
+        // Content-Disposition: attachment, so the browser saves the file and
+        // never leaves the page. Returns null if the link is not a Drive file,
+        // in which case the caller falls back to opening a tab.
+        function driveDownloadUrl(url) {
+            const m = /\/file\/d\/([A-Za-z0-9_-]+)/.exec(url || '');
+            return m ? `https://drive.usercontent.google.com/download?id=${m[1]}&export=download` : null;
+        }
+
+        function triggerDownload(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            // Ignored cross-origin, but harmless, and it names the file when
+            // the resume eventually lives on this origin.
+            a.download = filename;
+            a.rel = 'noopener';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            window.setTimeout(() => a.remove(), 0);
+        }
+
         async function runScp(argline) {
             const tokens = tokenize(argline).filter((t) => !t.startsWith('-'));
             if (!tokens.length) {
@@ -2750,12 +2772,23 @@
             if (source === 'resume.pdf' || source === 'resume') {
                 SoundFX.enter();
                 await typeRaw('<span class="highlight-dim">Establishing secure copy channel...</span>');
-                await scpProgress('resume.pdf', 1247);
+                await scpProgress('resume.pdf', 157); // real size of the PDF Drive serves
                 SoundFX.successChime();
-                await typeLine('Transfer complete. Opening resume.pdf...', 10);
-                window.open(MOCK_DATA.resumeUrl, '_blank', 'noopener');
-                // Popup blockers can eat a window.open this far from the click.
-                await typeRaw(`<span class="highlight-dim">Did nothing open? <a href="${MOCK_DATA.resumeUrl}" target="_blank" rel="noopener noreferrer" class="nav-link">Grab it here</a>.</span>`);
+                const direct = driveDownloadUrl(MOCK_DATA.resumeUrl);
+                if (direct) {
+                    triggerDownload(direct, 'miit-daga-resume.pdf');
+                    await typeLine('Transfer complete. Saved as Resume-Miit_Daga.pdf.', 10);
+                } else {
+                    window.open(MOCK_DATA.resumeUrl, '_blank', 'noopener');
+                    await typeLine('Transfer complete. Opening resume.pdf...', 10);
+                }
+                // A programmatic download can still be refused by the browser.
+                await typeRaw(
+                    `<span class="highlight-dim">Nothing saved? ` +
+                    `<a href="${direct || MOCK_DATA.resumeUrl}" download="miit-daga-resume.pdf" class="nav-link">Download</a>` +
+                    ` &nbsp;&middot;&nbsp; ` +
+                    `<a href="${MOCK_DATA.resumeUrl}" target="_blank" rel="noopener noreferrer" class="nav-link">View in browser</a></span>`
+                );
                 return;
             }
 
