@@ -3151,6 +3151,21 @@
             defense: 'defense-highscore',
         };
 
+        // Identity for name ownership. Browser-scoped, like the scores it sits
+        // beside, so a changing IP never costs someone their own name. Clearing
+        // storage loses the name and the high scores together, which is at least
+        // consistent.
+        const PLAYER_KEY = 'term-player-id';
+        let playerId = '';
+        try {
+            playerId = localStorage.getItem(PLAYER_KEY) || '';
+            if (!/^[a-f0-9]{8,32}$/i.test(playerId)) {
+                playerId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+                    .map((b) => b.toString(16).padStart(2, '0')).join('');
+                localStorage.setItem(PLAYER_KEY, playerId);
+            }
+        } catch (e) { playerId = ''; }
+
         function lbLocalBest(game) {
             try { return parseInt(localStorage.getItem(LB_STORAGE[game]) || '0', 10) || 0; }
             catch (e) { return 0; }
@@ -3259,7 +3274,7 @@
                 const res = await fetch('/api/leaderboard', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ game, name, score }),
+                    body: JSON.stringify({ game, name, score, player: playerId }),
                 });
                 return { res, data: await res.json() };
             } catch (e) {
@@ -3300,13 +3315,35 @@
             }
 
             await typeSpinner(`Posting ${LB_GAMES[game]} ${score}`, 500);
-            const { res, data } = await postScore(game, name, score);
+            const posted = await postScore(game, name, score);
+            const res = posted.res;
+            let data = posted.data;
             if (!res) {
                 SoundFX.error();
                 await typeRaw('<span class="error-text">Could not reach the leaderboard. Score kept locally.</span>');
                 return;
             }
-            if (!res.ok || data.error) {
+            // The name belongs to another player: offer one retry rather than
+            // making them run the command again.
+            if (res.status === 409 && data && data.code === 'name_taken') {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml(data.error)}</span>`);
+                const retry = await promptFor('Another name, or Enter to skip');
+                const second = (retry || '').trim();
+                if (!second) {
+                    await typeRaw('<span class="highlight-dim">Skipped. The score is still yours locally.</span>');
+                    return;
+                }
+                await typeSpinner(`Posting ${LB_GAMES[game]} ${score}`, 400);
+                const again = await postScore(game, second, score);
+                if (!again.res || !again.res.ok || (again.data && again.data.error)) {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">${escapeHtml((again.data && again.data.error) || 'Rejected.')}</span>`);
+                    return;
+                }
+                name = second;
+                data = again.data;
+            } else if (!res.ok || data.error) {
                 SoundFX.error();
                 await typeRaw(`<span class="error-text">${escapeHtml(data.error || 'Rejected.')}</span>`);
                 return;

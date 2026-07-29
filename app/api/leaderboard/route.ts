@@ -18,13 +18,22 @@ import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
 export const dynamic = "force-dynamic";
 
 const GIST_FILE = "leaderboard.json";
-const TOP_N = 10; // kept per game
+const TOP_N = 10; // rows kept per game
+const PER_NAME = 3; // rows one player may hold on a single board
 const MAX_NAME = 16;
 const RECENT_CAP = 200; // rate-limit ledger length
 const MIN_INTERVAL_MS = 10_000; // one submission per 10s per visitor
 const MAX_PER_DAY = 20;
 
-type Entry = { name: string; score: number; at: string; ipHash: string };
+type Entry = {
+  name: string;
+  score: number;
+  at: string;
+  ipHash: string;
+  /** Browser-scoped token. Names are reserved to one of these, because an IP
+   *  rotates and would cost a returning player their own name. */
+  player?: string;
+};
 type Board = Partial<Record<GameKey, Entry[]>>;
 type Stored = { boards: Board; recent: { ipHash: string; at: string }[] };
 type PublicEntry = { name: string; score: number; at: string };
@@ -143,7 +152,11 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
-  const { game, name: rawName, score: rawScore } = (body ?? {}) as Record<string, unknown>;
+  const { game, name: rawName, score: rawScore, player: rawPlayer } =
+    (body ?? {}) as Record<string, unknown>;
+  const player = typeof rawPlayer === "string" && /^[a-f0-9]{8,32}$/i.test(rawPlayer)
+    ? rawPlayer
+    : undefined;
 
   if (!isGameKey(game)) {
     return NextResponse.json(
@@ -187,22 +200,53 @@ export async function POST(request: Request) {
     }
 
     const board = data.boards[game] ?? [];
-    // One row per name per board, keeping their best, so a single player cannot
-    // occupy the whole thing.
-    const existing = board.find((e) => e.name.toLowerCase() === name.toLowerCase());
-    if (existing && existing.score >= score) {
+    const sameName = board.filter((e) => e.name.toLowerCase() === name.toLowerCase());
+
+    // A name belongs to whoever used it first. Entries predating this field are
+    // treated as unclaimed and adopted by the next writer.
+    const owner = sameName.find((e) => e.player)?.player;
+    if (owner && player && owner !== player) {
+      return NextResponse.json(
+        {
+          error: `"${name}" is taken on this board by someone else. Pick another.`,
+          code: "name_taken",
+        },
+        { status: 409 },
+      );
+    }
+
+    // Posting the same number twice would just duplicate a row.
+    if (sameName.some((e) => e.score === score)) {
       return NextResponse.json({
         ok: true,
         improved: false,
-        best: existing.score,
-        rank: board.filter((e) => e.score > existing.score).length + 1,
+        best: Math.max(...sameName.map((e) => e.score)),
+        rank: board.filter((e) => e.score > score).length + 1,
         board: board.slice(0, TOP_N).map(strip),
       });
     }
 
-    const without = board.filter((e) => e.name.toLowerCase() !== name.toLowerCase());
-    const entry: Entry = { name, score, at: new Date().toISOString(), ipHash };
-    const next = [...without, entry].sort((a, b) => b.score - a.score).slice(0, TOP_N);
+    // Up to PER_NAME rows each: enough to show progress, not enough for one
+    // player to own a board that only sees a handful of visitors.
+    const weakest = sameName.length >= PER_NAME
+      ? Math.min(...sameName.map((e) => e.score))
+      : null;
+    if (weakest !== null && score <= weakest) {
+      return NextResponse.json({
+        ok: true,
+        improved: false,
+        best: Math.max(...sameName.map((e) => e.score)),
+        rank: board.filter((e) => e.score > score).length + 1,
+        board: board.slice(0, TOP_N).map(strip),
+      });
+    }
+
+    const entry: Entry = { name, score, at: new Date().toISOString(), ipHash, player };
+    const kept = [...sameName, entry]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, PER_NAME);
+    const others = board.filter((e) => e.name.toLowerCase() !== name.toLowerCase());
+    const next = [...others, ...kept].sort((a, b) => b.score - a.score).slice(0, TOP_N);
 
     data.boards[game] = next;
     data.recent = [...data.recent, { ipHash, at: new Date().toISOString() }].slice(-RECENT_CAP);
@@ -211,7 +255,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       improved: true,
-      previous: existing?.score ?? null,
+      previous: sameName.length ? Math.max(...sameName.map((e) => e.score)) : null,
       rank: next.findIndex((e) => e === entry) + 1,
       board: next.map(strip),
     });
