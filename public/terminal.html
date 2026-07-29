@@ -585,8 +585,11 @@
             play: ['snake', 'invaders', 'dodge', 'tetris', 'typing', 'flappy'],
             ssh: ['miit@mothership'],
             ping: ['mothership'],
-            curl: ['/api/github-repos', '/api/guestbook', 'https://api.wheretheiss.at/v1/satellites/25544',
-                   'https://api.open-notify.org/astros.json', 'https://api.ipify.org?format=json'],
+            curl: ['/api/github-repos', '/api/guestbook',
+                   'https://api.wheretheiss.at/v1/satellites/25544',
+                   'https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=1',
+                   'https://api.spaceflightnewsapi.net/v4/articles/?limit=3',
+                   'https://api.ipify.org?format=json'],
             scp: ['resume.pdf', 'secret_plans.txt'],
             telnet: ['mothership'],
             resume: ['--plain'],
@@ -2743,17 +2746,20 @@
             return m ? `https://drive.usercontent.google.com/download?id=${m[1]}&export=download` : null;
         }
 
+        // Anchor click, not window.open: the response carries
+        // Content-Disposition: attachment, so the browser saves the file and
+        // stays put. The download attribute is ignored cross-origin (Drive
+        // names the file itself) but matters if the PDF ever moves onto this
+        // origin.
         function triggerDownload(url, filename) {
             const a = document.createElement('a');
             a.href = url;
-            // Ignored cross-origin, but harmless, and it names the file when
-            // the resume eventually lives on this origin.
             a.download = filename;
             a.rel = 'noopener';
             a.style.display = 'none';
             document.body.appendChild(a);
             a.click();
-            window.setTimeout(() => a.remove(), 0);
+            window.setTimeout(() => a.remove(), 1000);
         }
 
         async function runScp(argline) {

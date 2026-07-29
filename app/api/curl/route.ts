@@ -13,14 +13,20 @@ import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 // Exact hostname matches only. No wildcards, no suffix matching.
+// Every host here was checked to answer 200 before being added. Three earlier
+// picks did not survive that check: api.open-notify.org no longer resolves,
+// api.spacexdata.com fails its TLS handshake, and api.le-systeme-solaire.net
+// now wants credentials.
 const ALLOWED_HOSTS = new Set([
   "api.github.com",
-  "api.wheretheiss.at",
-  "api.open-notify.org",        // who is in space right now
-  "api.spacexdata.com",         // launches, rockets, capsules
-  "api.le-systeme-solaire.net", // every body in the solar system
-  "api.sunrise-sunset.org",     // sunrise/sunset for any coordinates
-  "api.ipify.org",              // the caller's own IP
+  "api.wheretheiss.at",           // live ISS position
+  "ll.thespacedevs.com",          // upcoming rocket launches
+  "api.spaceflightnewsapi.net",   // spaceflight news
+  "services.swpc.noaa.gov",       // NOAA space weather, solar indices
+  "images-api.nasa.gov",          // NASA image library search
+  "api.sunrise-sunset.org",       // sunrise/sunset for any coordinates
+  "api.open-meteo.com",           // weather, no key needed
+  "api.ipify.org",                // the caller's own IP
 ]);
 
 const MAX_BYTES = 64 * 1024;
@@ -140,10 +146,10 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const aborted = error instanceof Error && error.name === "AbortError";
-    return NextResponse.json(
-      { error: aborted ? `Timed out after ${TIMEOUT_MS / 1000}s.` : "Upstream request failed." },
-      { status: 504 },
-    );
+    const detail = aborted
+      ? `Timed out after ${TIMEOUT_MS / 1000}s.`
+      : `Could not reach ${target.hostname}. The host may be down or refusing connections.`;
+    return NextResponse.json({ error: detail }, { status: 504 });
   } finally {
     clearTimeout(timer);
   }
