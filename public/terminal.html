@@ -3064,7 +3064,19 @@
                 const [path, hash] = shorthand.split('#');
                 resolved = new URL(`${path}${path.includes('?') ? '&' : '?'}embed=1${hash ? '#' + hash : ''}`, window.location.origin);
             } else {
-                try { resolved = new URL(target, window.location.origin); }
+                // A bare hostname resolves as a relative path against this
+                // origin, so `open example.com` would have framed
+                // miitdaga.dev/example.com. Anything that looks like a host and
+                // is not a local filename gets https:// put in front of it.
+                let raw = target;
+                const firstSeg = raw.split(/[/?#]/)[0];
+                const hasScheme = /^[a-z][a-z0-9+.-]*:/i.test(raw);
+                const isFile = /\.(html?|css|js|json|txt|xml|pdf|png|jpe?g|svg|ico|webmanifest)$/i.test(firstSeg);
+                const isHostish = /^[^\s]+\.[a-z]{2,}$/i.test(firstSeg);
+                if (!hasScheme && !raw.startsWith('/') && !raw.startsWith('#') && isHostish && !isFile) {
+                    raw = 'https://' + raw;
+                }
+                try { resolved = new URL(raw, window.location.origin); }
                 catch (e) {
                     SoundFX.error();
                     await typeRaw(`<span class="error-text">open: could not resolve '${escapeHtml(target.slice(0, 60))}'</span>`);
@@ -3078,8 +3090,20 @@
                 return;
             }
 
+            // An http frame inside an https page is mixed content, which the
+            // browser blocks outright and silently: a blank frame with nothing
+            // in the console. Upgrade rather than hand over a mystery.
+            let upgraded = false;
+            if (resolved.protocol === 'http:' && window.location.protocol === 'https:') {
+                resolved.protocol = 'https:';
+                upgraded = true;
+            }
+
             const sameOrigin = resolved.origin === window.location.origin;
             SoundFX.enter();
+            if (upgraded) {
+                await typeRaw('<span class="highlight-dim">Upgraded to https: an http frame inside an https page is blocked as mixed content.</span>');
+            }
             await typeLine(`Opening ${resolved.host}${resolved.pathname}${resolved.hash}...`, 8);
             if (!sameOrigin) {
                 await typeRaw('<span class="highlight-dim">Third-party sites usually refuse to be framed. There is a tab button if it comes up blank.</span>');
