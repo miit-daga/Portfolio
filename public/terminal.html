@@ -416,7 +416,7 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit"
+            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit", "screensaver"
           ]
         };
 
@@ -592,6 +592,7 @@
                    'https://api.ipify.org?format=json'],
             scp: ['resume.pdf', 'secret_plans.txt'],
             telnet: ['mothership'],
+            screensaver: ['on', 'off', '30', '60', '120'],
             open: () => Object.keys(OPEN_SECTIONS).sort()
                 .concat(['info.cern.ch', 'en.wikipedia.org', 'news.ycombinator.com', 'xkcd.com']),
             leaderboard: () => Object.keys(LB_GAMES),
@@ -1572,6 +1573,7 @@
             unalias:      { syn: 'unalias <name>',           sum: 'Remove an alias. unalias -a removes all of them.' },
             login:         { syn: 'login <name>',            sum: 'Put your own name on the prompt. 1-16 characters of a-z, 0-9, - or _. Remembered on this device.' },
             logout:        { syn: 'logout',                  sum: 'Hand the prompt back to intruder.' },
+            screensaver:   { syn: 'screensaver [seconds|on|off]', sum: 'MIIT-DOS bouncing off the walls after a minute idle, changing colour on every bounce. Corner hits are counted and kept. No argument starts it now; a number sets the idle delay; off disables it. Never interrupts a command, a game or a prompt.' },
             scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real and downloads straight to your disk; the rest will talk you out of it. Use `resume` instead if you would rather read it in the browser. Try ls or tree first.' },
             telnet:        { syn: 'telnet <host> [port]',    sum: 'Attempts a connection and fails, because browsers cannot open raw TCP and telnet has been indefensible for two decades. Use ssh.' },
             leaderboard:   { syn: 'leaderboard [game]',      sum: 'Top ten per game, shared by everyone who has posted. Scores are produced on the player\'s own machine, so the server can only reject the impossible, not verify the plausible. Read it in that spirit.' },
@@ -2474,6 +2476,7 @@
                 `  <span class="highlight-name">${'history depth'.padEnd(16)}</span><span class="highlight-value">${historyLen}</span>\n` +
                 `  <span class="highlight-name">${'aliases'.padEnd(16)}</span><span class="highlight-value">${Object.keys(aliases).length}</span>\n` +
                 `  <span class="highlight-name">${'theme'.padEnd(16)}</span><span class="highlight-value">${escapeHtml(theme)}</span>\n` +
+                (saverCorners() ? `  <span class="highlight-name">${'corner hits'.padEnd(16)}</span><span class="highlight-value">${saverCorners()}</span>\n` : '') +
                 `</div>`
             );
             await typeRaw('<div class="help-category">High scores</div>');
@@ -3443,6 +3446,178 @@
             await renderBoard(data.board);
         }
 
+
+        // --- screensaver ---------------------------------------------------
+        // MIIT-DOS bouncing off the walls, changing colour on every bounce, with
+        // the corner hit everyone actually waits for. Idle only: it never
+        // interrupts a command, a game, a prompt or the boot, because all of
+        // those hold isTyping.
+        const SAVER_IDLE_KEY = 'term-saver-idle';
+        const SAVER_CORNER_KEY = 'term-saver-corners';
+        const SAVER_DEFAULT_MS = 60000;
+
+        let saverIdleMs = SAVER_DEFAULT_MS;
+        try {
+            const stored = parseInt(localStorage.getItem(SAVER_IDLE_KEY) || '', 10);
+            if (Number.isFinite(stored) && stored >= 0) saverIdleMs = stored;
+        } catch (e) {}
+
+        let saverActive = false;
+        let saverDismiss = null;
+        let lastActivity = Date.now();
+
+        function saverCorners() {
+            try { return parseInt(localStorage.getItem(SAVER_CORNER_KEY) || '0', 10) || 0; }
+            catch (e) { return 0; }
+        }
+
+        // isTyping covers commands, games, top, sl, open and the boot sequence,
+        // since runCommand holds it for the whole of each.
+        function saverEligible() {
+            return !saverActive && saverIdleMs > 0 && !isTyping && !pendingPrompt && !document.hidden;
+        }
+
+        function startSaver() {
+            return new Promise((resolve) => {
+                saverActive = true;
+                const root = getComputedStyle(document.documentElement);
+                const primary = (root.getPropertyValue('--term-primary') || '#2dd4bf').trim();
+                const accent = (root.getPropertyValue('--term-accent') || '#67e8f9').trim();
+                const palette = [primary, accent, '#ffffff', primary, accent];
+                let colourIdx = 0;
+
+                const layer = document.createElement('div');
+                layer.style.cssText =
+                    "position:fixed;inset:0;z-index:8500;background:rgba(0,0,0,0.9);" +
+                    "overflow:hidden;cursor:none;font-family:'Roboto Mono',monospace;";
+
+                const logo = document.createElement('div');
+                logo.textContent = 'MIIT-DOS';
+                logo.style.cssText =
+                    "position:absolute;font-weight:700;font-size:34px;letter-spacing:0.18em;" +
+                    "white-space:nowrap;will-change:transform;color:" + primary + ";";
+
+                const foot = document.createElement('div');
+                foot.style.cssText =
+                    "position:absolute;left:0;right:0;bottom:22px;text-align:center;color:#555;font-size:11px;" +
+                    "letter-spacing:0.2em;text-transform:uppercase;opacity:0;transition:opacity 1.2s ease;";
+                const corners = saverCorners();
+                foot.textContent = corners
+                    ? `press any key  ·  ${corners} corner${corners === 1 ? '' : 's'} hit`
+                    : 'press any key';
+
+                layer.appendChild(logo);
+                layer.appendChild(foot);
+                document.body.appendChild(layer);
+                window.setTimeout(() => { foot.style.opacity = '1'; }, 2200);
+
+                const w = () => window.innerWidth;
+                const h = () => window.innerHeight;
+                const lw = logo.offsetWidth || 190;
+                const lh = logo.offsetHeight || 44;
+                let x = Math.random() * Math.max(1, w() - lw);
+                let y = Math.random() * Math.max(1, h() - lh);
+                let vx = 1.6, vy = 1.15;
+
+                // An exact simultaneous bounce is vanishingly rare, so a hit
+                // within a few frames of the other axis counts. Rare enough to
+                // feel earned, common enough to actually happen.
+                let framesSinceX = 999, framesSinceY = 999;
+                const CORNER_WINDOW = 4;
+
+                let raf = 0;
+                const step = () => {
+                    const maxX = Math.max(0, w() - lw);
+                    const maxY = Math.max(0, h() - lh);
+                    x += vx; y += vy;
+                    framesSinceX++; framesSinceY++;
+
+                    let bounced = false;
+                    if (x <= 0 || x >= maxX) {
+                        x = Math.max(0, Math.min(maxX, x)); vx = -vx; framesSinceX = 0; bounced = true;
+                    }
+                    if (y <= 0 || y >= maxY) {
+                        y = Math.max(0, Math.min(maxY, y)); vy = -vy; framesSinceY = 0; bounced = true;
+                    }
+                    if (bounced) {
+                        colourIdx = (colourIdx + 1) % palette.length;
+                        logo.style.color = palette[colourIdx];
+                        if (framesSinceX < CORNER_WINDOW && framesSinceY < CORNER_WINDOW) {
+                            framesSinceX = framesSinceY = 999; // one corner per contact
+                            const n = saverCorners() + 1;
+                            try { localStorage.setItem(SAVER_CORNER_KEY, String(n)); } catch (e) {}
+                            logo.style.textShadow = '0 0 26px ' + palette[colourIdx];
+                            foot.style.opacity = '1';
+                            foot.textContent = `corner hit  ·  ${n} total`;
+                            if (typeof SoundFX !== 'undefined') SoundFX.successChime();
+                            window.setTimeout(() => { logo.style.textShadow = 'none'; }, 900);
+                        }
+                    }
+                    logo.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+                    raf = requestAnimationFrame(step);
+                };
+                raf = requestAnimationFrame(step);
+
+                saverDismiss = () => {
+                    saverDismiss = null;
+                    saverActive = false;
+                    cancelAnimationFrame(raf);
+                    layer.remove();
+                    resolve();
+                };
+            });
+        }
+
+        // Any input dismisses it, and also feeds the idle clock.
+        function noteActivity() {
+            lastActivity = Date.now();
+            if (saverActive && saverDismiss) {
+                saverDismiss();
+                if (!isTyping) inputLine.focus();
+            }
+        }
+        ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart'].forEach((ev) =>
+            window.addEventListener(ev, noteActivity, { passive: true }),
+        );
+        window.setInterval(() => {
+            if (saverEligible() && Date.now() - lastActivity >= saverIdleMs) startSaver();
+        }, 1000);
+
+        async function screensaver(arg) {
+            const a = (arg || '').trim().toLowerCase();
+            if (a === 'off' || a === '0') {
+                saverIdleMs = 0;
+                try { localStorage.setItem(SAVER_IDLE_KEY, '0'); } catch (e) {}
+                SoundFX.enter();
+                await typeLine('Screensaver off.', 10);
+                return;
+            }
+            if (a === 'on') {
+                saverIdleMs = SAVER_DEFAULT_MS;
+                try { localStorage.setItem(SAVER_IDLE_KEY, String(SAVER_DEFAULT_MS)); } catch (e) {}
+                SoundFX.enter();
+                await typeLine(`Screensaver on, after ${SAVER_DEFAULT_MS / 1000}s idle.`, 10);
+                return;
+            }
+            if (/^\d+$/.test(a)) {
+                const secs = Math.min(3600, Math.max(5, parseInt(a, 10)));
+                saverIdleMs = secs * 1000;
+                try { localStorage.setItem(SAVER_IDLE_KEY, String(saverIdleMs)); } catch (e) {}
+                SoundFX.enter();
+                await typeLine(`Screensaver after ${secs}s idle.`, 10);
+                return;
+            }
+            if (a) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">screensaver: expected a number of seconds, on, or off</span>');
+                await typeRaw('Usage: screensaver [seconds|on|off]  &middot;  no argument starts it now');
+                return;
+            }
+            lastActivity = Date.now();
+            await startSaver();
+            await typeRaw('<span class="highlight-dim">Welcome back.</span>');
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -3513,6 +3688,13 @@
                     `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
+                endTurn();
+                return;
+            }
+
+            // screensaver
+            if (cmd === 'screensaver' || cmd.startsWith('screensaver ')) {
+                await screensaver(command.substring(11));
                 endTurn();
                 return;
             }
@@ -3971,7 +4153,7 @@
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
                         'Search': ['find', 'grep'],
                         'Network': ['curl', 'open', 'ping', 'ssh', 'scp', 'telnet'],
-                        'System': ['man', 'login', 'logout', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
+                        'System': ['man', 'login', 'logout', 'clear', 'mute', 'theme', 'screensaver', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
                         'Fun': ['fortune'],
                         'Arcade': ['play', 'leaderboard', 'submit'],
