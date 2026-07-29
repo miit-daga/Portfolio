@@ -3122,19 +3122,19 @@
 
             const sameOrigin = resolved.origin === window.location.origin;
 
-            // Framing the terminal inside itself works exactly one level deep.
-            // At level two the nested document renders nothing at all, not even
-            // the boot overlay, which is static markup rather than anything the
-            // script draws. Sandbox flags are inherited by nested browsing
-            // contexts and that is the likely culprit, but I have not proven it.
-            // Rather than hand over an unexplained black rectangle, stop at the
-            // depth that works and say so.
+            // Browsers refuse to load a document into a frame once its URL
+            // already matches too many of its own ancestors. It is a deliberate
+            // guard against exactly this recursion, and it aborts the load
+            // outright, which is why level two showed no markup at all rather
+            // than a broken page. Confirmed by the fact that framing the main
+            // site at the same depth works fine: its ancestors are a different
+            // URL, so the guard never fires.
             const framingSelf = sameOrigin && resolved.pathname === window.location.pathname;
             const alreadyNested = window.self !== window.top;
             if (framingSelf && alreadyNested) {
                 SoundFX.error();
                 await typeRaw('<span class="error-text">open: one terminal inside a terminal is a novelty. Two is a hall of mirrors.</span>');
-                await typeLine('The nested copy renders nothing at this depth, so this is where it stops.', 10);
+                await typeLine('Browsers refuse to nest a page inside itself this deep. Not my rule, but a sensible one.', 10);
                 await typeRaw(`<span class="highlight-dim">Turtles, but only the one.</span>`);
                 return;
             }
