@@ -416,7 +416,7 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit", "screensaver"
+            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit", "screensaver", "tour"
           ]
         };
 
@@ -558,6 +558,15 @@
         }
         let isTyping = false;
         let bootSkipped = false; // when true, boot typing fast-forwards instantly
+        // Set by Ctrl+C. The awaitable helpers check it between steps, so a slow
+        // command stops at its next natural boundary rather than being killed
+        // mid-write. Nothing is force-terminated.
+        let cancelRequested = false;
+        class Cancelled extends Error {}
+        function throwIfCancelled() {
+            if (cancelRequested) throw new Cancelled('cancelled');
+        }
+
         // When set, the next Enter feeds this resolver instead of running a
         // command. Used for the masked admin-key prompt, so the key never lands
         // in commandHistory (which is persisted to localStorage).
@@ -630,6 +639,7 @@
         });
 
         function typeLine(line, delay = 20) {
+            throwIfCancelled();
             if (captureBuffer) { captureBuffer.push(line); return Promise.resolve(); }
             return new Promise(resolve => {
                 let i = 0;
@@ -658,6 +668,7 @@
         }
         
         function typeRaw(html, delay = 20) {
+            throwIfCancelled();
             if (captureBuffer) { captureBuffer.push(html); return Promise.resolve(); }
             return new Promise(resolve => {
                 const p = document.createElement('div');
@@ -701,6 +712,7 @@
         }
 
         function typeSpinner(text, duration = 1000) {
+            throwIfCancelled();
             if (captureBuffer) return Promise.resolve(); // spinner chrome is not pipeable output
             return new Promise(resolve => {
                 const p = document.createElement('div');
@@ -1545,6 +1557,7 @@
         // --- MANUAL ------------------------------------------------------
         const MANUAL = {
             help:         { syn: 'help',                    sum: 'List every command, grouped by category.' },
+            tour:         { syn: 'tour',                     sum: 'Five commands driven for you, with a line of context each. For anyone who opened this and did not know where to start. Ctrl+C stops it.' },
             brief:        { syn: 'brief',                   sum: 'One-screen summary: role, stack, highlights, contact.' },
             about:        { syn: 'about',                   sum: 'The long-form introduction.' },
             experience:   { syn: 'experience',              sum: 'Work history, newest first, with headline metrics.' },
@@ -2145,6 +2158,20 @@
         // --- COMMAND CHAINING ----------------------------------------------
         // `a && b` runs b only if a was a command we recognise; `a ; b` always
         // runs b. Splitting happens before pipes, matching shell precedence.
+        // `!!` reruns the previous command, `!42` one by its history number, as
+        // printed by `history`. Resolved before chaining or aliases, the way a
+        // shell expands it before parsing.
+        function expandHistory(input) {
+            const t = String(input || '').trim();
+            if (t === '!!') {
+                // The current command is already on the stack, so skip it.
+                return commandHistory[commandHistory.length - 2] || null;
+            }
+            const m = /^!(\d+)$/.exec(t);
+            if (m) return commandHistory[parseInt(m[1], 10) - 1] || null;
+            return undefined; // not a history expansion at all
+        }
+
         const CHAIN_LIMIT = 10;
 
         // Commands whose argument is free-form text. `sign hi; bye` must post the
@@ -3643,6 +3670,46 @@
             await typeRaw('<span class="highlight-dim">Welcome back.</span>');
         }
 
+
+        // --- tour ----------------------------------------------------------
+        // Everything else in here assumes the visitor already knows what to
+        // type. Someone who does not is otherwise looking at a blinking cursor
+        // and a wall of nothing, so this drives a few commands for them.
+        const TOUR_STOPS = [
+            { cmd: 'brief', say: 'Start with the one-screen version. Role, stack, what has shipped.' },
+            { cmd: 'experience', say: 'Work history, with the numbers pulled out of the prose where they can be read.' },
+            { cmd: 'projects', say: 'Live from GitHub. The three at the top are published npm packages, not weekend repos.' },
+            { cmd: 'publications', say: 'Peer-reviewed work. Nature Portfolio, Elsevier and IEEE, plus a filed patent.' },
+            { cmd: 'find aws', say: 'And this searches every section at once, which grep cannot do.' },
+        ];
+
+        async function runTour() {
+            SoundFX.dataBurst();
+            await typeRaw('<div class="section-title">Guided tour</div>');
+            await typeRaw('<span class="highlight-dim">Five commands, driven for you. Ctrl+C stops it.</span>');
+
+            for (const [i, stop] of TOUR_STOPS.entries()) {
+                throwIfCancelled();
+                await new Promise((r) => window.setTimeout(r, 700));
+                await typeRaw(
+                    `\n<span class="highlight-dim">${i + 1}/${TOUR_STOPS.length}</span> ${escapeHtml(stop.say)}`
+                );
+                await typeRaw(`<span class="prompt"></span> <span class="highlight-value">${escapeHtml(stop.cmd)}</span>`);
+                await new Promise((r) => window.setTimeout(r, 400));
+                // Reuse the real dispatch, so the tour can never drift from what
+                // the commands actually do.
+                await executeCommand(stop.cmd);
+            }
+
+            throwIfCancelled();
+            await typeRaw('\n<span class="highlight-value">That is the tour.</span>');
+            await typeRaw(
+                'Everything else is behind ' +
+                `<span class="nav-link" onclick="runCommandFromClick('help')">help</span>. ` +
+                `There is an arcade in there, and a guestbook if you would like to leave a note.`
+            );
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -3662,6 +3729,18 @@
             setPromptVisible(false);
 
             try {
+                // History expansion happens before anything else parses the line.
+                const expanded = expandHistory(command);
+                if (expanded === null) {
+                    SoundFX.error();
+                    await typeRaw('<span class="error-text">No such command in history.</span>');
+                    return;
+                }
+                if (expanded !== undefined) {
+                    command = expanded;
+                    await typeRaw(`<span class="highlight-dim">${escapeHtml(command)}</span>`);
+                }
+
                 // Chain first (shell precedence), expand the alias on each
                 // segment, then hand off to the existing dispatch untouched.
                 const chain = splitChain(command);
@@ -3679,7 +3758,15 @@
                         await executeCommand(text);
                     }
                 }
+            } catch (err) {
+                if (err instanceof Cancelled) {
+                    captureBuffer = null; // a cancelled pipeline must not stay capturing
+                    await typeRaw('<span class="highlight-dim">^C</span>');
+                } else {
+                    throw err;
+                }
             } finally {
+                cancelRequested = false;
                 // Safety net only: every path through executeCommand and
                 // runPipeline already calls endTurn(). This guarantees a thrown
                 // error can never leave the prompt dead.
@@ -4174,7 +4261,7 @@
                 case 'help':
                     SoundFX.enter();
                     const helpCategories = {
-                        'Profile': ['brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
+                        'Profile': ['tour', 'brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
                         'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
                         'Search': ['find', 'grep'],
                         'Network': ['curl', 'open', 'ping', 'ssh', 'scp', 'telnet'],
@@ -4245,6 +4332,9 @@
                             await typeRaw(`  <a href="${a.link}" target="_blank" class="nav-link">View Certificate</a>`);
                         }
                     }
+                    break;
+                case 'tour':
+                    await runTour();
                     break;
                 case 'guestbook':
                     await showGuestbook();
@@ -4504,6 +4594,66 @@
 
         window.runCommandFromClick = (command) => runCommand(command);
 
+
+        // --- readline keybindings ------------------------------------------
+        // Anyone who lives in a shell reaches for Ctrl+W within about thirty
+        // seconds. Handled before the command keys so a chord never leaks
+        // through as history or completion.
+        function wordStart(value, caret) {
+            let i = caret;
+            while (i > 0 && /\s/.test(value[i - 1])) i--;
+            while (i > 0 && !/\s/.test(value[i - 1])) i--;
+            return i;
+        }
+        function wordEnd(value, caret) {
+            let i = caret;
+            while (i < value.length && /\s/.test(value[i])) i++;
+            while (i < value.length && !/\s/.test(value[i])) i++;
+            return i;
+        }
+        function setLine(value, caret) {
+            inputLine.value = value;
+            inputLine.setSelectionRange(caret, caret);
+            // Keep the ghost suggestion honest after an edit.
+            inputLine.dispatchEvent(new Event('input'));
+        }
+
+        function handleReadline(e) {
+            const v = inputLine.value;
+            const c = inputLine.selectionStart ?? v.length;
+            const ctrl = e.ctrlKey && !e.metaKey;
+            const alt = e.altKey && !e.metaKey;
+
+            if (ctrl && e.key === 'a') { e.preventDefault(); setLine(v, 0); return true; }
+            if (ctrl && e.key === 'e') { e.preventDefault(); setLine(v, v.length); return true; }
+            if (ctrl && e.key === 'u') { e.preventDefault(); setLine(v.slice(c), 0); return true; }
+            if (ctrl && e.key === 'k') { e.preventDefault(); setLine(v.slice(0, c), c); return true; }
+            if (ctrl && e.key === 'w') {
+                e.preventDefault();
+                const start = wordStart(v, c);
+                setLine(v.slice(0, start) + v.slice(c), start);
+                return true;
+            }
+            // Alt+Backspace is the other spelling of Ctrl+W on a Mac.
+            if (alt && e.key === 'Backspace') {
+                e.preventDefault();
+                const start = wordStart(v, c);
+                setLine(v.slice(0, start) + v.slice(c), start);
+                return true;
+            }
+            if (alt && (e.key === 'ArrowLeft' || e.key === 'b')) {
+                e.preventDefault();
+                inputLine.setSelectionRange(wordStart(v, c), wordStart(v, c));
+                return true;
+            }
+            if (alt && (e.key === 'ArrowRight' || e.key === 'f')) {
+                e.preventDefault();
+                inputLine.setSelectionRange(wordEnd(v, c), wordEnd(v, c));
+                return true;
+            }
+            return false;
+        }
+
         inputLine.addEventListener('keydown', (e) => {
             // A masked prompt is open: resolve on Enter, cancel on Escape, and
             // swallow history/completion so the hidden value cannot be recalled.
@@ -4513,6 +4663,24 @@
                 else if (e.key === 'Tab' || e.key.startsWith('Arrow')) { e.preventDefault(); }
                 return;
             }
+
+            // Ctrl+C: ask the running command to stop at its next boundary. With
+            // nothing running it just clears the line, as a real shell does.
+            if (e.ctrlKey && !e.metaKey && e.key === 'c') {
+                if (window.getSelection && String(window.getSelection())) return; // let copy through
+                e.preventDefault();
+                if (isTyping) {
+                    cancelRequested = true;
+                } else {
+                    addInputLine(inputLine.value + ' ^C');
+                    inputLine.value = '';
+                    ghostInput.value = '';
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+                return;
+            }
+
+            if (handleReadline(e)) return;
 
             if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 || e.key === 'Backspace') {
                 SoundFX.typing(e.key);
@@ -4527,8 +4695,30 @@
                 }
             } else if (e.key === 'Tab') {
                 e.preventDefault();
-                const raw = inputLine.value;
+                let raw = inputLine.value;
                 if (!raw.trim()) return;
+
+                // After a pipe, complete the filter rather than re-completing the
+                // source command. Pipes are the flagship feature and this was a
+                // visible seam in it.
+                const pipeIdx = raw.lastIndexOf('|');
+                if (pipeIdx !== -1) {
+                    const before = raw.slice(0, pipeIdx + 1);
+                    const partial = raw.slice(pipeIdx + 1).trimStart();
+                    if (!partial.includes(' ')) {
+                        const hits = PIPE_STAGES.filter((st) => st.startsWith(partial.toLowerCase()));
+                        if (hits.length === 1) {
+                            inputLine.value = `${before} ${hits[0]} `;
+                            ghostInput.value = '';
+                        } else if (hits.length > 1) {
+                            typeRaw(hits.map((hStage) => `<span class="highlight-value">${hStage}</span>`).join('  '));
+                            terminal.scrollTop = terminal.scrollHeight;
+                        }
+                        return;
+                    }
+                    return;
+                }
+
                 const spaceIdx = raw.indexOf(' ');
 
                 // Decide the candidate pool: arguments after a command, else commands
@@ -4657,7 +4847,7 @@
 
             SoundFX.successChime();
             await typeLine(`Access granted. Welcome, ${termUser}.`, 30);
-            await typeLine("\nType 'help' for a list of commands.", 30);
+            await typeRaw(`\nType <span class="nav-link" onclick="runCommandFromClick('help')">help</span> for a list of commands, or <span class="nav-link" onclick="runCommandFromClick('tour')">tour</span> for a guided one.`);
             finishReady();
         };
 
