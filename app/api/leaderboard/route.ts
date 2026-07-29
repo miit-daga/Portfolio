@@ -242,11 +242,14 @@ export async function POST(request: Request) {
     }
 
     const entry: Entry = { name, score, at: new Date().toISOString(), ipHash, player };
-    const kept = [...sameName, entry]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, PER_NAME);
+    // Equal scores are ranked by who got there first. Relying on array order
+    // would have re-shuffled ties every time the board was rebuilt.
+    const byScoreThenAge = (a: Entry, b: Entry) =>
+      b.score - a.score || Date.parse(a.at) - Date.parse(b.at);
+
+    const kept = [...sameName, entry].sort(byScoreThenAge).slice(0, PER_NAME);
     const others = board.filter((e) => e.name.toLowerCase() !== name.toLowerCase());
-    const next = [...others, ...kept].sort((a, b) => b.score - a.score).slice(0, TOP_N);
+    const next = [...others, ...kept].sort(byScoreThenAge).slice(0, TOP_N);
 
     data.boards[game] = next;
     data.recent = [...data.recent, { ipHash, at: new Date().toISOString() }].slice(-RECENT_CAP);

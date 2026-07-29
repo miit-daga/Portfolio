@@ -3293,10 +3293,21 @@
 
         // Offered once a game ends. Declining costs one keypress and nothing is
         // sent; the score stays local either way.
-        async function offerLeaderboard(game) {
+        async function offerLeaderboard(game, bestBefore = -1) {
             if (!LB_GAMES[game]) return;
             const score = lbLocalBest(game);
             if (!score) return;
+
+            // Only ask when the run just beat the stored best, the way a cabinet
+            // only wants your initials if you made the table. Reading the stored
+            // best unconditionally meant a 5-point run offered to post an old 40.
+            if (bestBefore >= 0 && score <= bestBefore) {
+                await typeRaw(
+                    `<span class="highlight-dim">Personal best is still ${score}. ` +
+                    `<span class="nav-link" onclick="runCommandFromClick('submit ${game}')">submit ${game}</span> to post it.</span>`
+                );
+                return;
+            }
 
             const named = termUser !== DEFAULT_USER;
             const label = named
@@ -3918,10 +3929,14 @@
                 } else if (games[arg]) {
                     SoundFX.enter();
                     await typeLine(`Launching ${arg.toUpperCase()}... ${games[arg].hint}.`, 10);
+                    // Sampled either side of the run so the prompt reflects this
+                    // game, not an old record. The games do not report a score,
+                    // and this avoids reaching into all six of them to add one.
+                    const bestBefore = lbLocalBest(arg);
                     await games[arg].launch();
                     const lines = games[arg].quips;
                     await typeLine(lines[Math.floor(Math.random() * lines.length)], 10);
-                    await offerLeaderboard(arg);
+                    await offerLeaderboard(arg, bestBefore);
                 } else {
                     SoundFX.error();
                     await typeRaw(`<span class="error-text">play: '${arg}' is not an available game. Try: ${Object.keys(games).join(', ')}.</span>`);
