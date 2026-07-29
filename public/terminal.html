@@ -416,7 +416,7 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open"
+            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit"
           ]
         };
 
@@ -593,6 +593,8 @@
             scp: ['resume.pdf', 'secret_plans.txt'],
             telnet: ['mothership'],
             open: () => Object.keys(OPEN_SECTIONS).sort(),
+            leaderboard: () => Object.keys(LB_GAMES),
+            submit: () => Object.keys(LB_GAMES),
             resume: ['--plain'],
             unalias: () => Object.keys(aliases).sort(),
             // Lazy: MANUAL is declared further down, so reading it eagerly here
@@ -1398,7 +1400,7 @@
             'brief', 'about', 'experience', 'education', 'skills',
             'achievements', 'projects', 'publications', 'contact', 'socials',
             'guestbook', 'man', 'ls', 'history', 'neofetch', 'date', 'pwd', 'whoami',
-            'find', 'tree', 'fortune', 'stats', 'alias', 'curl',
+            'find', 'tree', 'fortune', 'stats', 'alias', 'curl', 'leaderboard',
         ]);
         const PIPE_STAGES = ['grep', 'wc', 'head', 'tail'];
 
@@ -1571,6 +1573,8 @@
             logout:        { syn: 'logout',                  sum: 'Hand the prompt back to intruder.' },
             scp:           { syn: 'scp <file> <destination>', sum: 'Copy a file off this machine. Exactly one of them is real and downloads straight to your disk; the rest will talk you out of it. Use `resume` instead if you would rather read it in the browser. Try ls or tree first.' },
             telnet:        { syn: 'telnet <host> [port]',    sum: 'Attempts a connection and fails, because browsers cannot open raw TCP and telnet has been indefensible for two decades. Use ssh.' },
+            leaderboard:   { syn: 'leaderboard [game]',      sum: 'Top ten per game, shared by everyone who has posted. Scores are produced on the player\'s own machine, so the server can only reject the impossible, not verify the plausible. Read it in that spirit.' },
+            submit:        { syn: 'submit <game>',           sum: 'Post your local best for a game under your login name. Requires login first, keeps only your best, and refuses anything past what the game can produce.' },
             open:          { syn: 'open <section|path|url>', sum: 'Frame a page inside the terminal. Esc closes it. Sections of the portfolio always work; third-party sites usually refuse to be framed, and no browser API can tell you whether one did, so there is an open-in-tab button rather than a guess.' },
             theme:        { syn: 'theme <colour>',          sum: 'Recolour the terminal. Presets, or any CSS colour.' },
             play:         { syn: 'play <game>',             sum: 'Launch an arcade game. Six available.' },
@@ -1938,14 +1942,14 @@
             );
         }
 
-        // Masked, one-shot input. Never echoed, never stored.
-        function promptSecret(label) {
+        // One-shot input, masked or not. Resolves with the text, or null on Esc.
+        function promptFor(label, { masked = false } = {}) {
             return new Promise((resolve) => {
                 const row = document.createElement('div');
                 row.className = 'output';
                 row.innerHTML = `<span class="highlight-value">${label}</span>`;
                 outputContainer.appendChild(row);
-                inputLine.type = 'password';
+                if (masked) inputLine.type = 'password';
                 inputLine.value = '';
                 ghostInput.value = '';
                 inputLine.disabled = false;
@@ -1961,6 +1965,11 @@
                     resolve(value);
                 };
             });
+        }
+
+        // Masked, one-shot input. Never echoed, never stored.
+        function promptSecret(label) {
+            return promptFor(label, { masked: true });
         }
 
         // Guestbook moderation. Kept out of help, man and autocomplete so it is
@@ -3116,6 +3125,250 @@
             await typeRaw('<span class="highlight-dim">Frame closed.</span>');
         }
 
+
+        // --- leaderboard ---------------------------------------------------
+        // Boards live in the same gist as the guestbook. Scores are still made
+        // on the client and cannot be verified; the server only refuses the
+        // obviously impossible. `submit` uses your login name, so the board and
+        // the prompt agree about who you are.
+        const LB_GAMES = {
+            snake: 'Snake', invaders: 'Invaders', dodge: 'Meteor Dodge',
+            tetris: 'Tetris', typing: 'Typing', flappy: 'Flappy Rocket',
+            defense: 'Defense Mode',
+        };
+        const LB_STORAGE = {
+            snake: 'snake-highscore', invaders: 'invaders-highscore',
+            dodge: 'dodge-highscore', tetris: 'tetris-highscore',
+            typing: 'typing-highscore', flappy: 'flappy-highscore',
+            defense: 'defense-highscore',
+        };
+
+        function lbLocalBest(game) {
+            try { return parseInt(localStorage.getItem(LB_STORAGE[game]) || '0', 10) || 0; }
+            catch (e) { return 0; }
+        }
+
+        async function showLeaderboard(arg) {
+            const game = (arg || '').trim().toLowerCase();
+            if (game && !LB_GAMES[game]) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">leaderboard: no game called '${escapeHtml(game)}'</span>`);
+                await typeRaw('Games: ' + Object.keys(LB_GAMES)
+                    .map((g) => `<span class="nav-link" onclick="runCommandFromClick('leaderboard ${g}')">${g}</span>`).join('  '));
+                return;
+            }
+
+            SoundFX.enter();
+            await typeRaw('<div class="section-title">Leaderboard</div>');
+            let data;
+            try {
+                const res = await fetch('/api/leaderboard' + (game ? `?game=${game}` : ''));
+                data = await res.json();
+            } catch (e) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">Could not reach the leaderboard.</span>');
+                return;
+            }
+            if (data && data.configured === false) {
+                await typeRaw('<span class="highlight-dim">The leaderboard is not wired up yet.</span>');
+                return;
+            }
+            if (!data || !data.boards) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml((data && data.error) || 'Unexpected reply.')}</span>`);
+                return;
+            }
+
+            let any = false;
+            for (const [key, rows] of Object.entries(data.boards)) {
+                if (!rows.length) continue;
+                any = true;
+                await typeRaw(`\n<span class="highlight-name">${escapeHtml(LB_GAMES[key] || key)}</span>`);
+                rows.forEach((r, i) => {
+                    const medal = i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : `${i + 1}th`;
+                    const mine = r.name.toLowerCase() === termUser.toLowerCase();
+                    lbRow(medal, r, mine);
+                });
+                for (const line of lbBuffer) await typeRaw(line);
+                lbBuffer.length = 0;
+            }
+            if (!any) {
+                await typeRaw('<span class="highlight-dim">Nothing posted yet. Play something, then: submit &lt;game&gt;</span>');
+                return;
+            }
+            await typeRaw(`<span class="highlight-dim">Post yours with: submit &lt;game&gt;. Scores are made on your machine, so treat them the way you would treat any number a stranger typed.</span>`);
+        }
+
+        // Rows are built first so the "is this me" highlight can be applied
+        // without an await inside the forEach.
+        const lbBuffer = [];
+        function lbRow(medal, r, mine) {
+            lbBuffer.push(
+                `  <span class="highlight-dim">${medal.padStart(4)}</span>  ` +
+                `<span class="${mine ? 'highlight-value' : 'highlight-name'}">${escapeHtml(r.name).padEnd(18)}</span>` +
+                `<span class="highlight-value">${r.score}</span>` +
+                (mine ? ' <span class="highlight-dim">(you)</span>' : '')
+            );
+        }
+
+        const LB_TOP = [
+            'First place. Whoever held that is going to notice.',
+            'Top of the board. Someone is about to lose an evening taking it back.',
+            'Number one. Records are rented, not owned, but enjoy the lease.',
+            'You are the benchmark now. Sorry about the pressure.',
+        ];
+        const LB_PODIUM = [
+            'Podium. Close enough to first to be annoyed about it.',
+            'Top three. Respectable, and irritatingly close.',
+            'On the podium. One good run from the top.',
+            'Nearly. That is the worst kind of good.',
+        ];
+        const LB_BOARD = [
+            'On the board. Not on the podium, but on the board.',
+            'Mid-table, which is the most honest place to be.',
+            'You made the list. History will file you under "and others".',
+            'Solidly average, which takes more effort than it sounds.',
+        ];
+        const LB_MISSED = [
+            'That did not make the top ten. The top ten send their regards.',
+            'Not on the board. The board is at peace with this.',
+            'Ten people are better than you at a game inside a fake terminal. Sit with that.',
+            'Close, in roughly the way Earth is close to Mars.',
+            'The leaderboard has read your submission and declined to comment.',
+            'Filed. Not displayed, but filed.',
+        ];
+        const lbTopBag = [], lbPodiumBag = [], lbBoardBag = [], lbMissedBag = [];
+
+        function lbReaction(rank) {
+            if (rank === 1) return bagPick(LB_TOP, lbTopBag);
+            if (rank === 2 || rank === 3) return bagPick(LB_PODIUM, lbPodiumBag);
+            if (rank >= 4) return bagPick(LB_BOARD, lbBoardBag);
+            return bagPick(LB_MISSED, lbMissedBag); // rank 0: did not place
+        }
+
+        async function postScore(game, name, score) {
+            try {
+                const res = await fetch('/api/leaderboard', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ game, name, score }),
+                });
+                return { res, data: await res.json() };
+            } catch (e) {
+                return { res: null, data: null };
+            }
+        }
+
+        async function renderBoard(rows) {
+            for (const [i, r] of (rows || []).entries()) {
+                const medal = i === 0 ? '1st' : i === 1 ? '2nd' : i === 2 ? '3rd' : `${i + 1}th`;
+                lbRow(medal, r, r.name.toLowerCase() === termUser.toLowerCase());
+            }
+            for (const line of lbBuffer) await typeRaw(line);
+            lbBuffer.length = 0;
+        }
+
+        // Offered once a game ends. Declining costs one keypress and nothing is
+        // sent; the score stays local either way.
+        async function offerLeaderboard(game) {
+            if (!LB_GAMES[game]) return;
+            const score = lbLocalBest(game);
+            if (!score) return;
+
+            const named = termUser !== DEFAULT_USER;
+            const label = named
+                ? `Post ${score} to the leaderboard? Enter for ${escapeHtml(termUser)}, a name to use another, Esc to skip`
+                : `Post ${score} to the leaderboard? Type a name, or Enter to skip`;
+            const answer = await promptFor(label);
+            if (answer === null) {
+                await typeRaw('<span class="highlight-dim">Skipped. The score is still yours locally.</span>');
+                return;
+            }
+            let name = (answer || '').trim();
+            if (!name && named) name = termUser;
+            if (!name) {
+                await typeRaw('<span class="highlight-dim">Skipped. The score is still yours locally.</span>');
+                return;
+            }
+
+            await typeSpinner(`Posting ${LB_GAMES[game]} ${score}`, 500);
+            const { res, data } = await postScore(game, name, score);
+            if (!res) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">Could not reach the leaderboard. Score kept locally.</span>');
+                return;
+            }
+            if (!res.ok || data.error) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml(data.error || 'Rejected.')}</span>`);
+                return;
+            }
+
+            if (!data.improved) {
+                SoundFX.enter();
+                await typeLine(`${escapeHtml(name)} is already on the board at ${data.best}. Nothing changed.`, 10);
+                return;
+            }
+            SoundFX.successChime();
+            await typeLine(data.rank ? `Posted. Rank ${data.rank}.` : 'Posted.', 10);
+            await typeLine(lbReaction(data.rank || 0), 12);
+            await renderBoard(data.board);
+        }
+
+        async function submitScore(arg) {
+            const game = (arg || '').trim().toLowerCase();
+            if (!game || !LB_GAMES[game]) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">submit: which game?</span>');
+                await typeRaw('Usage: submit &lt;game&gt;');
+                await typeRaw('Games: ' + Object.keys(LB_GAMES)
+                    .map((g) => `<span class="nav-link" onclick="runCommandFromClick('submit ${g}')">${g}</span>`).join('  '));
+                return;
+            }
+
+            const score = lbLocalBest(game);
+            if (!score) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">No ${escapeHtml(LB_GAMES[game])} score on this machine yet.</span>`);
+                await typeRaw(`Play it first: <span class="nav-link" onclick="runCommandFromClick('play ${game}')">play ${game}</span>`);
+                return;
+            }
+            if (termUser === DEFAULT_USER) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">submit: pick a name first, or the board fills up with intruders.</span>');
+                await typeRaw('Usage: <span class="highlight-value">login &lt;name&gt;</span>, then submit again.');
+                return;
+            }
+
+            await typeSpinner(`Submitting ${LB_GAMES[game]} ${score}`, 600);
+            const { res, data } = await postScore(game, termUser, score);
+            if (!res) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">Could not reach the leaderboard.</span>');
+                return;
+            }
+            if (!res.ok || data.error) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml(data.error || 'Rejected.')}</span>`);
+                return;
+            }
+
+            if (!data.improved) {
+                SoundFX.enter();
+                await typeLine(`Already on the board at ${data.best}, which beats ${score}. Nothing changed.`, 10);
+            } else {
+                SoundFX.successChime();
+                await typeLine(
+                    data.previous
+                        ? `Updated: ${data.previous} to ${score}.${data.rank ? ` Rank ${data.rank}.` : ''}`
+                        : `Posted ${score}.${data.rank ? ` Rank ${data.rank}.` : ''}`,
+                    10,
+                );
+                await typeLine(lbReaction(data.rank || 0), 12);
+            }
+            await renderBoard(data.board);
+        }
+
         async function runCommand(command) {
             command = command.trim();
             if (isTyping) return;
@@ -3186,6 +3439,18 @@
                     `Try <span class="nav-link" onclick="runCommandFromClick('experience | grep aws')">experience | grep aws</span>` +
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
+                endTurn();
+                return;
+            }
+
+            // leaderboard / submit
+            if (cmd === 'leaderboard' || cmd.startsWith('leaderboard ')) {
+                await showLeaderboard(command.substring(11));
+                endTurn();
+                return;
+            }
+            if (cmd === 'submit' || cmd.startsWith('submit ')) {
+                await submitScore(command.substring(6));
                 endTurn();
                 return;
             }
@@ -3611,6 +3876,7 @@
                     await games[arg].launch();
                     const lines = games[arg].quips;
                     await typeLine(lines[Math.floor(Math.random() * lines.length)], 10);
+                    await offerLeaderboard(arg);
                 } else {
                     SoundFX.error();
                     await typeRaw(`<span class="error-text">play: '${arg}' is not an available game. Try: ${Object.keys(games).join(', ')}.</span>`);
@@ -3630,7 +3896,7 @@
                         'System': ['man', 'login', 'logout', 'clear', 'mute', 'theme', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
                         'Fun': ['fortune'],
-                        'Arcade': ['play'],
+                        'Arcade': ['play', 'leaderboard', 'submit'],
                     };
                     let helpHtml = '<div class="section-title">Available Commands</div>';
                     helpHtml += '<div class="help-grid">';
