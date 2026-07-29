@@ -592,7 +592,7 @@
                    'https://api.ipify.org?format=json'],
             scp: ['resume.pdf', 'secret_plans.txt'],
             telnet: ['mothership'],
-            open: Object.keys(OPEN_SECTIONS).sort(),
+            open: () => Object.keys(OPEN_SECTIONS).sort(),
             resume: ['--plain'],
             unalias: () => Object.keys(aliases).sort(),
             // Lazy: MANUAL is declared further down, so reading it eagerly here
