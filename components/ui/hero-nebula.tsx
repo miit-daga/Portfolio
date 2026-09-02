@@ -1,9 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { resolveSkyHour, skyPalette, type Rgb01, type SkyPalette } from "@/lib/sky"
 
 // WebGL nebula behind the hero: domain-warped fbm noise clouds in deep
 // blue/teal/violet.
+//
+// The four cloud colours are uniforms fed from lib/sky.ts, so the hero follows
+// the visitor's local hour: rose and gold around dawn, lighter cyan by day,
+// ember into violet at dusk, deeper indigo at night. Preview with ?sky=<0-23>.
 //
 // IMPORTANT: no <canvas> element may enter the hero's DOM subtree. A live
 // accelerated canvas forces Chromium into GPU render surfaces, which strips
@@ -25,6 +30,10 @@ const FRAG = `
 precision highp float;
 uniform vec2 u_res;
 uniform float u_time;
+uniform vec3 u_base;
+uniform vec3 u_mid;
+uniform vec3 u_warp;
+uniform vec3 u_fil;
 
 float hash(vec2 p) {
   p = fract(p * vec2(234.34, 435.345));
@@ -63,11 +72,12 @@ void main() {
   vec2 r = vec2(fbm(uv * 1.8 + q * 1.3 + t * 0.4), fbm(uv * 1.8 + q * 1.3 + 9.1));
   float f = fbm(uv * 2.1 + r * 1.6);
 
-  // Deep blue base -> teal mid, with violet pulled in by the warp field
-  vec3 col = mix(vec3(0.04, 0.08, 0.16), vec3(0.07, 0.34, 0.33), smoothstep(0.25, 0.78, f));
-  col = mix(col, vec3(0.24, 0.13, 0.42), q.x * 0.75);
+  // Thin base -> mid-density cloud, with the warp tint pulled in by the warp
+  // field. All four colours arrive from lib/sky.ts for the visitor's hour.
+  vec3 col = mix(u_base, u_mid, smoothstep(0.25, 0.78, f));
+  col = mix(col, u_warp, q.x * 0.75);
   // Bright filaments where the cloud density peaks
-  col += vec3(0.20, 0.52, 0.48) * pow(max(f - 0.58, 0.0) * 2.4, 2.0);
+  col += u_fil * pow(max(f - 0.58, 0.0) * 2.4, 2.0);
 
   // Fade toward the edges so the clouds never form a hard frame
   float mask = 1.0 - smoothstep(0.45, 1.05, length(uv));
@@ -76,9 +86,10 @@ void main() {
   gl_FragColor = vec4(col, alpha);
 }`
 
-// Renders the shader at two time offsets on an offscreen canvas and returns
-// both snapshots, or null when WebGL is missing or anything goes sideways
-const renderFrames = (): [string, string] | null => {
+// Renders the shader at two time offsets on an offscreen canvas, in the given
+// palette, and returns both snapshots, or null when WebGL is missing or
+// anything goes sideways
+const renderFrames = (palette: SkyPalette): [string, string] | null => {
   try {
     const canvas = document.createElement("canvas")
     canvas.width = 960
@@ -126,6 +137,12 @@ const renderFrames = (): [string, string] | null => {
     gl.viewport(0, 0, canvas.width, canvas.height)
     gl.uniform2f(gl.getUniformLocation(prog, "u_res"), canvas.width, canvas.height)
     const uTime = gl.getUniformLocation(prog, "u_time")
+    const setColor = (name: string, c: Rgb01) =>
+      gl.uniform3f(gl.getUniformLocation(prog, name), c[0], c[1], c[2])
+    setColor("u_base", palette.base)
+    setColor("u_mid", palette.mid)
+    setColor("u_warp", palette.warp)
+    setColor("u_fil", palette.filament)
 
     const snapshot = (time: number) => {
       gl.uniform1f(uTime, time)
@@ -144,7 +161,7 @@ export const HeroNebula = () => {
   const [frames, setFrames] = useState<[string, string] | null>(null)
 
   useEffect(() => {
-    setFrames(renderFrames())
+    setFrames(renderFrames(skyPalette(resolveSkyHour())))
   }, [])
 
   if (!frames) return null

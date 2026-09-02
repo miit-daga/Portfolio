@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { describeLocation } from "@/lib/locate"
+import { skyPalette } from "@/lib/sky"
 
 interface AnimatedBackgroundProps {
   children: React.ReactNode
@@ -108,6 +109,17 @@ const shadeRgb = (c: { r: number; g: number; b: number }, f: number) => {
   const m = (v: number) => Math.round(f >= 0 ? v + (255 - v) * f : v * (1 + f));
   return { r: m(c.r), g: m(c.g), b: m(c.b) };
 };
+// Pull a colour toward the sky's key light (lib/sky.ts): gold around dawn and
+// dusk, cool blue-white at night, neutral by day
+const mixRgb = (
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+  t: number,
+) => ({
+  r: Math.round(a.r + (b.r - a.r) * t),
+  g: Math.round(a.g + (b.g - a.g) * t),
+  b: Math.round(a.b + (b.b - a.b) * t),
+});
 
 // Concentric ring bands (radius multiple, width, opacity) - note the faint
 // band ~1.6 acts as a Cassini-style gap between the two bright bands.
@@ -139,12 +151,17 @@ const drawRing = (ctx: CanvasRenderingContext2D, p: Planet, half: "front" | "bac
   ctx.restore();
 };
 
-const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
+const drawPlanet = (
+  ctx: CanvasRenderingContext2D,
+  p: Planet,
+  // Colour of the light on the lit limb and specular; white when not given
+  key?: { r: number; g: number; b: number },
+) => {
   const r = p.radius;
   if (r <= 0.5) return;
 
   const base = hexToRgb(p.color);
-  const light = shadeRgb(base, 0.55);
+  const light = key ? mixRgb(shadeRgb(base, 0.55), key, 0.35) : shadeRgb(base, 0.55);
   const dark = shadeRgb(base, -0.62);
   const lx = p.x - r * 0.4; // light source (upper-left)
   const ly = p.y - r * 0.4;
@@ -220,7 +237,7 @@ const drawPlanet = (ctx: CanvasRenderingContext2D, p: Planet) => {
 
   // Specular sheen near the light source
   const spec = ctx.createRadialGradient(lx, ly, 0, lx, ly, r * 0.75);
-  spec.addColorStop(0, "rgba(255, 255, 255, 0.4)");
+  spec.addColorStop(0, key ? `rgba(${key.r}, ${key.g}, ${key.b}, 0.45)` : "rgba(255, 255, 255, 0.4)");
   spec.addColorStop(1, "rgba(255, 255, 255, 0)");
   ctx.fillStyle = spec;
   ctx.beginPath();
@@ -441,6 +458,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const isDay = hour >= 7 && hour < 17
     const AREA_PER_STAR = isNight ? 1800 : isDay ? 2800 : 2250
     const STAR_BASE_BRIGHTNESS = isNight ? 0.5 : isDay ? 0.3 : 0.4
+    // The planets' key light follows the same hour (gold around dawn and dusk,
+    // cool at night); the hero nebula reads the same table in lib/sky.ts
+    const keyLight = skyPalette(hour).keyLight
 
     // --- State ---
     let stars: Star[] = []
@@ -693,7 +713,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         planet.y = centerY + Math.sin(planet.orbitAngle) * planet.distanceFromCenter + offsetY;
 
         // Draw the planet (shaded body, cloud bands, ring system)
-        drawPlanet(bgCtx, planet);
+        drawPlanet(bgCtx, planet, keyLight);
       });
 
       // 2. Draw Stars

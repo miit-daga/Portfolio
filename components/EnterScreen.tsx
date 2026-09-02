@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
+import { Porthole } from "./ui/porthole"
 
 interface EnterScreenProps {
     onAnimationComplete: () => void
@@ -203,6 +204,8 @@ export const EnterScreen = ({ onAnimationComplete }: EnterScreenProps) => {
                 >
                     {/* Rotating dashed outer ring */}
                     <span className="absolute inset-0 animate-[spin_28s_linear_infinite] rounded-full border border-dashed border-teal-400/35 motion-reduce:animate-none" />
+                    {/* Porthole: a live glimpse of the site behind the glass, under the ring */}
+                    <Porthole reduce={reduce} />
                     {/* Glowing portal ring */}
                     <span className="absolute inset-2.5 rounded-full border border-teal-400/70 bg-teal-500/[0.06] shadow-[0_0_24px_rgba(45,212,191,0.3),inset_0_0_22px_rgba(45,212,191,0.15)] transition-all duration-300 group-hover:border-teal-300 group-hover:shadow-[0_0_42px_rgba(45,212,191,0.5),inset_0_0_30px_rgba(45,212,191,0.22)]" />
                     <span className="relative z-10 text-sm font-medium uppercase tracking-[0.3em] text-teal-200 transition-colors group-hover:text-white">
