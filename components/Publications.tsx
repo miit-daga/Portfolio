@@ -21,10 +21,10 @@ const Publications = [
     },
     {
         type: "journal" as const,
-        venue: "IEEE Access",
-        title: "CocoSyn: A Deployment-Ready Federated Framework for Coconut Disease Detection Validated by the SAFE Protocol",
-        description: "Introduces CocoSyn, a decentralized Federated Learning framework, and the SAFE Protocol, a rigorous multi-seed evaluation standard designed to verify AI stability on the edge. Leveraging the DeepSeqCoco model as a backbone, this work simulates challenging non-IID data environments to stress-test deployment readiness. The study reveals that standard single-run evaluations often mask catastrophic failure modes present in SGD optimizers. By applying the SAFE protocol, the research demonstrates that Adam provides the necessary resilience for real-world agricultural use, achieving near-centralized accuracy (~96%) with superior stability. The work has been published in IEEE Access.",
-        link: "https://doi.org/10.1109/ACCESS.2026.3659709",
+        venue: "Array · Elsevier",
+        title: "VeriX-Anon: A multi-layered framework for mathematically verifiable outsourced target-driven data anonymization",
+        description: "Introduces VeriX-Anon, a multi-layered verification framework that lets a data owner mathematically audit whether a cloud provider faithfully executed outsourced Target-Driven k-anonymization. It combines three orthogonal mechanisms: deterministic verification via Merkle-style SHA-256 hashing of an authenticated decision tree, probabilistic verification via Boundary Sentinels and exact-duplicate Twins carrying cryptographic TrackerIDs, and utility verification via Explainable AI fingerprinting that compares SHAP value distributions before and after anonymization using the Wasserstein distance. Across seven cross-domain datasets and four cloud profiles (28 scenarios) spanning Lazy, Dumb, and Approximate adversaries, the framework detects 27 of 28 deviations with per-dataset threshold calibration and no false alarms, with the XAI layer alone catching the Approximate adversary that defeats both hash and trap checks. Client-side verification completes in under one second at one million rows, avoiding the cost of full re-execution. The work has been published in Array (Elsevier).",
+        link: "https://doi.org/10.1016/j.array.2026.101169",
     },
     {
         type: "patent" as const,
@@ -50,7 +50,7 @@ const PublicationsSection = () => {
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications" style={accentVars(getSection("publications"))}>
             <Heading section="publications" />
             <p className="mt-4 text-center text-sm md:text-base text-neutral-400">
-                A few highlights below, drawn from 8 Scopus-indexed papers (with more under review), plus a book chapter and a filed patent.
+                A few highlights below, drawn from 10 Scopus-indexed papers (with more under review), plus a book chapter and a filed patent.
             </p>
             <HoverEffectPublications items={items} />
         </div>

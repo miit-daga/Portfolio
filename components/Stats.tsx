@@ -3,7 +3,7 @@ import { TelemetryGauge, type GaugeAccent } from "./ui/telemetry-gauge";
 import { getSection } from "@/constants/sections";
 
 const STATS: { to: number; decimals?: number; label: string }[] = [
-    { to: 8, label: "Scopus-Indexed Publications" },
+    { to: 10, label: "Scopus-Indexed Publications" },
     { to: 1, label: "Patent Filed" },
     { to: 2, label: "Hackathon Wins" },
     { to: 9.22, decimals: 2, label: "CGPA" },
