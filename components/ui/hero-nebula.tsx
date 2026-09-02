@@ -81,7 +81,9 @@ void main() {
 
   // Fade toward the edges so the clouds never form a hard frame
   float mask = 1.0 - smoothstep(0.45, 1.05, length(uv));
-  float alpha = smoothstep(0.20, 0.82, f) * mask * 0.75;
+  // Ramp starts lower and runs to full so the clouds hold their own under the
+  // hard-light gradient orbs painted above them
+  float alpha = smoothstep(0.18, 0.78, f) * mask;
 
   gl_FragColor = vec4(col, alpha);
 }`

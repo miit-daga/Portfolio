@@ -28,11 +28,11 @@ export type SkyPalette = {
 };
 
 const NIGHT: SkyPalette = {
-  base: [0.03, 0.05, 0.15],
-  mid: [0.06, 0.28, 0.36],
-  warp: [0.2, 0.11, 0.46],
-  filament: [0.18, 0.46, 0.54],
-  keyLight: { r: 205, g: 220, b: 255 },
+  base: [0.02, 0.03, 0.12],
+  mid: [0.05, 0.18, 0.38],
+  warp: [0.24, 0.08, 0.5],
+  filament: [0.16, 0.36, 0.6],
+  keyLight: { r: 190, g: 205, b: 255 },
 };
 
 const DAWN: SkyPalette = {
@@ -44,10 +44,10 @@ const DAWN: SkyPalette = {
 };
 
 const DAY: SkyPalette = {
-  base: [0.05, 0.11, 0.2],
-  mid: [0.09, 0.4, 0.42],
-  warp: [0.2, 0.22, 0.5],
-  filament: [0.28, 0.64, 0.62],
+  base: [0.06, 0.14, 0.24],
+  mid: [0.1, 0.5, 0.52],
+  warp: [0.16, 0.3, 0.56],
+  filament: [0.4, 0.78, 0.74],
   keyLight: { r: 255, g: 255, b: 255 },
 };
 

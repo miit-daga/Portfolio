@@ -25,9 +25,9 @@ const STAR_TINTS = ["#ffffff", "#ffffff", "#ffffff", "#99f6e4", "#c7d2fe"];
 const WORLD_HEXES = SECTIONS.map((s) => s.hex);
 const STAR_COUNT = 44;
 // Fractions of the porthole diameter; speeds are per second
-const WORLD_SPEED = 0.11;
-const WORLD_Y = 0.73;
-const WORLD_R = 0.11;
+const WORLD_SPEED = 0.16;
+const WORLD_Y = 0.74;
+const WORLD_R = 0.14;
 
 const hexToRgb = (hex: string): Rgb255 => {
     const n = parseInt(hex.replace("#", ""), 16);
@@ -57,7 +57,7 @@ function drawWorld(
     key: Rgb255,
 ) {
     const base = hexToRgb(hex);
-    const light = mix(shade(base, 0.5), key, 0.3);
+    const light = mix(shade(base, 0.5), key, 0.45);
     const dark = shade(base, -0.6);
     const lx = cx - r * 0.4;
     const ly = cy - r * 0.4;
@@ -138,20 +138,20 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
 
         const palette = skyPalette(resolveSkyHour());
         const key = palette.keyLight;
-        const backdrop = rgbCss([palette.base[0] * 0.6, palette.base[1] * 0.6, palette.base[2] * 0.6]);
+        const backdrop = rgbCss([palette.base[0] * 0.9, palette.base[1] * 0.9, palette.base[2] * 0.9]);
 
         let size = 0;
         const stars: Star[] = Array.from({ length: STAR_COUNT }, () => ({
             x: Math.random(),
             y: Math.random(),
-            r: 0.35 + Math.random() * 0.9,
+            r: 0.45 + Math.random() * 1.1,
             phase: Math.random() * Math.PI * 2,
             twinkle: 0.8 + Math.random() * 1.6,
             drift: 0.02 + Math.random() * 0.04,
             tint: STAR_TINTS[Math.floor(Math.random() * STAR_TINTS.length)],
         }));
         // Starts just off the right edge; the still frame parks it in view
-        const world: World = { x: 1 + WORLD_R * 2.4, idx: 0, ringed: true, wait: 0.6 };
+        const world: World = { x: 1 + WORLD_R * 2.4, idx: 0, ringed: true, wait: 0.4 };
         if (reduce) {
             world.x = 0.64;
             world.wait = 0;
@@ -184,9 +184,9 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
             ctx.fillRect(0, 0, s, s);
 
             // Nebula wisps in the hour's colours, drifting against each other
-            blob(palette.mid, s * (0.36 + 0.08 * Math.sin(t * 0.07)), s * (0.42 + 0.06 * Math.cos(t * 0.05)), s * 0.55, 0.4);
-            blob(palette.warp, s * (0.7 - 0.08 * Math.cos(t * 0.06)), s * (0.6 + 0.07 * Math.sin(t * 0.08)), s * 0.5, 0.34);
-            blob(palette.filament, s * (0.5 + 0.1 * Math.sin(t * 0.04 + 1)), s * (0.35 + 0.05 * Math.cos(t * 0.09)), s * 0.28, 0.14);
+            blob(palette.mid, s * (0.36 + 0.08 * Math.sin(t * 0.07)), s * (0.42 + 0.06 * Math.cos(t * 0.05)), s * 0.55, 0.62);
+            blob(palette.warp, s * (0.7 - 0.08 * Math.cos(t * 0.06)), s * (0.6 + 0.07 * Math.sin(t * 0.08)), s * 0.5, 0.55);
+            blob(palette.filament, s * (0.5 + 0.1 * Math.sin(t * 0.04 + 1)), s * (0.35 + 0.05 * Math.cos(t * 0.09)), s * 0.28, 0.28);
 
             // Stars: slow leftward drift, gentle twinkle
             const px = s / 110;
@@ -196,7 +196,7 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
                     st.x = 1.02;
                     st.y = Math.random();
                 }
-                ctx.globalAlpha = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(t * st.twinkle + st.phase));
+                ctx.globalAlpha = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(t * st.twinkle + st.phase));
                 ctx.fillStyle = st.tint;
                 ctx.beginPath();
                 ctx.arc(st.x * s, st.y * s, st.r * px, 0, Math.PI * 2);
@@ -212,14 +212,14 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
                 world.x = 1 + WORLD_R * 2.4;
                 world.idx = (world.idx + 1) % WORLD_HEXES.length;
                 world.ringed = !world.ringed;
-                world.wait = 1.5 + Math.random() * 2.5;
+                world.wait = 0.5 + Math.random() * 1.5;
             }
             drawWorld(ctx, world.x * s, WORLD_Y * s, WORLD_R * s, WORLD_HEXES[world.idx], world.ringed, key);
 
             // Glass: darken toward the frame so the ring reads as a real edge
             const vig = ctx.createRadialGradient(s / 2, s / 2, s * 0.3, s / 2, s / 2, s * 0.5);
             vig.addColorStop(0, "rgba(0, 0, 0, 0)");
-            vig.addColorStop(1, "rgba(0, 0, 0, 0.6)");
+            vig.addColorStop(1, "rgba(0, 0, 0, 0.5)");
             ctx.fillStyle = vig;
             ctx.fillRect(0, 0, s, s);
         };
@@ -255,7 +255,7 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
     return (
         <span
             aria-hidden
-            className="pointer-events-none absolute inset-2.5 overflow-hidden rounded-full opacity-90 transition-opacity duration-300 group-hover:opacity-100"
+            className="pointer-events-none absolute inset-2.5 overflow-hidden rounded-full opacity-95 transition-opacity duration-300 group-hover:opacity-100"
         >
             <canvas ref={canvasRef} className="block h-full w-full" />
             {/* Glass: a soft reflection across the upper-left of the pane */}
@@ -270,7 +270,7 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
             <span
                 className="absolute inset-0 rounded-full"
                 style={{
-                    background: "radial-gradient(circle closest-side at 50% 50%, rgba(0,0,0,0.32) 0%, rgba(0,0,0,0) 45%)",
+                    background: "radial-gradient(circle closest-side at 50% 50%, rgba(0,0,0,0.26) 0%, rgba(0,0,0,0) 45%)",
                 }}
             />
         </span>

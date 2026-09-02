@@ -161,7 +161,7 @@ const drawPlanet = (
   if (r <= 0.5) return;
 
   const base = hexToRgb(p.color);
-  const light = key ? mixRgb(shadeRgb(base, 0.55), key, 0.35) : shadeRgb(base, 0.55);
+  const light = key ? mixRgb(shadeRgb(base, 0.55), key, 0.5) : shadeRgb(base, 0.55);
   const dark = shadeRgb(base, -0.62);
   const lx = p.x - r * 0.4; // light source (upper-left)
   const ly = p.y - r * 0.4;
