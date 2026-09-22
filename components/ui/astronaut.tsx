@@ -62,8 +62,6 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
     const artRef = useRef<HTMLDivElement>(null);
     const cableRef = useRef<SVGPathElement>(null);
     const exhaustRef = useRef<HTMLDivElement>(null);
-    const armRef = useRef<SVGElement | null>(null);
-    const glintRef = useRef<SVGElement | null>(null);
     const [asleep, setAsleep] = useState(false);
     const [startled, setStartled] = useState(false);
     const sleepRef = useRef(false);
@@ -330,21 +328,30 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
         };
 
         // Wave: the right arm swings up and back a few times
+        // Parts are looked up when used, never cached: the inlined SVG can be
+        // re-created under us, and a cached node would be a detached copy.
+        // That is exactly how the wave once silently animated nothing.
+        const part = (id: string) => body.querySelector<SVGElement>(`#${id}`);
+
         const wave = () => {
-            const arm = armRef.current;
+            const arm = part("astro-arm-wave");
             if (!arm || sleepRef.current) return;
+            arm.style.transformBox = "view-box";
+            arm.style.transformOrigin = "86px 74px";
             // The arm is drawn already raised; the wave swings it about the
             // shoulder (set as its transform origin in SvgArt)
             arm.animate(
+                // Wide enough to read as a wave at 60px tall
                 [
                     { transform: "rotate(0deg)" },
-                    { transform: "rotate(-22deg)" },
-                    { transform: "rotate(14deg)" },
-                    { transform: "rotate(-22deg)" },
-                    { transform: "rotate(14deg)" },
+                    { transform: "rotate(-40deg)" },
+                    { transform: "rotate(22deg)" },
+                    { transform: "rotate(-40deg)" },
+                    { transform: "rotate(22deg)" },
+                    { transform: "rotate(-40deg)" },
                     { transform: "rotate(0deg)" },
                 ],
-                { duration: 1500, easing: "ease-in-out" },
+                { duration: 1600, easing: "ease-in-out" },
             );
         };
 
@@ -359,14 +366,16 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
 
         // Visor glint leans toward the cursor
         const onPointer = (e: PointerEvent) => {
-            const g = glintRef.current;
+            const g = part("astro-glint");
             if (!g || !onScreen) return;
+            g.style.transition = "transform 0.3s ease-out, opacity 0.6s";
             const r = body.getBoundingClientRect();
             const dx = e.clientX - (r.left + r.width / 2);
             const dy = e.clientY - (r.top + r.height * 0.25);
             const d = Math.hypot(dx, dy) || 1;
-            // In viewBox units: the visor is 36 wide, the glint 8
-            g.setAttribute("transform", `translate(${(dx / d) * 8} ${(dy / d) * 6})`);
+            // In viewBox units. The visor spans x 42-78 and the glint rests left
+            // of centre at 52, so it travels further right than left to stay on it
+            g.setAttribute("transform", `translate(${5 + (dx / d) * 11} ${(dy / d) * 7})`);
         };
 
         const io = new IntersectionObserver(([entry]) => {
@@ -419,7 +428,7 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
                 style={{ width: RIG.w, height: RIG.h, transformOrigin: "50% 50%" }}
             >
                 <div ref={artRef} className="relative h-full w-full" style={{ filter: "drop-shadow(0 0 8px rgba(251,191,36,0.16))" }}>
-                    <SvgArt armRef={armRef} glintRef={glintRef} asleep={asleep} />
+                    <SvgArt asleep={asleep} />
                 </div>
 
                 {/* Sleep: a slow drift of z's */}
@@ -448,31 +457,9 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
     );
 };
 
-// The SVG artwork, with its rig parts handed back to the behaviour above
-const SvgArt = ({
-    armRef,
-    glintRef,
-    asleep,
-}: {
-    armRef: React.MutableRefObject<SVGElement | null>;
-    glintRef: React.MutableRefObject<SVGElement | null>;
-    asleep: boolean;
-}) => {
+// The SVG artwork. Its parts are found by id when needed (see part() above)
+const SvgArt = ({ asleep }: { asleep: boolean }) => {
     const hostRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const host = hostRef.current;
-        if (!host) return;
-        const arm = host.querySelector<SVGElement>("#astro-arm-wave");
-        if (arm) {
-            arm.style.transformBox = "view-box";
-            arm.style.transformOrigin = "86px 74px";
-        }
-        armRef.current = arm;
-        const glint = host.querySelector<SVGElement>("#astro-glint");
-        if (glint) glint.style.transition = "transform 0.3s ease-out, opacity 0.6s";
-        glintRef.current = glint;
-    }, [armRef, glintRef]);
 
     // Asleep: chest lights off, visor glint dimmed
     useEffect(() => {
