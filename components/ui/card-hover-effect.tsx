@@ -227,8 +227,8 @@ export const Card = ({
         className
       )}
       style={{
-        backdropFilter: "blur(120px)",
-        WebkitBackdropFilter: "blur(120px)",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
         background: "rgba(0, 0, 0, 0.6)",
         // Featured cards sit a touch brighter so the curated block reads as
         // deliberate without changing the grid geometry.

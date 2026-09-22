@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import { Octokit } from "@octokit/core";
 import { FEATURED, isVisible, orderByCuration, type CuratedRepo } from '@/constants/projects';
 
-export const revalidate = 10;
+// Each regeneration costs one GitHub call plus one per repo for languages.
+// At 10 s a busy hour could spend thousands of calls and brush the rate limit;
+// 15 minutes keeps new repos appearing the same day at a fraction of the cost.
+export const revalidate = 900;
 
 // Octokit types `response.data` as `any` for this endpoint, so pin the fields
 // we actually read rather than letting them go implicitly untyped.

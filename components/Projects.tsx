@@ -69,8 +69,8 @@ const Projects = () => {
                 "animate-pulse"
               )}
               style={{
-                backdropFilter: "blur(120px)",
-                WebkitBackdropFilter: "blur(120px)",
+                backdropFilter: "blur(16px)",
+                WebkitBackdropFilter: "blur(16px)",
               }}
             >
               <div className="relative z-50">
@@ -89,8 +89,8 @@ const Projects = () => {
           <div
             className="rounded-2xl p-8 overflow-hidden bg-black/60 border border-white/10 relative z-20 max-w-md w-full text-center"
             style={{
-              backdropFilter: "blur(120px)",
-              WebkitBackdropFilter: "blur(120px)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
             }}
           >
             <div className="text-4xl mb-4">📡</div>
@@ -111,8 +111,8 @@ const Projects = () => {
           <div
             className="rounded-2xl p-8 overflow-hidden bg-black/60 border border-white/10 relative z-20 max-w-md w-full text-center"
             style={{
-              backdropFilter: "blur(120px)",
-              WebkitBackdropFilter: "blur(120px)",
+              backdropFilter: "blur(16px)",
+              WebkitBackdropFilter: "blur(16px)",
             }}
           >
             <div className="text-4xl mb-4">🔭</div>

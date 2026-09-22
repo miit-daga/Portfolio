@@ -25,7 +25,8 @@ const STARS = [
 ];
 const EDGES = ["0-1", "1-2", "2-3", "3-4"];
 const M_PATH = "M 70 168 L 78 52 L 125 118 L 172 50 L 182 168";
-export const CONSTELLATION_STORAGE_KEY = "constellation-charted";
+import { CONSTELLATION_STORAGE_KEY } from "./constellation-key";
+export { CONSTELLATION_STORAGE_KEY };
 const STORAGE_KEY = CONSTELLATION_STORAGE_KEY;
 
 // One pluck per correct link, ascending (C5 E5 G5 C6)

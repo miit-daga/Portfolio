@@ -251,6 +251,9 @@ export const FloatingNav = ({
               <MagneticWrapper key={navItem.link} strength={0.2}>
                 <Link
                   href={navItem.link}
+                  // terminal.html is a static file, not a route: prefetching it
+                  // as one wasted a request and logged a 404 on every page load
+                  prefetch={false}
                   onClick={(e) => handleNavClick(e, navItem.link)}
                   target={navItem.name === "Terminal" ? "_blank" : undefined}
                   rel={navItem.name === "Terminal" ? "noopener noreferrer" : undefined}

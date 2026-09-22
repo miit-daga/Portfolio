@@ -52,16 +52,25 @@ export const StardustTrail = () => {
     handleResize()
     window.addEventListener("resize", handleResize)
 
+    // The loop sleeps once every particle and ripple has faded and the pointer
+    // is still, and wakes on the next move or click. Idle, it used to clear a
+    // full-screen canvas sixty times a second with nothing to draw.
+    let running = false
+    const wake = () => {
+      if (running) return
+      running = true
+      animFrameRef.current = requestAnimationFrame(animate)
+    }
+
     const handleMouseMove = (e: MouseEvent) => {
       mouseRef.current = { x: e.clientX, y: e.clientY }
-      // Recolor based on what's under the pointer (the trail canvas is pointer-events:none)
-      const el = document.elementFromPoint(e.clientX, e.clientY) as Element | null
-      colorRef.current = el?.closest(INTERACTIVE_SELECTOR) ? TRAIL_GOLD : TRAIL_TEAL
+      wake()
     }
     window.addEventListener("mousemove", handleMouseMove)
 
     // Click burst: a radial spray of sparks + an expanding ripple ring
     const handleClick = (e: MouseEvent) => {
+      wake()
       const cx = e.clientX
       const cy = e.clientY
       ringsRef.current.push({ x: cx, y: cy, life: 0, maxLife: 22, color: { ...colorRef.current } })
@@ -94,6 +103,11 @@ export const StardustTrail = () => {
 
       // Only spawn particles when mouse has moved enough
       if (dist > 2) {
+        // Recolor based on what's under the pointer (the trail canvas is
+        // pointer-events:none). Once per frame rather than per mousemove event,
+        // which can fire several times a frame.
+        const el = document.elementFromPoint(x, y) as Element | null
+        colorRef.current = el?.closest(INTERACTIVE_SELECTOR) ? TRAIL_GOLD : TRAIL_TEAL
         const spread = 8
         particlesRef.current.push({
           x: x + (Math.random() - 0.5) * spread,
@@ -166,10 +180,13 @@ export const StardustTrail = () => {
         ctx.restore()
       }
 
+      // Nothing left to draw and the pointer has settled: sleep until woken
+      if (dist <= 2 && particlesRef.current.length === 0 && ringsRef.current.length === 0) {
+        running = false
+        return
+      }
       animFrameRef.current = requestAnimationFrame(animate)
     }
-
-    animFrameRef.current = requestAnimationFrame(animate)
 
     return () => {
       cancelAnimationFrame(animFrameRef.current)

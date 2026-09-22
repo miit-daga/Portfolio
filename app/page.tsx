@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import Hero from "@/components/Hero";
 import Paragraph from "@/components/Paragraph";
@@ -30,14 +31,23 @@ import { SectionDivider } from "@/components/ui/section-divider";
 import { Reveal } from "@/components/ui/reveal";
 import { CollectiblesProvider, CollectibleHUD, Fragment as Collectible, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
 import { BlackHoleOverlay } from "@/components/ui/black-hole";
-import { WarpOverlay } from "@/components/ui/warp-overlay";
-import { ConstellationPuzzle, CONSTELLATION_STORAGE_KEY } from "@/components/ui/constellation-puzzle";
-import { DefenseMode } from "@/components/ui/defense-mode";
-import { IdleAlien } from "@/components/ui/idle-alien";
+import { CONSTELLATION_STORAGE_KEY } from "@/components/ui/constellation-key";
 import { MobileNotice } from "@/components/ui/mobile-notice";
 import { FlightPath } from "@/components/ui/flight-path";
 import { AmbientGlow } from "@/components/ui/ambient-glow";
 import { scrollToSection } from "@/lib/scroll-to-section";
+
+// Easter eggs and the About puzzle load just after first paint, in their own
+// chunks, rather than in the page bundle every visitor downloads up front.
+// Each renders exactly as before once loaded. The black hole stays eager: it
+// is part of the timed Konami sequence and must be ready the instant it fires.
+const WarpOverlay = dynamic(() => import("@/components/ui/warp-overlay").then((m) => m.WarpOverlay), { ssr: false });
+const DefenseMode = dynamic(() => import("@/components/ui/defense-mode").then((m) => m.DefenseMode), { ssr: false });
+const IdleAlien = dynamic(() => import("@/components/ui/idle-alien").then((m) => m.IdleAlien), { ssr: false });
+const ConstellationPuzzle = dynamic(
+  () => import("@/components/ui/constellation-puzzle").then((m) => m.ConstellationPuzzle),
+  { ssr: false },
+);
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);

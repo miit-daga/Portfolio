@@ -20,8 +20,9 @@ import {
 } from "@tabler/icons-react";
 import { warpForJump } from "@/components/ui/warp-overlay";
 
-export function CommandMenu() {
-    const [open, setOpen] = React.useState(false);
+export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) {
+    // defaultOpen: the lazy loader mounts this on the first Cmd+K, already open
+    const [open, setOpen] = React.useState(defaultOpen);
 
     React.useEffect(() => {
         const down = (e: KeyboardEvent) => {
