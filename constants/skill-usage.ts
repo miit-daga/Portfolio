@@ -14,6 +14,7 @@ export type Usage = {
   section: SectionId;
 };
 
+const TALENDY: Usage = { label: "Talendy Holdings", section: "workex" };
 const TATA: Usage = { label: "Tata Power", section: "workex" };
 const AKATSUKI: Usage = { label: "Akatsuki AI", section: "workex" };
 const TECHWIRE: Usage = { label: "TechWire Studio", section: "workex" };
@@ -58,7 +59,9 @@ export const SKILL_USAGE: Record<string, Usage[]> = {
   Firebase: [TECHWIRE],
 
   Git: [EVERYWHERE],
-  AWS: [TATA, TECHWIRE, FITAI],
+  AWS: [TALENDY, AKATSUKI, TATA, TECHWIRE, FITAI],
+  // DisMan's services run on Google Cloud Speech-to-Text and Translate
+  GCP: [DISMAN],
   Nginx: [TATA, TECHWIRE],
   "VS Code": [DAILY],
   Vercel: [THIS_SITE],

@@ -15,7 +15,7 @@ const skillsData = {
     "Languages": ["JavaScript", "TypeScript", "Java", "Python", "C", "C++", "HTML", "CSS", "SQL"],
     "Libraries/Frameworks": ["NodeJS", "ExpressJS", "FastAPI", "ReactJS", "NextJS", "Bootstrap", "Chakra UI"],
     "Databases": ["MongoDB", "MySQL", "PostgreSQL", "Redis", "Firebase", "BigQuery"],
-    "Other Tools & Platforms": ["Git", "Postman", "Playwright", "AWS", "Nginx", "VS Code", "Render", "Vercel", "Netlify"],
+    "Other Tools & Platforms": ["Git", "Postman", "Playwright", "AWS", "GCP", "Nginx", "VS Code", "Render", "Vercel", "Netlify"],
 };
 
 const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string; stroke?: number; style?: CSSProperties }>> = {
@@ -149,9 +149,11 @@ function SystemPanel({
             </motion.ul>
 
             {/* Trace readout: where the hovered skill was actually used. Fixed
-                height so the grid never jumps as the contents change. */}
+                height in the two-column grid (lg) so neighbours never jump as
+                the contents change; on narrower screens the panels stack, so it
+                may grow for a long trail instead of clipping it. */}
             <div
-                className="flex h-[46px] items-center gap-x-3 gap-y-1 overflow-hidden border-t px-4 font-mono text-[10px]"
+                className="flex min-h-[46px] items-center gap-x-3 gap-y-1 overflow-hidden border-t px-4 py-2 font-mono text-[10px] lg:h-[46px] lg:py-0"
                 style={{ borderColor: `rgba(${RGB}, 0.14)`, background: `rgba(${RGB}, 0.04)` }}
                 aria-live="polite"
             >
