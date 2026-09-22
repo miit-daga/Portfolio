@@ -292,3 +292,32 @@ html {
   animation: none;
   opacity: 1;
 }
+/* --- Hero hologram ---
+   The photo keeps its natural colours; the hologram read comes from a cyan
+   rim light (drop-shadow follows the cutout's alpha, so it hugs the figure),
+   the projector cone and scanlines. Hover brightens the rim. */
+.holo-figure {
+  filter: drop-shadow(0 0 1px rgba(153, 246, 228, 0.85)) drop-shadow(0 0 14px rgba(45, 212, 191, 0.4));
+  transition: filter 0.7s ease-out;
+}
+
+.group:hover .holo-figure {
+  filter: drop-shadow(0 0 1.5px rgba(204, 251, 241, 1)) drop-shadow(0 0 22px rgba(45, 212, 191, 0.6));
+}
+
+/* Projector beam: a faint, irregular flicker, like a real hologram's lamp */
+@keyframes holo-flicker {
+  0%, 100% { opacity: 1; }
+  42% { opacity: 1; }
+  43% { opacity: 0.55; }
+  45% { opacity: 1; }
+  71% { opacity: 1; }
+  72% { opacity: 0.7; }
+  73% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .holo-beam {
+    animation: holo-flicker 5.5s steps(1) infinite;
+  }
+}

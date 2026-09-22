@@ -7,9 +7,24 @@ import Socials from "./Socials";
 import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { SignalRings } from "./ui/signal-rings";
-import { CrewCard } from "./ui/crew-card";
-import { SignalGlobe } from "./ui/signal-globe";
+import dynamic from "next/dynamic";
+
+// The scenes at the foot of the page (UFO, crew card with its QR library,
+// globe, pass printer) load in their own chunks after first paint. The
+// placeholders hold their space so nothing shifts when they arrive.
+const SignalRings = dynamic(() => import("./ui/signal-rings").then((m) => m.SignalRings), { ssr: false });
+const CrewCard = dynamic(() => import("./ui/crew-card").then((m) => m.CrewCard), {
+    ssr: false,
+    loading: () => <div className="h-[237px] w-[336px] sm:h-[253px] sm:w-[362px]" />,
+});
+const SignalGlobe = dynamic(() => import("./ui/signal-globe").then((m) => m.SignalGlobe), {
+    ssr: false,
+    loading: () => <div style={{ width: 280, height: 350 }} />,
+});
+const ContactActions = dynamic(() => import("./ui/contact-actions").then((m) => m.ContactActions), {
+    ssr: false,
+    loading: () => <div className="h-[38px]" />,
+});
 import { accentVars, getSection } from "@/constants/sections";
 
 type ContactType = "email" | "phone" | null;
@@ -92,7 +107,17 @@ export function Contact() {
                         If something I’m building resonates with you, let’s connect. Whether it’s a question about my research, a project idea, or a conversation in the cosmos of code, my frequencies are open.
                     </p>
 
-                    <div className="flex flex-col gap-6 mt-10 w-full items-center lg:items-start">
+                    {/* The one call to action, above the rows and the scenery */}
+                    <a
+                        href="mailto:miitcodes27@gmail.com?subject=Hello%20from%20miitdaga.dev"
+                        className="group mt-8 inline-flex items-center gap-3 rounded-full px-7 py-3.5 text-base font-semibold text-neutral-950 shadow-[0_0_32px_rgba(251,191,36,0.35)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_44px_rgba(251,191,36,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+                        style={{ background: `linear-gradient(135deg, ${CONTACT.pale}, ${CONTACT.light} 45%, ${CONTACT.hex})` }}
+                    >
+                        <IconSend className="h-5 w-5 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                        Send a message
+                    </a>
+
+                    <div className="flex flex-col gap-6 mt-8 w-full items-center lg:items-start">
                         {/* Email */}
                         <div className="group relative w-fit">
                             <a
@@ -146,8 +171,9 @@ export function Contact() {
 
             {/* Crew ID + live signal path */}
             <div className="max-w-7xl mx-auto px-4 mt-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
-                <div className="flex justify-center">
+                <div className="flex flex-col items-center gap-5">
                     <CrewCard />
+                    <ContactActions />
                 </div>
                 <div className="flex justify-center">
                     <SignalGlobe />

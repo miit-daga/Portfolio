@@ -1,11 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useInView, useReducedMotion } from "framer-motion";
+import { kolkataNow } from "@/lib/kolkata";
 
 // A slowly swaying wireframe globe with a glowing signal arc from the
 // visitor's location (IP-geolocated by Vercel's edge headers, with a
 // timezone-based fallback for localhost; no permission popups either way) to
 // home base in Kolkata, plus a ping pulse and a mono telemetry readout.
+// The night side is shaded from the sun's real position, the ISS rides its
+// live orbit, and the readout says when a reply is likely.
 const BASE = { lat: 22.57, lon: 88.36 }; // Kolkata
 const LIGHTSPEED_KM_S = 299792;
 
@@ -74,6 +77,21 @@ const haversineKm = (aLat: number, aLon: number, bLat: number, bLon: number) => 
     return Math.round(6371 * 2 * Math.asin(Math.sqrt(h)));
 };
 
+// Where the sun is overhead right now: declination from the day of the year,
+// longitude from UTC. Ignores the equation of time, so the terminator can sit
+// a few degrees off, which at this size is under a pixel.
+const sunVector = (d: Date): Vec3 => {
+    const dayOfYear = (d.getTime() - Date.UTC(d.getUTCFullYear(), 0, 0)) / 86400000;
+    const declination = 23.44 * Math.sin((2 * Math.PI * (284 + dayOfYear)) / 365);
+    const utcHours = d.getUTCHours() + d.getUTCMinutes() / 60;
+    return toVec(declination, (12 - utcHours) * 15);
+};
+
+// Resolution of the night overlay, drawn per pixel then scaled up smoothly
+const NIGHT_RES = 96;
+// The ISS orbits about 420 km up: 1.066 Earth radii
+const ISS_LIFT = 1.066;
+
 const SIZE = 280;
 const R = SIZE * 0.4;
 const CX = SIZE / 2;
@@ -85,6 +103,47 @@ export const SignalGlobe = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const inView = useInView(wrapRef, { margin: "-40px" });
     const [origin, setOrigin] = useState<{ lat: number; lon: number; city: string } | null>(null);
+    // Live ISS position, read by the draw loop without restarting it
+    const issRef = useRef<{ lat: number; lon: number } | null>(null);
+    // Re-renders the Kolkata clock line
+    const [clock, setClock] = useState<Date | null>(null);
+
+    useEffect(() => {
+        setClock(new Date());
+        const id = setInterval(() => setClock(new Date()), 30000);
+        return () => clearInterval(id);
+    }, []);
+
+    // Hand the visitor's city to the visitor pass, so it does not look it up again
+    useEffect(() => {
+        if (!origin) return;
+        try {
+            sessionStorage.setItem("visitor-origin", origin.city);
+        } catch {
+            /* ignore */
+        }
+    }, [origin]);
+
+    // ISS: fetch while the globe is on screen, every 15 s
+    useEffect(() => {
+        if (!inView) return;
+        let alive = true;
+        const poll = () =>
+            fetch("https://api.wheretheiss.at/v1/satellites/25544", { cache: "no-store" })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d) => {
+                    if (alive && d && Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
+                        issRef.current = { lat: d.latitude, lon: d.longitude };
+                    }
+                })
+                .catch(() => {});
+        poll();
+        const id = setInterval(poll, 15000);
+        return () => {
+            alive = false;
+            clearInterval(id);
+        };
+    }, [inView]);
 
     // Resolve the visitor's position: IP geolocation via /api/visitor-location
     // (Vercel edge headers, city-accurate), falling back to the timezone
@@ -139,7 +198,10 @@ export const SignalGlobe = () => {
         const mid = slerp(vFrom, vTo, 0.5);
         const thetaBase = Math.atan2(mid[2], mid[0]) - Math.PI / 2;
 
-        const project = (v: Vec3) => ({ x: CX + R * v[0], y: CY - R * v[1], z: v[2] });
+        // x is negated so east falls on the right, as on a real globe seen from
+        // outside. It used to be mirrored, which nothing revealed until the
+        // day/night terminator put the sunrise on the wrong side.
+        const project = (v: Vec3) => ({ x: CX - R * v[0], y: CY - R * v[1], z: v[2] });
 
         // Sampled grid polyline; drawn segment by segment so back-facing parts drop out
         const drawPolyline = (pts: Vec3[], theta: number, alpha: number) => {
@@ -171,6 +233,51 @@ export const SignalGlobe = () => {
 
         const ARC_N = 72;
 
+        // Night overlay: an offscreen canvas coloured per pixel from each
+        // point's angle to the sun, with a soft twilight band at the edge
+        const nightCanvas = document.createElement("canvas");
+        nightCanvas.width = NIGHT_RES;
+        nightCanvas.height = NIGHT_RES;
+        const nctx = nightCanvas.getContext("2d");
+        const nightImg = nctx ? nctx.createImageData(NIGHT_RES, NIGHT_RES) : null;
+
+        const drawNight = (theta: number) => {
+            if (!nctx || !nightImg) return;
+            // Rotating the sun with the globe keeps every dot product the same
+            const s = rotY(sunVector(new Date()), theta);
+            const px = nightImg.data;
+            for (let j = 0; j < NIGHT_RES; j++) {
+                const y = 1 - (2 * (j + 0.5)) / NIGHT_RES;
+                for (let i = 0; i < NIGHT_RES; i++) {
+                    const x = (2 * (i + 0.5)) / NIGHT_RES - 1;
+                    const k = (j * NIGHT_RES + i) * 4;
+                    const rr = x * x + y * y;
+                    if (rr > 1) {
+                        px[k + 3] = 0;
+                        continue;
+                    }
+                    // Screen x is the negated rotated x (see project)
+                    const dot = -x * s[0] + y * s[1] + Math.sqrt(1 - rr) * s[2];
+                    // 0 on the night side, 1 on the day side, blended across twilight.
+                    // The sphere is nearly transparent over a black sky, so darkening
+                    // the night side alone would not show: the day side gets a teal
+                    // wash, brightest under the sun, and the night side goes navy.
+                    const day = Math.min(1, Math.max(0, (dot + 0.08) / 0.16));
+                    px[k] = Math.round(2 + 43 * day);
+                    px[k + 1] = Math.round(6 + 206 * day);
+                    px[k + 2] = Math.round(23 + 168 * day);
+                    px[k + 3] = Math.round((1 - day) * 150 + day * (16 + 40 * Math.max(0, dot)));
+                }
+            }
+            nctx.putImageData(nightImg, 0, 0);
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(CX, CY, R, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(nightCanvas, CX - R, CY - R, R * 2, R * 2);
+            ctx.restore();
+        };
+
         const draw = (t: number) => {
             const theta = thetaBase + (reduce ? 0 : 0.45 * Math.sin((t * 2 * Math.PI) / 14));
             ctx.clearRect(0, 0, SIZE, SIZE);
@@ -183,6 +290,8 @@ export const SignalGlobe = () => {
             ctx.strokeStyle = "rgba(45,212,191,0.3)";
             ctx.lineWidth = 1;
             ctx.stroke();
+
+            drawNight(theta);
 
             ctx.lineWidth = 0.6;
             parallels.forEach((p, i) => drawPolyline(p, theta, i === 2 ? 0.3 : 0.18));
@@ -241,6 +350,23 @@ export const SignalGlobe = () => {
                 ctx.stroke();
             }
 
+            // The ISS, a little above the surface, when it is on this side
+            const iss = issRef.current;
+            if (iss) {
+                const v = toVec(iss.lat, iss.lon).map((c) => c * ISS_LIFT) as Vec3;
+                const p = project(rotY(v, theta));
+                if (p.z > 0) {
+                    ctx.fillStyle = "#fde68a";
+                    ctx.shadowColor = "rgba(253,230,138,0.9)";
+                    ctx.shadowBlur = 6;
+                    ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+                    ctx.shadowBlur = 0;
+                    ctx.font = "8px ui-monospace, SFMono-Regular, monospace";
+                    ctx.fillStyle = "rgba(253,230,138,0.85)";
+                    ctx.fillText("ISS", p.x + 5, p.y - 4);
+                }
+            }
+
             // Ping pulse travelling along the arc
             if (!reduce) {
                 const u = (t % 2.6) / 2.6;
@@ -290,6 +416,12 @@ export const SignalGlobe = () => {
                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 motion-reduce:animate-none" />
                         {distance.toLocaleString()} km &middot; rtt {rttMs} ms at lightspeed
                     </p>
+                    {clock && (
+                        <p>
+                            kolkata {kolkataNow(clock).time} &middot;{" "}
+                            <span style={{ color: kolkataNow(clock).mood.color }}>{kolkataNow(clock).mood.reply}</span>
+                        </p>
+                    )}
                 </div>
             )}
         </div>

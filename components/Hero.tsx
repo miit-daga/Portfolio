@@ -9,6 +9,7 @@ import { MagneticWrapper } from "./ui/magnetic-wrapper"
 import { AstronautBuddy } from "./ui/astronaut"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
+import { kolkataNow } from "@/lib/kolkata"
 
 // A meteor streaks across the hero every ~20-40s; nothing renders in between.
 type Streak = { top: number; left: number; angle: number; len: number; dur: number; key: number }
@@ -67,6 +68,47 @@ const ShootingStar = ({ disabled }: { disabled: boolean }) => {
     </div>
   )
 }
+
+// Kolkata's clock and a guess at what that hour looks like (lib/kolkata.ts),
+// so a visitor knows when a reply is likely. Renders nothing until mounted:
+// the server's hour is not the visitor's, and a mismatched first paint would
+// flash.
+const KolkataStatus = () => {
+  const [now, setNow] = useState<Date | null>(null)
+
+  useEffect(() => {
+    setNow(new Date())
+    const id = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (!now) return null
+
+  const { time, mood: status } = kolkataNow(now)
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.8 }}
+      className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/30 px-3 py-1 font-mono text-[11px] font-normal tracking-wide text-neutral-300 backdrop-blur-sm lg:mt-7"
+    >
+      <span className="relative flex h-2 w-2">
+        <span
+          className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 motion-reduce:animate-none"
+          style={{ background: status.color }}
+        />
+        <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: status.color }} />
+      </span>
+      <span>
+        Kolkata · {time} · <span style={{ color: status.color }}>{status.label}</span>
+      </span>
+    </motion.div>
+  )
+}
+
+// Fades the hologram's overlay layers out before their square edges
+const HOLO_OVERLAY_MASK = "radial-gradient(ellipse 46% 50% at 50% 48%, black 60%, transparent 100%)"
 
 const AVATAR_QUOTES = [
   "Booting personality.exe...",
@@ -186,6 +228,8 @@ const Hero = () => {
                 isGlitching={isGlitching}
               />
             </div>
+
+            <KolkataStatus />
           </div>
 
           {/* --- RIGHT SIDE: AVATAR --- */}
@@ -207,18 +251,49 @@ const Hero = () => {
                 style={{ rotateX: hologramRotateX, rotateY: hologramRotateY, transformStyle: "preserve-3d" }}
                 className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer"
               >
+                {/* Projector beam, widening upward from the base ring. Static
+                    gradients under a clip-path, so it costs nothing per frame
+                    beyond the occasional flicker (.holo-beam). */}
+                <div
+                  aria-hidden
+                  className="holo-beam pointer-events-none absolute -bottom-3 left-1/2 z-0 h-[92%] w-[78%] -translate-x-1/2 lg:-bottom-9"
+                  style={{
+                    clipPath: "polygon(38% 100%, 62% 100%, 100% 0%, 0% 0%)",
+                    background: "linear-gradient(to top, rgba(45,212,191,0.24), rgba(45,212,191,0.07) 55%, transparent 90%)",
+                    maskImage: "linear-gradient(to right, transparent, black 30%, black 70%, transparent)",
+                    WebkitMaskImage: "linear-gradient(to right, transparent, black 30%, black 70%, transparent)",
+                  }}
+                />
+                {/* Projector ring on the floor */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -bottom-4 left-1/2 z-0 h-3.5 w-[44%] -translate-x-1/2 rounded-[50%] border border-teal-300/50 lg:-bottom-10 lg:h-5 shadow-[0_0_22px_rgba(45,212,191,0.45),inset_0_0_12px_rgba(45,212,191,0.35)]"
+                />
+
                 <motion.div
                   animate={{ y: [-15, 15, -15] }}
                   transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                   className="relative w-full h-full"
                 >
-                  {/* 1. The Image */}
-                  {/* Transition removes filters on hover to show "Real" colors */}
-                  <div className={cn("relative w-full h-full grayscale-[50%] sepia-[50%] hue-rotate-[160deg] brightness-110 contrast-125 z-10 mix-blend-hard-light transition-all duration-700 ease-out group-hover:grayscale-0 group-hover:sepia-0 group-hover:hue-rotate-0 group-hover:brightness-100 group-hover:contrast-100 group-hover:mix-blend-normal", isGlitching && "hologram-glitch")}>
+                  {/* 1. The Image: natural colours, cyan rim light (.holo-figure).
+                      It used to be hue-shifted until hover, which turned skin
+                      blue, and phones can't hover, so they never saw the real
+                      colours. Materialises from the base up on load. */}
+                  <motion.div
+                    className="relative z-10 h-full w-full"
+                    initial={shouldReduceMotion ? false : { clipPath: "inset(100% 0% 0% 0%)" }}
+                    animate={{ clipPath: "inset(0% 0% 0% 0%)" }}
+                    transition={{ duration: 1.4, delay: 0.45, ease: [0.4, 0, 0.2, 1] }}
+                  >
+                  <div className={cn("holo-figure relative w-full h-full", isGlitching && "hologram-glitch")}>
                     <Image
                       src="/nobg.png"
                       alt="Hologram"
                       fill
+                      // Matches the box (w-64 / md:w-80 / lg:500px). Without it
+                      // next/image assumed 100vw and served a 3840px file to a
+                      // 500px slot: ~59 MB decoded instead of ~5 MB.
+                      sizes="(min-width: 1024px) 500px, (min-width: 768px) 320px, 256px"
                       className="object-contain"
                       style={{
                         // Fades the bottom
@@ -228,18 +303,41 @@ const Hero = () => {
                       priority
                     />
                   </div>
+                  </motion.div>
+
+                  {/* Materialise scan bar: rides the reveal edge up, then fades */}
+                  {!shouldReduceMotion && (
+                    <motion.div
+                      aria-hidden
+                      className="pointer-events-none absolute left-[12%] right-[12%] z-30 h-[2px] rounded-full"
+                      style={{
+                        background: "linear-gradient(90deg, transparent, #99f6e4, #ffffff, #99f6e4, transparent)",
+                        boxShadow: "0 0 14px rgba(45,212,191,0.9)",
+                      }}
+                      initial={{ bottom: "0%", opacity: 0 }}
+                      animate={{ bottom: "100%", opacity: [0, 1, 1, 0] }}
+                      transition={{ duration: 1.4, delay: 0.45, ease: [0.4, 0, 0.2, 1], opacity: { duration: 1.4, delay: 0.45, times: [0, 0.1, 0.85, 1] } }}
+                    />
+                  )}
 
                   {/* 2. Pure CSS Scanlines (Fades out on hover for clarity) */}
                   <div
-                    className="absolute inset-0 z-20 pointer-events-none opacity-30 transition-opacity duration-500 group-hover:opacity-10"
+                    className="absolute inset-0 z-20 pointer-events-none opacity-20 transition-opacity duration-500 group-hover:opacity-10"
                     style={{
                       background: "repeating-linear-gradient(to bottom, transparent 0px, transparent 2px, #000 3px)",
-                      backgroundSize: "100% 4px"
+                      backgroundSize: "100% 4px",
+                      // Soft edges: with the photo in natural colour the layer's
+                      // square outline showed against the sky
+                      maskImage: HOLO_OVERLAY_MASK,
+                      WebkitMaskImage: HOLO_OVERLAY_MASK,
                     }}
                   />
 
                   {/* 3. Subtle Glitch Gradient Overlay (Disappears on hover) */}
-                  <div className="absolute inset-0 z-30 bg-gradient-to-t from-teal-500/20 via-transparent to-transparent mix-blend-color-dodge opacity-40 pointer-events-none transition-opacity duration-500 group-hover:opacity-0" />
+                  <div
+                    className="absolute inset-0 z-30 bg-gradient-to-t from-teal-500/20 via-transparent to-transparent mix-blend-color-dodge opacity-40 pointer-events-none transition-opacity duration-500 group-hover:opacity-0"
+                    style={{ maskImage: HOLO_OVERLAY_MASK, WebkitMaskImage: HOLO_OVERLAY_MASK }}
+                  />
 
 
                   {/* Click reaction: bottom anchored just above the head, grows upward, rides the float bob */}
@@ -337,6 +435,25 @@ const Hero = () => {
               </kbd>
             </div>
           </div>
+
+          {/* --- DESKTOP SCROLL CUE --- */}
+          {/* A mouse outline with a rolling wheel. The wheel is placed with a
+              calc() rather than a centring translate, which framer's y would
+              overwrite. */}
+          <a
+            href="#about-me"
+            aria-label="Scroll to content"
+            className="pointer-events-auto absolute bottom-8 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-neutral-400 transition-colors duration-300 hover:text-teal-300 lg:flex"
+          >
+            <span className="relative block h-9 w-6 rounded-full border-2 border-current">
+              <motion.span
+                className="absolute left-[calc(50%-2px)] top-1.5 block h-2 w-1 rounded-full bg-current"
+                animate={shouldReduceMotion ? undefined : { y: [0, 9, 0], opacity: [1, 0.15, 1] }}
+                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+              />
+            </span>
+            <span className="font-mono text-[10px] font-normal uppercase tracking-[0.3em]">Scroll</span>
+          </a>
 
           {/* --- MOBILE SCROLL CUE --- */}
           {/* Positioned by a non-animated wrapper (framer's y bob would override the
