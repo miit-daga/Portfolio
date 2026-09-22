@@ -5,8 +5,8 @@ import type { SectionId } from "./sections";
 //
 // Only entries with evidence are listed: the work descriptions in
 // components/WorkExp.tsx, the education notes, and the featured repos'
-// dependencies. A skill with no entry simply shows no trail, so add to this
-// rather than guessing.
+// dependencies, plus what Miit has confirmed directly. A skill with no entry
+// falls back to FALLBACK_USAGE, so add to this rather than guessing.
 
 export type Usage = {
   label: string;
@@ -15,6 +15,7 @@ export type Usage = {
 };
 
 const TATA: Usage = { label: "Tata Power", section: "workex" };
+const AKATSUKI: Usage = { label: "Akatsuki AI", section: "workex" };
 const TECHWIRE: Usage = { label: "TechWire Studio", section: "workex" };
 const SECULINX: Usage = { label: "Seculinx", section: "workex" };
 
@@ -29,6 +30,13 @@ const RESEARCH: Usage = { label: "Research papers", section: "publications" };
 const ICSE: Usage = { label: "ICSE · Class X", section: "education" };
 const THIS_SITE: Usage = { label: "This site", section: "about-me" };
 
+// Tools that run through everything rather than a list of places
+const EVERYWHERE: Usage = { label: "Every project and internship", section: "workex" };
+const DAILY: Usage = { label: "Daily, for everything", section: "about-me" };
+
+/** Shown for a skill with no entry below, so the readout is never empty. */
+export const FALLBACK_USAGE: Usage[] = [{ label: "Various projects", section: "projects" }];
+
 export const SKILL_USAGE: Record<string, Usage[]> = {
   JavaScript: [FITAI, DISMAN],
   TypeScript: [QUICK_SEED, FLOWSQUIRE, ENV_GUARD, THIS_SITE],
@@ -40,6 +48,7 @@ export const SKILL_USAGE: Record<string, Usage[]> = {
 
   NodeJS: [QUICK_SEED, FLOWSQUIRE, ENV_GUARD, FITAI],
   ExpressJS: [FITAI, DISMAN],
+  FastAPI: [TATA, AKATSUKI],
   ReactJS: [THIS_SITE, DISMAN],
   NextJS: [THIS_SITE],
 
@@ -48,6 +57,9 @@ export const SKILL_USAGE: Record<string, Usage[]> = {
   PostgreSQL: [TATA, QUICK_SEED],
   Firebase: [TECHWIRE],
 
+  Git: [EVERYWHERE],
   AWS: [TATA, TECHWIRE, FITAI],
+  Nginx: [TATA, TECHWIRE],
+  "VS Code": [DAILY],
   Vercel: [THIS_SITE],
 };

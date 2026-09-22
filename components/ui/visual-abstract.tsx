@@ -478,7 +478,8 @@ const PatentSvg = ({ play }: Props) => {
 const FIGURES: Record<VisualAbstractKind, { Svg: (p: Props) => React.ReactElement; caption: string }> = {
   verix: {
     Svg: VerixSvg,
-    caption: "27 of 28 deviations caught · no false alarms · <1 s at 1M rows",
+    // The paper reports both: 25/28 at a fixed threshold, 27/28 calibrated per dataset
+    caption: "caught 25/28, or 27/28 calibrated · no false alarms",
   },
   quantum: {
     Svg: QuantumSvg,

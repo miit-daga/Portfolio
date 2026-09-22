@@ -6,7 +6,7 @@ import Heading from "./Heading"
 import { HoverEffectAchievements } from "./ui/card-hover-effect-achievements"
 import { SKILL_ICONS } from "./ui/skill-icons"
 import { accentVars, getSection } from "@/constants/sections"
-import { SKILL_USAGE } from "@/constants/skill-usage"
+import { FALLBACK_USAGE, SKILL_USAGE } from "@/constants/skill-usage"
 
 const SECTION = getSection("skills-achievements")
 const RGB = SECTION.rgb.join(",")
@@ -54,7 +54,7 @@ function SystemPanel({
     const reduce = useReducedMotion();
     // Skill whose trail the readout is showing (hover, focus or tap)
     const [active, setActive] = useState<string | null>(null);
-    const trail = active ? SKILL_USAGE[active] : undefined;
+    const trail = active ? SKILL_USAGE[active] ?? FALLBACK_USAGE : undefined;
 
     const container: Variants = {
         hidden: {},
@@ -115,12 +115,11 @@ function SystemPanel({
                     const Icon = meta?.Icon as
                         | ComponentType<{ className?: string; style?: CSSProperties }>
                         | undefined;
-                    const traced = !!SKILL_USAGE[skill];
                     return (
                         <motion.li
                             key={skill}
                             variants={chip}
-                            tabIndex={traced ? 0 : undefined}
+                            tabIndex={0}
                             onMouseEnter={() => setActive(skill)}
                             onMouseLeave={() => setActive((a) => (a === skill ? null : a))}
                             onFocus={() => setActive(skill)}
@@ -130,7 +129,7 @@ function SystemPanel({
                             onClick={() => setActive(skill)}
                             className={`flex items-center gap-1.5 rounded text-sm transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-400 ${
                                 active === skill ? "text-white" : "text-neutral-300"
-                            } ${traced ? "cursor-pointer" : ""}`}
+                            } cursor-pointer`}
                         >
                             <span
                                 aria-hidden
@@ -175,8 +174,6 @@ function SystemPanel({
                         </span>
                     </>
                 ) : (
-                    // Skills without a mapped trail keep the hint rather than
-                    // announcing an empty result
                     <span className="uppercase tracking-[0.2em] text-neutral-600">
                         hover or tap a skill to trace it
                     </span>

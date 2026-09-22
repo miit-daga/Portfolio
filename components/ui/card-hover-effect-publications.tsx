@@ -203,7 +203,9 @@ const TiltCard = ({
       <AnimatePresence>
         {hoveredIndex === idx && (
           <motion.span
-            className="absolute inset-0 h-full w-full bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-fuchsia-500/10 block rounded-3xl"
+            // Decorative only. It is a sibling of the DOI overlay rather than
+            // inside it, so it must not take the click
+            className="pointer-events-none absolute inset-0 h-full w-full bg-gradient-to-br from-violet-500/20 via-indigo-500/15 to-fuchsia-500/10 block rounded-3xl"
             layoutId="hoverBackgroundPublications"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -241,18 +243,32 @@ const TiltCard = ({
 
           <CardTitle className="pr-12">{item.title}</CardTitle>
           {item.visual && <VisualAbstract kind={item.visual} />}
-          <CardDescription className={cn(collapsible && "mt-4", collapsible && !expanded && "line-clamp-3")}>
-            {item.description}
-          </CardDescription>
-          {collapsible && (
-            <button
-              type="button"
-              onClick={() => setExpanded((e) => !e)}
-              aria-expanded={expanded}
-              className="pointer-events-auto relative mt-2 font-mono text-[11px] tracking-wide text-violet-300/80 transition-colors hover:text-violet-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-400 rounded"
+          {collapsible ? (
+            // The collapsed teaser is itself a target: clicking it opens the
+            // abstract instead of falling through to the DOI overlay, which is
+            // what a click just missing the toggle used to do
+            <div
+              onClick={() => !expanded && setExpanded(true)}
+              className={cn("pointer-events-auto relative", !expanded && "cursor-pointer")}
             >
-              {expanded ? "Show less ↑" : "Read abstract ↓"}
-            </button>
+              <CardDescription className={cn("mt-4", !expanded && "line-clamp-3")}>
+                {item.description}
+              </CardDescription>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setExpanded((v) => !v);
+                }}
+                aria-expanded={expanded}
+                className="mt-3 inline-flex min-h-9 items-center gap-1.5 rounded-full border border-violet-400/35 bg-violet-500/10 px-3.5 py-1.5 font-mono text-xs tracking-wide text-violet-200 transition-colors hover:border-violet-300/60 hover:bg-violet-500/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 md:min-h-8"
+              >
+                {expanded ? "Show less" : "Read abstract"}
+                <span aria-hidden className={cn("transition-transform duration-300", expanded && "rotate-180")}>↓</span>
+              </button>
+            </div>
+          ) : (
+            <CardDescription>{item.description}</CardDescription>
           )}
 
           {/* Footer: DOI link affordance or filed-status chip */}
