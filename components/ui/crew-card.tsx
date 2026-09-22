@@ -94,7 +94,7 @@ export const CrewCard = () => {
                             {/* Identity row */}
                             <div className="mt-4 flex items-center gap-4 px-5">
                                 <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-teal-400/40 bg-black/60 shadow-[0_0_14px_rgba(45,212,191,0.25)]">
-                                    <Image src="/profile.png" alt="" fill className="object-cover" sizes="64px" />
+                                    <Image src="/crew-portrait.png" alt="" fill className="object-cover" sizes="64px" />
                                 </div>
                                 <div className="min-w-0">
                                     <p className="font-display text-xl font-bold tracking-wide text-white">MIIT DAGA</p>

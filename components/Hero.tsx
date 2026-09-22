@@ -287,8 +287,8 @@ const Hero = () => {
                   >
                   <div className={cn("holo-figure relative w-full h-full", isGlitching && "hologram-glitch")}>
                     <Image
-                      src="/nobg.png"
-                      alt="Hologram"
+                      src="/hero-portrait.png"
+                      alt="Miit Daga"
                       fill
                       // Matches the box (w-64 / md:w-80 / lg:500px). Without it
                       // next/image assumed 100vw and served a 3840px file to a
