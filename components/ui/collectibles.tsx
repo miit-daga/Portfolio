@@ -3,13 +3,13 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
-const FRAGMENT_IDS = ["workex", "education", "skills", "projects", "publications"] as const;
+export const FRAGMENT_IDS = ["workex", "education", "skills", "projects", "publications"] as const;
 const TOTAL = FRAGMENT_IDS.length;
 export const FRAGMENTS_STORAGE_KEY = "cosmic-fragments";
 
 // Lazily-created shared AudioContext for the pickup chime
 let audioCtx: AudioContext | null = null;
-function playPickup() {
+export function playPickup() {
     try {
         const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
         if (!Ctx) return;

@@ -83,7 +83,7 @@ const LINES = [
 ];
 
 // ---- Flying saucer (SVG, gunmetal, directional lighting) ------------------
-const Ufo = ({ reduce, hatchOpen, thrust }: { reduce: boolean | null; hatchOpen: boolean; thrust: boolean }) => (
+export const Ufo = ({ reduce, hatchOpen, thrust }: { reduce: boolean | null; hatchOpen: boolean; thrust: boolean }) => (
     <motion.div
         className="relative"
         style={{ width: 58, height: 22 }}

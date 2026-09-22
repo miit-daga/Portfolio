@@ -13,6 +13,7 @@ import { ASTRONAUT_SVG } from "./astronaut-art";
 //   while the hero's status chip says "probably asleep" he dozes, and a click
 //   startles him awake for a while.
 //   His visor glint follows the cursor.
+//   When the idle alien waves at him, he waves back (or wakes up to).
 //
 // One requestAnimationFrame loop drives position, bob, cable and exhaust by
 // writing transforms directly, and it only runs while the hero is on screen.
@@ -394,6 +395,15 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
             return () => puffs.forEach((p) => p.el.remove());
         }
 
+        // The idle alien waves at him from across the hero (idle-alien.tsx):
+        // he waves back, or at night wakes with a start and then waves
+        let helloTimer: ReturnType<typeof setTimeout>;
+        const onHello = () => {
+            clearTimeout(helloTimer);
+            helloTimer = setTimeout(() => onClickBody(), 600);
+        };
+        window.addEventListener("alien-hello", onHello);
+
         body.addEventListener("pointerdown", onDown);
         window.addEventListener("pointermove", onMove);
         window.addEventListener("pointerup", onUp);
@@ -404,6 +414,8 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
         return () => {
             cancelAnimationFrame(raf);
             clearTimeout(waveTimer);
+            clearTimeout(helloTimer);
+            window.removeEventListener("alien-hello", onHello);
             io.disconnect();
             body.removeEventListener("pointerdown", onDown);
             window.removeEventListener("pointermove", onMove);

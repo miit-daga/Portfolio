@@ -3612,6 +3612,9 @@
                 `  <span class="highlight-name">${'aliases'.padEnd(16)}</span><span class="highlight-value">${Object.keys(aliases).length}</span>\n` +
                 `  <span class="highlight-name">${'theme'.padEnd(16)}</span><span class="highlight-value">${escapeHtml(theme)}</span>\n` +
                 (saverCorners() ? `  <span class="highlight-name">${'corner hits'.padEnd(16)}</span><span class="highlight-value">${saverCorners()}</span>\n` : '') +
+                // The main site's idle alien (idle-alien.tsx) keeps these
+                (read('alien-sightings') ? `  <span class="highlight-name">${'alien sightings'.padEnd(16)}</span><span class="highlight-value">${read('alien-sightings')}</span>\n` : '') +
+                (read('alien-sightings') ? `  <span class="highlight-name">${'aliens caught'.padEnd(16)}</span><span class="highlight-value">${read('alien-caught')}</span>\n` : '') +
                 `</div>`
             );
             await typeRaw('<div class="help-category">High scores</div>');
