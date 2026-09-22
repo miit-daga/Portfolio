@@ -164,6 +164,9 @@ const Ufo = ({ reduce, hatchOpen, thrust }: { reduce: boolean | null; hatchOpen:
                 fill="#0a1016"
                 stroke="rgba(125,211,252,0.55)"
                 strokeWidth="0.5"
+                // Start at the target: with no initial, the first frame read ry
+                // off the element (there is none) and wrote "undefined"
+                initial={false}
                 animate={{ ry: hatchOpen ? 1.9 : 0.45, opacity: hatchOpen ? 1 : 0.45 }}
                 transition={{ duration: 0.5 }}
             />

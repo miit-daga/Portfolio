@@ -6,6 +6,7 @@ import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from
 import { IconChevronDown } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { accentVars, getSection } from "@/constants/sections";
+import Image from "next/image";
 
 const WORKEX = getSection("workex");
 
@@ -36,6 +37,7 @@ const ExperienceCard = ({
   date,
   points,
   metrics,
+  patch,
   children,
 }: {
   company: string;
@@ -43,6 +45,8 @@ const ExperienceCard = ({
   date: string;
   points: string[];
   metrics?: string[];
+  /** Mission patch artwork in public/patches, shown beside the company name. */
+  patch?: string;
   children: React.ReactNode;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -96,15 +100,31 @@ const ExperienceCard = ({
       {/* Content Container with slight Z lift for depth */}
       <div style={{ transform: "translateZ(20px)" }}>
         <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="font-display text-xl md:text-2xl font-bold text-white group-hover:text-teal-400 transition-colors">
+          <div className="flex justify-between items-start gap-3">
+            {/* Patch stacks above the name on phones, where sitting beside it
+                squeezed the title and date into a narrow column */}
+            <div className="flex flex-col items-start gap-3 sm:flex-row md:gap-4">
+              {patch && (
+                // Sewn on at a slight angle; straightens up when the card is hovered
+                <Image
+                  src={patch}
+                  alt=""
+                  aria-hidden
+                  width={56}
+                  height={56}
+                  unoptimized
+                  className="h-11 w-11 flex-shrink-0 -rotate-6 drop-shadow-[0_4px_8px_rgba(0,0,0,0.5)] transition-transform duration-500 group-hover:rotate-0 group-hover:scale-105 md:h-14 md:w-14"
+                />
+              )}
+              <div>
+              <h3 className="font-display text-xl md:text-2xl font-bold text-white group-hover:text-[color:var(--workex-light)] transition-colors">
                 {company}
               </h3>
               <p className="text-md md:text-lg font-medium text-neutral-400">
                 {role}
               </p>
               <p className="text-sm font-mono text-neutral-500 mt-1">{date}</p>
+              </div>
             </div>
 
             <motion.div
@@ -149,7 +169,10 @@ const ExperienceCard = ({
       </div>
 
       {!isOpen && (
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-teal-500/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div
+          className="absolute bottom-0 left-0 w-full h-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+          style={{ background: `linear-gradient(90deg, transparent, rgba(${WORKEX.rgb.join(",")}, 0.5), transparent)` }}
+        />
       )}
     </motion.div>
   );
@@ -162,6 +185,7 @@ export function WorkExp() {
       content: (
         <ExperienceCard
           company="Talendy Holdings (via Tech Japan Lab)"
+          patch="/patches/talendy.svg"
           role="Software Development Engineer"
           date="[June 2026 – Present]"
           points={[
@@ -184,6 +208,7 @@ export function WorkExp() {
       content: (
         <ExperienceCard
           company="Akatsuki AI Technologies"
+          patch="/patches/akatsuki.svg"
           role="Full Stack Engineering Intern"
           date="[Oct 2025 – May 2026]"
           points={[
@@ -209,6 +234,7 @@ export function WorkExp() {
       content: (
         <ExperienceCard
           company="Tata Power"
+          patch="/patches/tata-power.svg"
           role="Project Intern"
           date="[May 2025 – July 2025]"
           points={[
@@ -235,6 +261,7 @@ export function WorkExp() {
       content: (
         <ExperienceCard
           company="TechWire Studio"
+          patch="/patches/techwire.svg"
           role="Full Stack Developer Intern"
           date="[March 2025 – June 2025]"
           points={[
@@ -258,6 +285,7 @@ export function WorkExp() {
       content: (
         <ExperienceCard
           company="Seculinx"
+          patch="/patches/seculinx.svg"
           role="SDE Intern"
           date="[Sep 2024 – Jan 2025]"
           points={[
@@ -279,9 +307,13 @@ export function WorkExp() {
   ];
 
   return (
-    <div className="relative w-full overflow-clip py-16" id="workex" style={accentVars(WORKEX)}>
+    <div
+      className="relative w-full overflow-clip py-16"
+      id="workex"
+      style={{ ...accentVars(WORKEX), "--workex-light": WORKEX.light } as React.CSSProperties}
+    >
       <Heading section="workex" />
-      <Timeline data={data} />
+      <Timeline data={data} accent={WORKEX} />
     </div>
   );
 }

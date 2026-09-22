@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="techwire-face" cx="50%" cy="48%" r="55%">
+      <stop offset="0%" stop-color="#1c2748"/>
+      <stop offset="60%" stop-color="#121a33"/>
+      <stop offset="100%" stop-color="#0b1020"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Border ring with satin-stitch dashes -->
+  <circle cx="100" cy="100" r="96" fill="#fb923c"/>
+  <circle cx="100" cy="100" r="89" fill="none" stroke="#ffedd5" stroke-width="3.5" stroke-dasharray="6 4" stroke-linecap="round"/>
+
+  <!-- Patch face -->
+  <circle cx="100" cy="100" r="83" fill="url(#techwire-face)"/>
+
+  <!-- Circuit trace -->
+  <path d="M100 96 V86 H138 V62 H130" fill="none" stroke="#fbbf24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M100 86 H64 V70" fill="none" stroke="#fbbf24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="138" cy="86" r="6" fill="#fbbf24"/>
+  <circle cx="138" cy="86" r="2.5" fill="#0b1020"/>
+  <circle cx="64" cy="68" r="6.5" fill="#fbbf24"/>
+  <circle cx="64" cy="68" r="2.5" fill="#0b1020"/>
+
+  <!-- Cloud -->
+  <circle cx="84" cy="58" r="14" fill="#ffedd5"/>
+  <circle cx="104" cy="48" r="18" fill="#ffedd5"/>
+  <circle cx="120" cy="60" r="12" fill="#ffedd5"/>
+  <rect x="72" y="56" width="58" height="17" rx="8.5" fill="#ffedd5"/>
+
+  <!-- Upload arrow -->
+  <rect x="95.5" y="52" width="9" height="16" rx="2" fill="#0b1020"/>
+  <polygon points="87,55 100,40 113,55" fill="#0b1020"/>
+
+  <!-- Top crate -->
+  <rect x="81" y="96" width="38" height="9" rx="2" fill="#fbbf24" stroke="#0b1020" stroke-width="2"/>
+  <rect x="81" y="105" width="38" height="23" rx="2" fill="#fb923c" stroke="#0b1020" stroke-width="2"/>
+  <line x1="84" y1="105" x2="116" y2="105" stroke="#0b1020" stroke-width="3"/>
+
+  <!-- Trace pad on top crate -->
+  <circle cx="100" cy="96" r="6" fill="#fbbf24" stroke="#0b1020" stroke-width="2"/>
+  <circle cx="100" cy="96" r="2.5" fill="#0b1020"/>
+
+  <!-- Bottom-left crate -->
+  <rect x="60" y="129" width="39" height="9" rx="2" fill="#fbbf24" stroke="#0b1020" stroke-width="2"/>
+  <rect x="60" y="138" width="39" height="24" rx="2" fill="#fb923c" stroke="#0b1020" stroke-width="2"/>
+  <line x1="63" y1="138" x2="96" y2="138" stroke="#0b1020" stroke-width="3"/>
+
+  <!-- Bottom-right crate -->
+  <rect x="101" y="129" width="39" height="9" rx="2" fill="#fbbf24" stroke="#0b1020" stroke-width="2"/>
+  <rect x="101" y="138" width="39" height="24" rx="2" fill="#fb923c" stroke="#0b1020" stroke-width="2"/>
+  <line x1="104" y1="138" x2="137" y2="138" stroke="#0b1020" stroke-width="3"/>
+</svg>

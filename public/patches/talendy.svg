@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="talendy-face-glow" cx="0.5" cy="0.55" r="0.5">
+      <stop offset="0" stop-color="#ffedd5" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#ffedd5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="talendy-planet" cx="0.35" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#ffedd5"/>
+      <stop offset="0.4" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#fbbf24"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Outer satin border -->
+  <circle cx="100" cy="100" r="97" fill="#fb923c"/>
+  <circle cx="100" cy="100" r="90.5" fill="none" stroke="#ffedd5" stroke-width="3.5" stroke-dasharray="7 4" stroke-linecap="round"/>
+
+  <!-- Patch face -->
+  <circle cx="100" cy="100" r="84" fill="#0b1020"/>
+  <circle cx="100" cy="100" r="84" fill="url(#talendy-face-glow)"/>
+
+  <!-- Stars -->
+  <path d="M0 -9 L2.6 -2.6 L9 0 L2.6 2.6 L0 9 L-2.6 2.6 L-9 0 L-2.6 -2.6 Z" transform="translate(100 38)" fill="#ffedd5"/>
+  <path d="M0 -9 L2.6 -2.6 L9 0 L2.6 2.6 L0 9 L-2.6 2.6 L-9 0 L-2.6 -2.6 Z" transform="translate(60 60) scale(0.85)" fill="#fbbf24"/>
+  <path d="M0 -9 L2.6 -2.6 L9 0 L2.6 2.6 L0 9 L-2.6 2.6 L-9 0 L-2.6 -2.6 Z" transform="translate(142 56) scale(0.95)" fill="#ffedd5"/>
+  <path d="M0 -9 L2.6 -2.6 L9 0 L2.6 2.6 L0 9 L-2.6 2.6 L-9 0 L-2.6 -2.6 Z" transform="translate(124 76) scale(0.6)" fill="#fbbf24"/>
+
+  <!-- Orbit ring, back half (behind planet) -->
+  <g transform="rotate(-20 100 118)">
+    <ellipse cx="100" cy="118" rx="58" ry="18" fill="none" stroke="#ffedd5" stroke-width="5" stroke-opacity="0.55"/>
+  </g>
+
+  <!-- Planet -->
+  <circle cx="100" cy="118" r="34" fill="url(#talendy-planet)"/>
+  <path d="M100 84 A34 34 0 0 1 100 152 A40 40 0 0 0 100 84 Z" fill="#fb923c"/>
+
+  <!-- Code glyph -->
+  <g fill="none" stroke="#0b1020" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M88 107 L77 118 L88 129"/>
+    <path d="M112 107 L123 118 L112 129"/>
+    <path d="M104 104 L96 132"/>
+  </g>
+
+  <!-- Orbit ring, front half + satellite -->
+  <g transform="rotate(-20 100 118)">
+    <path d="M42 118 A58 18 0 0 0 158 118" fill="none" stroke="#ffedd5" stroke-width="5" stroke-linecap="round"/>
+    <g transform="translate(56 130)">
+      <path d="M-18 0 L18 0" stroke="#ffedd5" stroke-width="3" stroke-linecap="round"/>
+      <rect x="-24" y="-5" width="13" height="10" rx="1.5" fill="#ffedd5" stroke="#0b1020" stroke-width="2"/>
+      <rect x="11" y="-5" width="13" height="10" rx="1.5" fill="#ffedd5" stroke="#0b1020" stroke-width="2"/>
+      <rect x="-7" y="-7" width="14" height="14" rx="2" fill="#fb923c" stroke="#0b1020" stroke-width="2"/>
+    </g>
+  </g>
+</svg>

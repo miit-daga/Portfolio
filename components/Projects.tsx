@@ -5,6 +5,7 @@ import Heading from "./Heading"
 import { cn } from "@/lib/utils"
 import { accentVars, getSection } from "@/constants/sections"
 import type { CuratedRepo } from "@/constants/projects"
+import { PROJECT_REELS } from "@/constants/project-reels"
 
 const SECTION = getSection("projects")
 
@@ -45,6 +46,9 @@ const Projects = () => {
     languages: repo.languages,
     homepage: repo.homepage,
     featured: repo.featured,
+    topics: repo.topics,
+    // Reels belong to the curated block only
+    reel: repo.featured ? PROJECT_REELS[repo.name] : undefined,
   })
 
   const featured = repositories.filter((r) => r.featured).map(toItem)

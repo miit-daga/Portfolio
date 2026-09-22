@@ -8,7 +8,7 @@ interface ParagraphProps {
   className?: string;
 }
 
-// Words highlighted in teal once revealed
+// Words highlighted in the About accent once revealed
 const KEYWORDS = [
   "Information Technology",
   "backend development",
@@ -41,7 +41,8 @@ function tokenize(para: string): WordToken[] {
   return words;
 }
 
-const keywordClass = "text-teal-400 font-bold drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]";
+// Sky, matching the About section's gauges (constants/sections.ts)
+const keywordClass = "text-sky-400 font-bold drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]";
 
 const Word = ({
   token,

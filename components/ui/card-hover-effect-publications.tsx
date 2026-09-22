@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useMotionValue, useMotionTemplate, useSpring, 
 import { IconArrowUpRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState, useRef, useId } from "react";
+import { VisualAbstract, type VisualAbstractKind } from "./visual-abstract";
 
 type PublicationItem = {
   title: string;
@@ -12,6 +13,8 @@ type PublicationItem = {
   type?: "journal" | "patent";
   venue?: string;
   status?: string;
+  /** Animated diagram of the paper's idea, shown above the abstract. */
+  visual?: VisualAbstractKind;
 };
 
 // The venue is the single strongest credibility signal on the card, and it used
@@ -160,6 +163,9 @@ const TiltCard = ({
   const ref = useRef<HTMLDivElement>(null);
   const hasValidLink = item?.link && item.link.trim() !== "";
   const isPatent = item.type === "patent";
+  // With a visual abstract the prose collapses to a teaser behind a toggle
+  const [expanded, setExpanded] = useState(false);
+  const collapsible = !!item.visual;
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -208,8 +214,13 @@ const TiltCard = ({
         )}
       </AnimatePresence>
 
-      <div style={{ transform: "translateZ(20px)" }} className="h-full">
-        <Card className="w-full h-full" isHovered={hoveredIndex === idx} variant="log">
+      {/* Lifted 20px in 3D, which puts it in front of the DOI overlay no matter
+          the z-index, so it must pass clicks through as well */}
+      <div style={{ transform: "translateZ(20px)" }} className={cn("h-full", hasValidLink && "pointer-events-none")}>
+        {/* With a DOI the whole card is covered by a link (rendered below), so
+            the card itself lets clicks fall through to it; only the abstract
+            toggle opts back in. */}
+        <Card className={cn("w-full h-full", hasValidLink && "pointer-events-none")} isHovered={hoveredIndex === idx} variant="log">
           {/* Log index + type badge + venue */}
           <div className="flex flex-wrap items-center gap-2 pr-14">
             <span className="font-mono text-[10px] tracking-[0.25em] text-violet-300/60">
@@ -229,7 +240,20 @@ const TiltCard = ({
           </div>
 
           <CardTitle className="pr-12">{item.title}</CardTitle>
-          <CardDescription>{item.description}</CardDescription>
+          {item.visual && <VisualAbstract kind={item.visual} />}
+          <CardDescription className={cn(collapsible && "mt-4", collapsible && !expanded && "line-clamp-3")}>
+            {item.description}
+          </CardDescription>
+          {collapsible && (
+            <button
+              type="button"
+              onClick={() => setExpanded((e) => !e)}
+              aria-expanded={expanded}
+              className="pointer-events-auto relative mt-2 font-mono text-[11px] tracking-wide text-violet-300/80 transition-colors hover:text-violet-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-400 rounded"
+            >
+              {expanded ? "Show less ↑" : "Read abstract ↓"}
+            </button>
+          )}
 
           {/* Footer: DOI link affordance or filed-status chip */}
           <div className="mt-6">
@@ -277,14 +301,16 @@ const TiltCard = ({
         className="h-full w-full"
       >
         {hasValidLink ? (
-          <Link
-            href={item.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-full w-full block rounded-3xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-          >
+          <div className="relative h-full w-full block">
             {Content}
-          </Link>
+            <Link
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${item.title} (opens the DOI)`}
+              className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            />
+          </div>
         ) : (
           <div className="h-full w-full block">
             {Content}

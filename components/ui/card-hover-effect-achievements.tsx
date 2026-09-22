@@ -4,7 +4,7 @@ import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from
 import Link from "next/link";
 import { useState, useRef } from "react";
 import { Card, CardTitle, CardDescription } from "./card-hover-effect-publications";
-import { IconAward } from "@tabler/icons-react";
+import { Medal, placeFromTitle } from "./medal";
 
 export const HoverEffectAchievements = ({
     items,
@@ -106,22 +106,29 @@ const TiltCard = ({
                     <AnimatePresence>
                         {hoveredIndex === idx && (
                             <motion.span
-                                className="absolute inset-0 h-full w-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 block rounded-3xl"
+                                className="absolute inset-0 h-full w-full block rounded-3xl"
                                 layoutId="hoverBackgroundAchievements"
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
-                                style={{ transform: "translateZ(-10px)" }}
+                                style={{
+                                    transform: "translateZ(-10px)",
+                                    background:
+                                        "linear-gradient(to bottom right, rgba(var(--accent-rgb, 45, 212, 191), 0.2), rgba(var(--accent-rgb-2, 59, 130, 246), 0.16), rgba(var(--accent-rgb, 45, 212, 191), 0.08))",
+                                }}
                             />
                         )}
                     </AnimatePresence>
                     <div style={{ transform: "translateZ(20px)" }} className="h-full">
                         <Card className="w-full h-full" isHovered={hoveredIndex === idx}>
                             <div className="flex flex-col items-center text-center p-4">
-                                <div className="mb-4 flex items-center justify-center h-16 w-16 rounded-full bg-black/50">
-                                    <IconAward className="h-8 w-8 text-neutral-200" />
-                                </div>
+                                <Medal
+                                    place={placeFromTitle(item.title)}
+                                    isHovered={hoveredIndex === idx}
+                                    pointerX={mouseXSpring}
+                                    pointerY={mouseYSpring}
+                                />
                                 <CardTitle className="mt-0">{item.title}</CardTitle>
                                 <CardDescription className="mt-2">{item.description}</CardDescription>
                             </div>

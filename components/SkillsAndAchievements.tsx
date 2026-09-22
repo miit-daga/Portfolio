@@ -1,11 +1,12 @@
 "use client"
-import type { ComponentType, CSSProperties } from "react"
+import { useState, type ComponentType, type CSSProperties } from "react"
 import { motion, useReducedMotion, type Variants } from "framer-motion"
 import { IconCode, IconStack2, IconDatabase, IconTools } from "@tabler/icons-react"
 import Heading from "./Heading"
 import { HoverEffectAchievements } from "./ui/card-hover-effect-achievements"
 import { SKILL_ICONS } from "./ui/skill-icons"
 import { accentVars, getSection } from "@/constants/sections"
+import { SKILL_USAGE } from "@/constants/skill-usage"
 
 const SECTION = getSection("skills-achievements")
 const RGB = SECTION.rgb.join(",")
@@ -51,6 +52,9 @@ function SystemPanel({
 }) {
     const CategoryIcon = CATEGORY_ICONS[category];
     const reduce = useReducedMotion();
+    // Skill whose trail the readout is showing (hover, focus or tap)
+    const [active, setActive] = useState<string | null>(null);
+    const trail = active ? SKILL_USAGE[active] : undefined;
 
     const container: Variants = {
         hidden: {},
@@ -111,11 +115,22 @@ function SystemPanel({
                     const Icon = meta?.Icon as
                         | ComponentType<{ className?: string; style?: CSSProperties }>
                         | undefined;
+                    const traced = !!SKILL_USAGE[skill];
                     return (
                         <motion.li
                             key={skill}
                             variants={chip}
-                            className="flex items-center gap-1.5 text-sm text-neutral-300 transition-colors duration-200 hover:text-white"
+                            tabIndex={traced ? 0 : undefined}
+                            onMouseEnter={() => setActive(skill)}
+                            onMouseLeave={() => setActive((a) => (a === skill ? null : a))}
+                            onFocus={() => setActive(skill)}
+                            onBlur={() => setActive((a) => (a === skill ? null : a))}
+                            // Select, never toggle: a tap fires a synthetic mouseenter
+                            // first, so toggling here would switch it straight back off
+                            onClick={() => setActive(skill)}
+                            className={`flex items-center gap-1.5 rounded text-sm transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-400 ${
+                                active === skill ? "text-white" : "text-neutral-300"
+                            } ${traced ? "cursor-pointer" : ""}`}
                         >
                             <span
                                 aria-hidden
@@ -133,6 +148,40 @@ function SystemPanel({
                     );
                 })}
             </motion.ul>
+
+            {/* Trace readout: where the hovered skill was actually used. Fixed
+                height so the grid never jumps as the contents change. */}
+            <div
+                className="flex h-[46px] items-center gap-x-3 gap-y-1 overflow-hidden border-t px-4 font-mono text-[10px]"
+                style={{ borderColor: `rgba(${RGB}, 0.14)`, background: `rgba(${RGB}, 0.04)` }}
+                aria-live="polite"
+            >
+                {trail ? (
+                    <>
+                        <span className="flex-shrink-0 uppercase tracking-[0.2em]" style={{ color: SECTION.light }}>
+                            {active} ▸
+                        </span>
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                            {trail.map((u) => (
+                                <span key={u.label} className="flex items-center gap-1.5 text-neutral-300">
+                                    <span
+                                        aria-hidden
+                                        className="h-1.5 w-1.5 rounded-full"
+                                        style={{ background: getSection(u.section).hex, boxShadow: `0 0 5px ${getSection(u.section).hex}` }}
+                                    />
+                                    {u.label}
+                                </span>
+                            ))}
+                        </span>
+                    </>
+                ) : (
+                    // Skills without a mapped trail keep the hint rather than
+                    // announcing an empty result
+                    <span className="uppercase tracking-[0.2em] text-neutral-600">
+                        hover or tap a skill to trace it
+                    </span>
+                )}
+            </div>
 
             {/* Scanline sweep on hover, so the panel reads as a live readout */}
             <span

@@ -32,3 +32,6 @@ main.tex
 # local notes (kept local)
 CHANGES.md
 EASTER-EGGS.md
+
+# Local prompts for generating the mission patch SVGs
+svg-prompts/

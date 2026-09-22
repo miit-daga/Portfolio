@@ -3,6 +3,8 @@ import { cn } from "@/utils/cn";
 import { AnimatePresence, motion, useMotionValue, useMotionTemplate, useSpring, useTransform } from "framer-motion";
 import Link from "next/link";
 import { useState, useRef } from "react";
+import { TerminalReel } from "./terminal-reel";
+import type { Reel } from "@/constants/project-reels";
 
 export type ProjectItem = {
   title: string;
@@ -13,6 +15,10 @@ export type ProjectItem = {
   homepage?: string | null;
   /** Curated highlights get an index badge and a brighter border. */
   featured?: boolean;
+  /** GitHub topics, shown as small tags under the description. */
+  topics?: string[];
+  /** Scripted terminal replay, featured cards only (constants/project-reels.ts). */
+  reel?: Reel;
 };
 
 // A repo's homepage becomes a labelled pill, named after where it points.
@@ -91,7 +97,7 @@ const TiltCard = ({
   // Specular glare that follows the cursor across the glass
   const sheenX = useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]);
   const sheenY = useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]);
-  const sheen = useMotionTemplate`radial-gradient(260px circle at ${sheenX} ${sheenY}, rgba(255, 255, 255, 0.10), rgba(45, 212, 191, 0.04) 45%, transparent 70%)`;
+  const sheen = useMotionTemplate`radial-gradient(260px circle at ${sheenX} ${sheenY}, rgba(255, 255, 255, 0.10), rgba(var(--accent-rgb, 45, 212, 191), 0.05) 45%, transparent 70%)`;
 
   const handleMouseMove = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (!ref.current) return;
@@ -142,13 +148,17 @@ const TiltCard = ({
           <AnimatePresence>
             {hoveredIndex === idx && (
               <motion.span
-                className="absolute inset-0 h-full w-full bg-gradient-to-br from-blue-500/20 via-purple-500/20 to-teal-500/20 block rounded-3xl"
+                className="absolute inset-0 h-full w-full block rounded-3xl"
                 layoutId={`hoverBackground-${groupId}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                style={{ transform: "translateZ(-10px)" }} // Push background slightly back
+                style={{
+                  transform: "translateZ(-10px)", // Push background slightly back
+                  background:
+                    "linear-gradient(to bottom right, rgba(var(--accent-rgb, 45, 212, 191), 0.2), rgba(var(--accent-rgb-2, 59, 130, 246), 0.16), rgba(var(--accent-rgb, 45, 212, 191), 0.08))",
+                }}
               />
             )}
           </AnimatePresence>
@@ -162,6 +172,8 @@ const TiltCard = ({
               featured={item.featured}
               featuredIndex={idx}
               homepage={item.homepage}
+              topics={item.topics}
+              reel={item.reel}
             >
               <CardTitle>{item.title}</CardTitle>
               <CardDescription>{item.description}</CardDescription>
@@ -188,6 +200,8 @@ export const Card = ({
   featured = false,
   featuredIndex = 0,
   homepage,
+  topics,
+  reel,
 }: {
   className?: string;
   children: React.ReactNode;
@@ -196,6 +210,8 @@ export const Card = ({
   featured?: boolean;
   featuredIndex?: number;
   homepage?: string | null;
+  topics?: string[];
+  reel?: Reel;
 }) => {
   const langEntries = languages
     ? Object.entries(languages).sort(([, a], [, b]) => b - a)
@@ -250,6 +266,23 @@ export const Card = ({
           )}
           {children}
 
+          {/* GitHub topics: the repo's own tags, fetched all along but never shown */}
+          {topics && topics.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1">
+              {topics.slice(0, 4).map((t) => (
+                <span
+                  key={t}
+                  className="font-mono text-[10px] tracking-tight"
+                  style={{ color: "rgba(var(--accent-rgb, 45, 212, 191), 0.75)" }}
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {reel && <TerminalReel reel={reel} />}
+
           {/* Top languages, readable without hovering. The animated breakdown
               below stays as the hover reward; on touch it never fired at all. */}
           {langEntries.length > 0 && (
@@ -281,9 +314,20 @@ export const Card = ({
             >
               {/* Signal frequency header */}
               <div className="flex items-center gap-2 mb-2.5">
-                <div className="h-px flex-1 bg-gradient-to-r from-teal-500/40 to-transparent" />
-                <span className="text-[9px] uppercase tracking-[0.2em] text-teal-500/60 font-mono">Signal Freq</span>
-                <div className="h-px flex-1 bg-gradient-to-l from-teal-500/40 to-transparent" />
+                <div
+                  className="h-px flex-1"
+                  style={{ background: "linear-gradient(90deg, rgba(var(--accent-rgb, 45, 212, 191), 0.4), transparent)" }}
+                />
+                <span
+                  className="text-[9px] uppercase tracking-[0.2em] font-mono"
+                  style={{ color: "rgba(var(--accent-rgb, 45, 212, 191), 0.7)" }}
+                >
+                  Signal Freq
+                </span>
+                <div
+                  className="h-px flex-1"
+                  style={{ background: "linear-gradient(270deg, rgba(var(--accent-rgb, 45, 212, 191), 0.4), transparent)" }}
+                />
               </div>
               {/* Frequency rows */}
               <div className="flex flex-col gap-1.5">

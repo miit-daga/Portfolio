@@ -16,6 +16,23 @@ interface TimelineEntry {
   content: React.ReactNode
 }
 
+// Colours the flown path, milestones, exhaust and lit titles. Work Experience
+// passes its section accent; the teal default keeps the old look for any other
+// caller.
+export type TimelineAccent = {
+  hex: string
+  light: string
+  pale: string
+  rgb: [number, number, number]
+}
+
+const DEFAULT_ACCENT: TimelineAccent = {
+  hex: "#2dd4bf",
+  light: "#5eead4",
+  pale: "#99f6e4",
+  rgb: [45, 212, 191],
+}
+
 // --- Flight-path geometry (left rail, in pixels) ---
 const RAIL_W = 60
 const MID_X = 30
@@ -25,7 +42,13 @@ const SAMPLES = 140
 const ROCKET_W = 30
 const ROCKET_H = 36
 
-export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
+export const Timeline = ({
+  data,
+  accent = DEFAULT_ACCENT,
+}: {
+  data: TimelineEntry[]
+  accent?: TimelineAccent
+}) => {
   const ref = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const pathRef = useRef<SVGPathElement>(null)
@@ -218,7 +241,8 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
   }, [applyProgress, shouldReduceMotion, pathLength, ballYs])
 
   const planets = ballYs.map((y) => pathPoint(height > 0 ? y / height : 0))
-  const tealGlow = "drop-shadow(0 0 5px rgba(45, 212, 191, 0.85))"
+  const glow = (alpha: number) => `rgba(${accent.rgb.join(", ")}, ${alpha})`
+  const pathGlow = `drop-shadow(0 0 5px ${glow(0.85)})`
 
   return (
     <div className="w-full font-sans md:px-10 mb-20 -mt-10" ref={containerRef}>
@@ -234,11 +258,12 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
             >
               <h3
                 className={`text-xl lg:text-2xl font-bold md:pl-4 transition-colors duration-500 ${
-                  glowingBalls.has(index) ? "text-teal-300" : "text-neutral-400"
+                  glowingBalls.has(index) ? "" : "text-neutral-400"
                 }`}
                 style={{
+                  color: glowingBalls.has(index) ? accent.light : undefined,
                   textShadow: glowingBalls.has(index)
-                    ? "0 0 18px rgba(45, 212, 191, 0.35)"
+                    ? `0 0 18px ${glow(0.35)}`
                     : "none",
                   transition: "color 0.5s, text-shadow 0.5s",
                 }}
@@ -277,13 +302,13 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
             <motion.path
               d={pathD}
               fill="none"
-              stroke="#2dd4bf"
+              stroke={accent.hex}
               strokeWidth={2.5}
               strokeLinecap="round"
               style={{
                 strokeDasharray: pathLength,
                 strokeDashoffset: revealOffset,
-                filter: tealGlow,
+                filter: pathGlow,
               }}
             />
           )}
@@ -294,11 +319,11 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
               <g key={i} transform={`translate(${pt.x} ${pt.y})`}>
                 <circle
                   r={6}
-                  fill={lit ? "#14b8a6" : "#1f2937"}
-                  stroke={lit ? "#99f6e4" : "#475569"}
+                  fill={lit ? accent.hex : "#1f2937"}
+                  stroke={lit ? accent.pale : "#475569"}
                   strokeWidth={1.5}
                   style={{
-                    filter: lit && !isMobile ? "drop-shadow(0 0 6px rgba(20,184,166,0.95))" : "none",
+                    filter: lit && !isMobile ? `drop-shadow(0 0 6px ${glow(0.95)})` : "none",
                     transition: "fill 0.3s, stroke 0.3s, filter 0.3s",
                   }}
                 />
@@ -306,7 +331,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
                   <motion.circle
                     r={6}
                     fill="none"
-                    stroke="#99f6e4"
+                    stroke={accent.pale}
                     strokeWidth={1.5}
                     initial={{ scale: 1, opacity: 0.8 }}
                     animate={{ scale: 3.2, opacity: 0 }}
@@ -322,16 +347,16 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
         {!shouldReduceMotion && !isMobile && (
           <>
             <motion.div
-              className="absolute left-0 top-0 h-2.5 w-2.5 rounded-full bg-teal-300/70 blur-[1px] pointer-events-none"
-              style={{ x: t1x, y: t1y, marginLeft: -5, marginTop: -5 }}
+              className="absolute left-0 top-0 h-2.5 w-2.5 rounded-full blur-[1px] pointer-events-none"
+              style={{ x: t1x, y: t1y, marginLeft: -5, marginTop: -5, background: accent.light, opacity: 0.7 }}
             />
             <motion.div
-              className="absolute left-0 top-0 h-2 w-2 rounded-full bg-teal-400/50 blur-[1px] pointer-events-none"
-              style={{ x: t2x, y: t2y, marginLeft: -4, marginTop: -4 }}
+              className="absolute left-0 top-0 h-2 w-2 rounded-full blur-[1px] pointer-events-none"
+              style={{ x: t2x, y: t2y, marginLeft: -4, marginTop: -4, background: accent.hex, opacity: 0.5 }}
             />
             <motion.div
-              className="absolute left-0 top-0 h-1.5 w-1.5 rounded-full bg-cyan-400/40 blur-[2px] pointer-events-none"
-              style={{ x: t3x, y: t3y, marginLeft: -3, marginTop: -3 }}
+              className="absolute left-0 top-0 h-1.5 w-1.5 rounded-full blur-[2px] pointer-events-none"
+              style={{ x: t3x, y: t3y, marginLeft: -3, marginTop: -3, background: accent.pale, opacity: 0.4 }}
             />
           </>
         )}
@@ -347,7 +372,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
               style={{
                 width: ROCKET_W,
                 height: ROCKET_H,
-                filter: isMobile ? "none" : "drop-shadow(0 0 6px rgba(45,212,191,0.5))",
+                filter: isMobile ? "none" : `drop-shadow(0 0 6px ${glow(0.5)})`,
               }}
             />
           </motion.div>

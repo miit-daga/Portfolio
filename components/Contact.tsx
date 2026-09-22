@@ -14,6 +14,8 @@ import { accentVars, getSection } from "@/constants/sections";
 
 type ContactType = "email" | "phone" | null;
 
+const CONTACT = getSection("contact");
+
 export function Contact() {
     const [emailCopied, setEmailCopied] = useState(false);
     const [phoneCopied, setPhoneCopied] = useState(false);
@@ -79,7 +81,7 @@ export function Contact() {
     };
 
     return (
-        <div className="relative w-full overflow-hidden pt-16 pb-10" id="contact" style={accentVars(getSection("contact"))}>
+        <div className="relative w-full overflow-hidden pt-16 pb-10" id="contact" style={accentVars(CONTACT)}>
             <Heading section="contact" />
 
             <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center mt-6">
@@ -102,7 +104,7 @@ export function Contact() {
                                     emailCopied ? "text-green-400" : "text-neutral-200"
                                 )}
                             >
-                                {emailCopied ? <IconCheck className="h-6 w-6" /> : <IconMail className="h-6 w-6 text-teal-400" />}
+                                {emailCopied ? <IconCheck className="h-6 w-6" /> : <IconMail className="h-6 w-6" style={{ color: CONTACT.hex }} />}
                                 <span>{emailCopied ? "Email Copied!" : "miitcodes27@gmail.com"}</span>
                             </a>
                             <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
@@ -120,7 +122,7 @@ export function Contact() {
                                     phoneCopied ? "text-green-400" : "text-neutral-200"
                                 )}
                             >
-                                {phoneCopied ? <IconCheck className="h-6 w-6" /> : <IconPhone className="h-6 w-6 text-teal-400" />}
+                                {phoneCopied ? <IconCheck className="h-6 w-6" /> : <IconPhone className="h-6 w-6" style={{ color: CONTACT.hex }} />}
                                 <span>{phoneCopied ? "Number Copied!" : "+91 7003816564"}</span>
                             </a>
                             <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
@@ -163,7 +165,7 @@ export function Contact() {
                     className="hidden md:flex group flex-col md:flex-row items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-500 cursor-help"
                     title="Enter this code on your keyboard!"
                 >
-                    <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest group-hover:text-teal-400 transition-colors">
+                    <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest group-hover:text-amber-400 transition-colors">
                         Initiate Big Crunch:
                     </span>
                     <div className="flex gap-1.5">
@@ -271,7 +273,7 @@ const MissionStatus = () => {
             <span>local time {time}</span>
             <span className="text-neutral-700">|</span>
             <span>
-                callsign <span className="text-teal-400">{callsign}</span>
+                callsign <span style={{ color: CONTACT.hex }}>{callsign}</span>
             </span>
         </div>
     );
@@ -279,7 +281,7 @@ const MissionStatus = () => {
 
 const Kbd = ({ children }: { children: React.ReactNode }) => {
     return (
-        <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded bg-white/10 border border-white/20 text-[10px] font-bold font-mono text-neutral-300 shadow-[0_2px_0_rgba(255,255,255,0.1)] group-hover:bg-teal-500/20 group-hover:border-teal-500/50 group-hover:text-teal-200 transition-all duration-300">
+        <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded bg-white/10 border border-white/20 text-[10px] font-bold font-mono text-neutral-300 shadow-[0_2px_0_rgba(255,255,255,0.1)] group-hover:bg-amber-500/20 group-hover:border-amber-500/50 group-hover:text-amber-200 transition-all duration-300">
             {children}
         </span>
     );
