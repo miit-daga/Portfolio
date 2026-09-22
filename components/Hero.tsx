@@ -10,6 +10,7 @@ import { AstronautBuddy } from "./ui/astronaut"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { kolkataNow } from "@/lib/kolkata"
+import { useHoloDepth } from "./ui/holo-depth"
 
 // A meteor streaks across the hero every ~20-40s; nothing renders in between.
 type Streak = { top: number; left: number; angle: number; len: number; dur: number; key: number }
@@ -178,13 +179,18 @@ const Hero = () => {
   const quoteIdxRef = useRef(0)
   const quoteTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Depth parallax: follows the cursor, turns further while dragged
+  const holoDepth = useHoloDepth(hologramRef)
+
   const handleAvatarClick = useCallback(() => {
+    // A drag to turn the portrait is not a click for a quote
+    if (holoDepth.consumeDrag()) return
     if (!shouldReduceMotion) triggerGlitch()
     setQuote(AVATAR_QUOTES[quoteIdxRef.current % AVATAR_QUOTES.length])
     quoteIdxRef.current += 1
     if (quoteTimer.current) clearTimeout(quoteTimer.current)
     quoteTimer.current = setTimeout(() => setQuote(null), 2800)
-  }, [shouldReduceMotion, triggerGlitch])
+  }, [shouldReduceMotion, triggerGlitch, holoDepth])
 
   useEffect(() => () => { if (quoteTimer.current) clearTimeout(quoteTimer.current) }, [])
 
@@ -251,7 +257,10 @@ const Hero = () => {
                 style={{ rotateX: hologramRotateX, rotateY: hologramRotateY, transformStyle: "preserve-3d" }}
                 // select-none: repeated clicks for quotes selected the image and
                 // drew the browser's blue selection box around it
-                className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer select-none"
+                className={cn(
+                  "relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer select-none",
+                  holoDepth.interactive && "cursor-grab active:cursor-grabbing",
+                )}
               >
                 {/* Projector beam, widening upward from the base ring. Static
                     gradients under a clip-path, so it costs nothing per frame
@@ -288,6 +297,10 @@ const Hero = () => {
                     transition={{ duration: 1.4, delay: 0.45, ease: [0.4, 0, 0.2, 1] }}
                   >
                   <div className={cn("holo-figure relative w-full h-full", isGlitching && "hologram-glitch")}>
+                    {holoDepth.filterSvg}
+                    {/* The depth filter sits inside .holo-figure, so the rim light
+                        follows the turned silhouette */}
+                    <div ref={holoDepth.figureRef} className="relative h-full w-full" style={holoDepth.figureStyle}>
                     <Image
                       src="/hero-portrait.png"
                       alt="Miit Daga"
@@ -305,6 +318,7 @@ const Hero = () => {
                       }}
                       priority
                     />
+                    </div>
                   </div>
                   </motion.div>
 
