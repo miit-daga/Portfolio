@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150">
+  <defs>
+    <linearGradient id="astro-suit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fafc"/>
+      <stop offset="0.55" stop-color="#eef2f7"/>
+      <stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <radialGradient id="astro-helmet" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#f1f5f9"/>
+      <stop offset="1" stop-color="#94a3b8"/>
+    </radialGradient>
+    <linearGradient id="astro-visor-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="0.62" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="astro-slate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#475569"/>
+      <stop offset="1" stop-color="#334155"/>
+    </linearGradient>
+    <radialGradient id="astro-glint-fill" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g id="astro-body">
+    <!-- jetpack (behind body) -->
+    <rect x="32" y="58" width="56" height="42" rx="8" fill="url(#astro-slate)"/>
+    <path d="M33,99 L43,99 L41,105 L35,105 Z" fill="url(#astro-slate)"/>
+    <path d="M77,99 L87,99 L85,105 L79,105 Z" fill="url(#astro-slate)"/>
+    <circle id="astro-nozzle-l" cx="38" cy="106" r="2" fill="#334155"/>
+    <circle id="astro-nozzle-r" cx="82" cy="106" r="2" fill="#334155"/>
+
+    <!-- legs -->
+    <rect x="45" y="96" width="12" height="30" rx="6" fill="url(#astro-suit)" transform="rotate(12 51 98)"/>
+    <rect x="63" y="96" width="12" height="30" rx="6" fill="url(#astro-suit)" transform="rotate(-12 69 98)"/>
+    <ellipse cx="44.5" cy="130" rx="8" ry="6" fill="url(#astro-slate)"/>
+    <ellipse cx="75.5" cy="130" rx="8" ry="6" fill="url(#astro-slate)"/>
+
+    <!-- torso -->
+    <rect x="38" y="58" width="44" height="46" rx="16" fill="url(#astro-suit)" stroke="#cbd5e1" stroke-width="1"/>
+    <path d="M40,95 Q60,100 80,95" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+    <path d="M60,88 L60,103" fill="none" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- chest panel -->
+    <rect x="50" y="72" width="20" height="12" rx="3" fill="url(#astro-slate)"/>
+    <circle cx="56" cy="78" r="2.2" fill="#2dd4bf"/>
+    <circle cx="64" cy="78" r="2.2" fill="#fbbf24"/>
+
+    <!-- resting arm (viewer's left) with mission patch -->
+    <rect x="29" y="70" width="10" height="26" rx="5" fill="url(#astro-suit)" stroke="#cbd5e1" stroke-width="1" transform="rotate(20 34 72)"/>
+    <circle cx="32" cy="78" r="3.2" fill="#0b1020" stroke="#2dd4bf" stroke-width="0.8"/>
+    <circle cx="32" cy="78" r="1" fill="#fbbf24"/>
+    <circle cx="24.5" cy="99" r="6" fill="url(#astro-suit)" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- helmet -->
+    <ellipse cx="60" cy="63" rx="18" ry="4.5" fill="url(#astro-slate)"/>
+    <circle cx="35.5" cy="42" r="3" fill="url(#astro-slate)"/>
+    <circle cx="84.5" cy="42" r="3" fill="url(#astro-slate)"/>
+    <circle cx="60" cy="40" r="25" fill="url(#astro-helmet)" stroke="#cbd5e1" stroke-width="1"/>
+
+    <!-- visor -->
+    <path id="astro-visor" d="M42,40 C42,28 50,24 60,24 C70,24 78,28 78,40 C78,50 71,55 60,55 C49,55 42,50 42,40 Z" fill="url(#astro-visor-fill)"/>
+    <circle cx="67" cy="32" r="0.8" fill="#ffffff"/>
+    <circle cx="72" cy="40" r="0.6" fill="#ffffff"/>
+    <circle cx="62" cy="45" r="0.6" fill="#ffffff" opacity="0.8"/>
+    <circle cx="49" cy="45" r="0.5" fill="#ffffff" opacity="0.7"/>
+    <ellipse id="astro-glint" cx="52" cy="36" rx="4" ry="2" fill="url(#astro-glint-fill)"/>
+  </g>
+
+  <!-- waving arm (viewer's right), shoulder pivot at 86,74 -->
+  <g id="astro-arm-wave">
+    <rect x="81" y="54" width="10" height="24" rx="5" fill="url(#astro-suit)" stroke="#cbd5e1" stroke-width="1" transform="rotate(30 86 74)"/>
+    <path d="M89.2,62.2 L95.1,65.6" fill="none" stroke="#475569" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="97.5" cy="54" r="6" fill="url(#astro-suit)" stroke="#cbd5e1" stroke-width="1"/>
+  </g>
+</svg>
