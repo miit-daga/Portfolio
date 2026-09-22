@@ -416,7 +416,10 @@
             "clear", "mute", "theme", "home", "back", "neofetch", "man", "top", "ssh", "sl",
             "grep", "sudo", "whoami", "date", "exit", "ls", "pwd", "cd", "vim", "vi", "cat",
             "rm", "mkdir", "reboot", "history", "play", "find", "tree", "ping", "fortune",
-            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit", "screensaver", "tour"
+            "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit", "screensaver", "tour",
+            "abstract", "demo", "which",
+            "git", "dig", "nslookup", "uptime", "uname", "hostname", "lsb_release", "ps", "kill",
+            "echo", "env", "printenv", "export", "cal", "finger", "cowsay", "figlet", "base64", "sha256sum"
           ]
         };
 
@@ -1415,6 +1418,9 @@
             'achievements', 'projects', 'publications', 'contact', 'socials',
             'guestbook', 'man', 'ls', 'history', 'neofetch', 'date', 'pwd', 'whoami',
             'find', 'tree', 'fortune', 'stats', 'alias', 'curl', 'leaderboard',
+            'abstract', 'which',
+            'git', 'dig', 'nslookup', 'uptime', 'uname', 'hostname', 'lsb_release', 'ps',
+            'echo', 'env', 'printenv', 'export', 'cal', 'finger', 'cowsay', 'figlet', 'base64', 'sha256sum',
         ]);
         const PIPE_STAGES = ['grep', 'wc', 'head', 'tail'];
 
@@ -1554,6 +1560,1082 @@
             for (const line of lines) await typeRaw(line);
         }
 
+        // --- ABSTRACTS, DEMOS, SKILL TRAILS ---------------------------------
+        // Copies of the site's own data, because this page is static HTML and
+        // cannot import it. Edit both places together:
+        //   PUBLICATION_ABSTRACTS  components/Publications.tsx (published text)
+        //   PROJECT_REELS          constants/project-reels.ts
+        //   SKILL_TRAILS           constants/skill-usage.ts
+        // Abstracts are keyed by the titles in MOCK_DATA.publications.
+        const PUBLICATION_ABSTRACTS = {
+            "VeriX-Anon: A multi-layered framework for mathematically verifiable outsourced target-driven data anonymization": "Organizations increasingly outsource privacy-sensitive data transformations to cloud providers, yet no practical mechanism lets the data owner verify that the contracted algorithm was faithfully executed. VeriX-Anon is a multi-layered verification framework for outsourced Target-Driven k-anonymization combining three orthogonal mechanisms: deterministic verification via Merkle-style hashing of an Authenticated Decision Tree, probabilistic verification via Boundary Sentinels and exact-duplicate Twins with cryptographic identifiers, and utility-based verification via Explainable AI fingerprinting that compares SHAP value distributions before and after anonymization using the Wasserstein distance. Across seven cross-domain datasets and four cloud profiles (28 scenarios), against Lazy (drops records), Dumb (fake hash), and Approximate (valid hash) adversaries, VeriX-Anon detects 25 of 28 deviations under a fixed threshold and 27 of 28 once the threshold is calibrated per dataset, with no false alarms. No single layer achieved this alone. The XAI layer was the only mechanism that caught the Approximate adversary, succeeding on six of seven datasets and missing only a high-dimensional case where honest generalization shifts SHAP as much as the attack. Target-Driven anonymization preserved significantly more utility than blind splitting, with mean F1 gaps of +0.058 to +0.362 and Wilcoxon p ≤ 0.001 on six of seven datasets. Client-side verification completes under one second at one million rows. The threat model covers three empirically evaluated profiles and one theoretical Informed Attacker unable to defeat the cryptographic salt. Sentinel evasion probability ranges from near-zero to 0.82 for the most imbalanced data, which the twin layer offsets in every scenario.",
+            "Adaptive Quantum Kernel Selection via Leakage-Free Stacking for Clinical Diagnostics on NISQ Hardware": "Quantum kernel methods map clinical features into exponentially large Hilbert spaces where overlapping biological markers can become more separable than in fixed-dimensional classical feature spaces, but existing work evaluates single quantum feature maps, ignores barren-plateau failure modes, and relies on single train–test splits vulnerable to data leakage. Classical diagnostics for Parkinson’s disease, breast cancer, and diabetes remain limited by the Specificity–Recall trade-off that fixed-dimensional kernels impose on overlapping biomarker distributions. We propose an adaptive hybrid quantum framework routing clinical data through three distinct quantum feature maps, namely Angle, Amplitude, and ZZ-entanglement, computing fidelity-based Gram matrices for Quantum SVM and Quantum KNN classifiers. A Logistic Regression meta-learner, trained on strictly out-of-fold predictions from nested cross-validation (5-fold inner, 10-fold outer), learns which quantum kernel generalizes on each dataset and suppresses those that do not. Evaluated on Parkinson’s (195 patients), Breast Cancer (569), and Diabetes (768) with 1,000-iteration bootstrapping, the ensemble raised Parkinson’s Specificity from 0.585 to 0.813 (p < 0.001) while maintaining Recall above 0.95, matched classical RBF-SVM on Breast Cancer (all p > 0.05), and improved Diabetes Recall from 0.553 to 0.621 (p = 0.004). A standalone Variational Quantum Classifier failed on all datasets (ROC-AUC 0.51 to 0.57), confirming barren plateau limitations. Explainability via SHAP, LIME, and Permutation Importance revealed dataset-dependent kernel trust: the meta-learner suppressed QKNN Amplitude on Diabetes (coefficient −0.353) while amplifying it on Parkinson’s (1.761). PCA-based feature backtracking recovered established biomarkers including Insulin and Glucose for Diabetes, vocal perturbation measures for Parkinson’s, and nucleus geometry for Breast Cancer. Noise simulations confirmed graceful degradation under NISQ conditions. The framework performs data-driven kernel selection, removing the need to pre-specify an encoding strategy.",
+            "AquaSelect: Learning when to abstain via score fusion for reliable underwater species classification": "Deep learning classifiers for fine-grained visual recognition provide no per-prediction reliability estimate, yet selective prediction methods that allow classifiers to abstain remain evaluated only on standard benchmarks, untested in domains where visual degradation drives failure patterns. We present AquaSelect, a post-hoc selective prediction framework that learns when to abstain rather than risk a misclassification. AquaSelect trains a lightweight binary selection head of 213K parameters on a frozen backbone to predict classifier correctness, fusing this with temperature-calibrated confidence and image quality features via interpretable logistic regression. Because the backbone remains frozen, the selection head can be retrained for new environments without touching the base classifier. Evaluated on two underwater species datasets, AQUA20 with 8,171 images across 20 classes and Sea Animals with 13,711 images across 23 classes, using ConvNeXt-Tiny and DeiT-Small backbones across three seeds, AquaSelect outperforms Softmax Response and Monte Carlo Dropout on all six seed-backbone evaluations on AQUA20 and improves mean coverage metrics on Sea Animals. At 80% coverage, accuracy rises from 87.3% to 94.8% and Macro F1 from 81.5% to 88.6%, surpassing the benchmark full-data accuracy of 90.69% despite using 15% less training data. We also report that RAPS conformal prediction sets averaging 3.7 to 5.0 classes are impractical for single-label classification, and fusing set sizes with learned scores degrades selection quality. Ablation identifies the learned selection head as the dominant component. The framework runs at 149 FPS, 2.8 times faster than Deep Ensembles, and applies to any classification system where errors carry asymmetric costs.",
+            "Co-inventor, AI Powered Smart Disease Detection": "A multi-crop diagnostic system using deep learning to achieve 99.3% accuracy in under 2.5 seconds. The invention discloses a system and method for rapid plant disease diagnosis across multiple crop species, supporting at least five plant species including coconut, rubber, black gram, turmeric, and eggplant. It enables high accuracy detection without specialized hardware, addressing critical needs in modern agriculture. The work has been filed as Indian Patent Application No. 202541082595 in September 2025."
+        };
+
+        const PROJECT_REELS = {
+            "quick-seed": {
+                "title": "~/blog-api",
+                "lines": [
+                    {
+                        "kind": "cmd",
+                        "text": "npx quick-seed seed --schema schema.js"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "🌱 Starting the seeding process..."
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Database connection established.",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Seeding order: users -> posts",
+                        "tone": "accent"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing table: users"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Generated 10 records for users.",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Successfully inserted data into users.",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing table: posts"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Generated 50 records for posts.",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Successfully inserted data into posts.",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "bar",
+                        "label": "Records processed",
+                        "total": 60
+                    },
+                    {
+                        "kind": "out",
+                        "text": "✅ Seeding completed successfully in 1.84s!",
+                        "tone": "ok"
+                    }
+                ]
+            },
+            "flowsquire": {
+                "title": "~",
+                "lines": [
+                    {
+                        "kind": "cmd",
+                        "text": "flowsquire start"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "🚀 FlowSquire Agent starting..."
+                    },
+                    {
+                        "kind": "out",
+                        "text": "📋 Loaded 14 rule(s)",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  📁 ~/Downloads (13 rule(s))",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  📁 ~/Downloads/Screenshots (1 rule(s))",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "👁  Watching 2 folder(s)..."
+                    },
+                    {
+                        "kind": "gap"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "📄 invoice_march.pdf"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  → Rule: PDF Invoice Organizer",
+                        "tone": "accent"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "    ✓ MOVE: invoice_march.pdf",
+                        "tone": "ok"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "📄 2601.16163v1.pdf"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  → Rule: PDF arXiv Research Paper Organizer",
+                        "tone": "accent"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "    ✓ MOVE: 2601.16163v1.pdf",
+                        "tone": "ok"
+                    }
+                ]
+            },
+            "env-guard": {
+                "title": "~/api",
+                "lines": [
+                    {
+                        "kind": "cmd",
+                        "text": "env-guard validate --schema schema.js"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "❌ Validation failed",
+                        "tone": "err"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Errors found:",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  1. PORT: Port must be an integer between 1 and 65535"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "     Type: FormatError, Value: 99999",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  2. API_KEY: String must be at least 32 characters long"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "     Type: FormatError, Value: abc",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "cmd",
+                        "text": "env-guard validate --schema schema.js --env-file .env.local"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "✅ Validation successful",
+                        "tone": "ok"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Validated environment variables:",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  PORT: 3000 (number)"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  NODE_ENV: production (string)"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  DEBUG: false (boolean)"
+                    }
+                ]
+            },
+            "DriftGuard-ETC": {
+                "title": "DriftGuard_ETC.ipynb",
+                "prompt": ">>>",
+                "note": "saved output",
+                "lines": [
+                    {
+                        "kind": "cmd",
+                        "text": "drift_threshold = 0.17; warm_up_samples = 1000"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Starting drift detection loop with warm-up period of 1000 samples...",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Warm-up progress: 1000/1000 samples processed.",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing sample 9999... Current Drift Rate: 0.1428"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing sample 11999... Current Drift Rate: 0.1591"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing sample 13999... Current Drift Rate: 0.1675",
+                        "tone": "warn"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Drift Detected at sample index: 14334 (Drift Rate: 0.1711)",
+                        "tone": "err"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "   Retraining XGBoost model (multi-class)...",
+                        "tone": "accent"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Model retrained successfully with XGBoost!",
+                        "tone": "ok"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  F1-score : 0.9622 before, 0.9785 after",
+                        "tone": "ok"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing sample 14999... Current Drift Rate: 0.0361"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Processing sample 21999... Current Drift Rate: 0.0540"
+                    }
+                ]
+            },
+            "FitAI-backend": {
+                "title": "~/fitai-backend",
+                "note": "sample run",
+                "lines": [
+                    {
+                        "kind": "cmd",
+                        "text": "node index.js"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Server is running on port 3001",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "cmd",
+                        "text": "curl -X POST localhost:3001/auth/model -d '{\"userId\":\"9XK2QP\",\"query\":\"How did I sleep this week?\"}'"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "{"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  \"userId\": \"9XK2QP\",",
+                        "tone": "accent"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  \"response\": \"Your latest Fitbit sync shows 6.4 h of sleep and 7,842 steps. That is about an hour under the 7 to 8 h target; winding down earlier on weeknights would close most of the gap.\""
+                    },
+                    {
+                        "kind": "out",
+                        "text": "}"
+                    }
+                ]
+            },
+            "DisMan": {
+                "title": "~/DisasterManagement/server",
+                "note": "sample call",
+                "lines": [
+                    {
+                        "kind": "cmd",
+                        "text": "python app.py"
+                    },
+                    {
+                        "kind": "out",
+                        "text": " * Running on http://127.0.0.1:5000",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "\"POST /voice HTTP/1.1\" 200",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "\"POST /language-selection HTTP/1.1\" 200",
+                        "tone": "dim"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Selected language in handle_recording: hi"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Transcribed Text: There is a fire in the building near Park Street. My name is Rahul, please send help."
+                    },
+                    {
+                        "kind": "out",
+                        "text": "Generative AI Analysis Results:",
+                        "tone": "accent"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "{ \"names\": [\"Rahul\"], \"addresses\": [\"Park Street\"],",
+                        "tone": "warn"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "  \"disaster\": \"fire\", \"sentiment\": \"distressed\" }",
+                        "tone": "warn"
+                    },
+                    {
+                        "kind": "out",
+                        "text": "\"POST /handle-recording HTTP/1.1\" 200",
+                        "tone": "ok"
+                    }
+                ]
+            }
+        };
+
+        const SKILL_TRAILS = {
+            "JavaScript": [
+                "FitAI-backend",
+                "DisMan"
+            ],
+            "TypeScript": [
+                "quick-seed",
+                "flowsquire",
+                "env-guard",
+                "This site"
+            ],
+            "Java": [
+                "ICSE · Class X"
+            ],
+            "Python": [
+                "Research papers",
+                "DriftGuard-ETC",
+                "DisMan"
+            ],
+            "HTML": [
+                "Seculinx",
+                "This site"
+            ],
+            "CSS": [
+                "Seculinx",
+                "This site"
+            ],
+            "SQL": [
+                "Tata Power",
+                "quick-seed"
+            ],
+            "NodeJS": [
+                "quick-seed",
+                "flowsquire",
+                "env-guard",
+                "FitAI-backend"
+            ],
+            "ExpressJS": [
+                "FitAI-backend",
+                "DisMan"
+            ],
+            "FastAPI": [
+                "Tata Power",
+                "Akatsuki AI"
+            ],
+            "ReactJS": [
+                "This site",
+                "DisMan"
+            ],
+            "NextJS": [
+                "This site"
+            ],
+            "MongoDB": [
+                "DisMan"
+            ],
+            "MySQL": [
+                "quick-seed"
+            ],
+            "PostgreSQL": [
+                "Tata Power",
+                "quick-seed"
+            ],
+            "Firebase": [
+                "TechWire Studio"
+            ],
+            "Git": [
+                "Every project and internship"
+            ],
+            "AWS": [
+                "Tata Power",
+                "TechWire Studio",
+                "FitAI-backend"
+            ],
+            "Nginx": [
+                "Tata Power",
+                "TechWire Studio"
+            ],
+            "VS Code": [
+                "Daily, for everything"
+            ],
+            "Vercel": [
+                "This site"
+            ]
+        };
+        const SKILL_TRAIL_FALLBACK = ["Various projects"];
+
+
+        // abstract [n|term]: a paper's full abstract. With no argument, the list.
+        async function showAbstract(arg) {
+            const pubs = MOCK_DATA.publications;
+            const list = async () => {
+                await typeRaw('<div class="section-title">Abstracts</div>');
+                for (const [i, pub] of pubs.entries()) {
+                    await typeRaw(
+                        `  <span class="nav-link" onclick="runCommandFromClick('abstract ${i + 1}')">abstract ${i + 1}</span>  ` +
+                        `<span class="highlight-name">${escapeHtml(pub.title)}</span>`
+                    );
+                }
+            };
+            if (!arg) {
+                SoundFX.enter();
+                await list();
+                return;
+            }
+            const q = arg.toLowerCase();
+            const idx = /^\d+$/.test(q)
+                ? Number(q) - 1
+                : pubs.findIndex((p) => p.title.toLowerCase().includes(q) || p.venue.toLowerCase().includes(q));
+            const pub = pubs[idx];
+            if (!pub) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">abstract: no paper matches '${escapeHtml(arg)}'</span>`);
+                await list();
+                return;
+            }
+            SoundFX.dataBurst();
+            await typeRaw(
+                `<span class="highlight-value">[${escapeHtml(pub.kind)}]</span> ` +
+                `<span class="highlight-date">${escapeHtml(pub.venue)}</span>`
+            );
+            await typeRaw(`<span class="highlight-name">${escapeHtml(pub.title)}</span>`);
+            // Only the journals have a published abstract; the patent shows its summary
+            await typeRaw(`<span class="highlight-dim">${pub.link ? 'Abstract, as published' : 'Summary (the application abstract is not public)'}</span>`);
+            await typeRaw(`<div style="white-space:normal;max-width:90ch;line-height:1.6">${escapeHtml(PUBLICATION_ABSTRACTS[pub.title] || '')}</div>`);
+            if (pub.link) await typeRaw(`<a href="${pub.link}" target="_blank" class="nav-link">View Publication</a>`);
+        }
+
+        // demo [repo]: replay a featured project's run, the same scripts as the
+        // terminals on the site's project cards. Ctrl+C stops it.
+        const REEL_TONES = { dim: '#888', ok: '#4ade80', err: '#ff5555', warn: '#fbbf24', accent: 'var(--term-accent)' };
+        const reelPause = (ms) => new Promise((r) => setTimeout(r, ms)).then(throwIfCancelled);
+
+        async function playDemo(arg) {
+            const names = Object.keys(PROJECT_REELS);
+            const q = arg.toLowerCase();
+            const name = q && (names.find((n) => n.toLowerCase() === q) || names.find((n) => n.toLowerCase().startsWith(q)));
+            if (!name) {
+                if (q) {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">demo: no reel for '${escapeHtml(arg)}'</span>`);
+                } else {
+                    SoundFX.enter();
+                }
+                await typeRaw('<div class="section-title">Demos</div>');
+                for (const n of names) {
+                    await typeRaw(`  <span class="nav-link" onclick="runCommandFromClick('demo ${n}')">demo ${n}</span>`);
+                }
+                await typeRaw('<span class="highlight-dim">Scripted replays: nothing runs. Ctrl+C stops one early.</span>');
+                return;
+            }
+            const reel = PROJECT_REELS[name];
+            const prompt = escapeHtml(reel.prompt || '$');
+            SoundFX.enter();
+            await typeRaw(
+                `<span class="highlight-date">── ${escapeHtml(reel.title)} ──</span>` +
+                (reel.note ? ` <span class="highlight-value">[${escapeHtml(reel.note)}]</span>` : '')
+            );
+            for (const line of reel.lines) {
+                if (line.kind === 'gap') {
+                    await typeRaw('&nbsp;');
+                    await reelPause(90);
+                } else if (line.kind === 'cmd') {
+                    // Typed out character by character, like someone at the keyboard
+                    const div = document.createElement('div');
+                    div.className = 'output';
+                    outputContainer.appendChild(div);
+                    let typed = '';
+                    for (const ch of line.text) {
+                        typed += ch;
+                        div.innerHTML = `<span style="color:var(--term-primary)">${prompt}</span> ${escapeHtml(typed)}`;
+                        terminal.scrollTop = terminal.scrollHeight;
+                        await reelPause(22 + Math.random() * 38);
+                    }
+                    await reelPause(420);
+                } else if (line.kind === 'bar') {
+                    const div = document.createElement('div');
+                    div.className = 'output';
+                    div.style.color = REEL_TONES.accent;
+                    outputContainer.appendChild(div);
+                    for (let pct = 0; pct <= 100; pct += 5) {
+                        const filled = Math.round((pct / 100) * 20);
+                        div.textContent = `${'█'.repeat(filled)}${'░'.repeat(20 - filled)} ${pct}% | ${Math.round((pct / 100) * line.total)}/${line.total} | ${line.label}`;
+                        terminal.scrollTop = terminal.scrollHeight;
+                        await reelPause(45);
+                    }
+                    await reelPause(200);
+                } else {
+                    const color = line.tone ? REEL_TONES[line.tone] : null;
+                    await typeRaw(color ? `<span style="color:${color}">${escapeHtml(line.text)}</span>` : escapeHtml(line.text));
+                    await reelPause(150 + Math.min(260, line.text.length * 2));
+                }
+            }
+        }
+
+        // which <name>: a command's path, as a real shell would print it, or
+        // for a skill, where it was used. Both, if a name is somehow both.
+        async function runWhich(arg) {
+            if (!arg) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">usage: which &lt;command|skill&gt;</span>');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('which fastapi')">which fastapi</span> or <span class="nav-link" onclick="runCommandFromClick('which ls')">which ls</span>.`);
+                return;
+            }
+            const q = arg.toLowerCase();
+            let found = false;
+            if (MOCK_DATA.commands.includes(q)) {
+                await typeRaw(escapeHtml(`/usr/local/bin/${q}`));
+                found = true;
+            }
+            const allSkills = Object.values(MOCK_DATA.skills).flat();
+            const skill = allSkills.find((s) => s.toLowerCase() === q);
+            if (skill) {
+                const trail = SKILL_TRAILS[skill] || SKILL_TRAIL_FALLBACK;
+                await typeRaw(
+                    `<span class="highlight-name">${escapeHtml(skill)}</span> ` +
+                    `<span class="highlight-date">▸</span> ${trail.map((t) => `<span class="highlight-value">${escapeHtml(t)}</span>`).join(' <span class="highlight-date">·</span> ')}`
+                );
+                found = true;
+            }
+            if (found) {
+                SoundFX.enter();
+            } else {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">which: no ${escapeHtml(arg)} in (/usr/local/bin:/usr/bin:/bin:~/skills)</span>`);
+            }
+        }
+
+        // --- UNIX COMMANDS -------------------------------------------------
+        // Everyday commands, answering the way the real ones do. Where the
+        // real thing can be done from a browser it is: git log reads this
+        // repository's actual commits, dig and nslookup make real DNS queries
+        // over HTTPS, base64 and sha256sum really transform their input.
+        // Identity matches neofetch: MIIT-DAGA-OS, kernel cosmic-6.6.6.
+        const UNIX_COMMANDS = [
+            'git', 'dig', 'nslookup', 'uptime', 'uname', 'hostname', 'lsb_release',
+            'ps', 'kill', 'echo', 'env', 'printenv', 'export', 'cal', 'finger',
+            'cowsay', 'figlet', 'base64', 'sha256sum',
+        ];
+        const PAGE_LOADED_AT = new Date();
+
+        // Session environment. export adds to it; nothing persists.
+        const SHELL_EXPORTS = {};
+        function shellEnv() {
+            return {
+                USER: termUser,
+                HOME: '/home/miit-daga',
+                SHELL: '/bin/miitsh',
+                PATH: '/usr/local/bin:/usr/bin:/bin',
+                PWD: '/home/miit-daga',
+                HOSTNAME: 'miit-daga',
+                TERM: 'xterm-256color',
+                LANG: 'en_IN.UTF-8',
+                EDITOR: 'vim',
+                ...SHELL_EXPORTS,
+            };
+        }
+
+        const unixPre = (text, style = '') =>
+            `<div style="white-space:pre;${style}">${text}</div>`;
+        // One output line per row, so pipes can filter them: env | grep PATH
+        async function unixLines(text) {
+            for (const line of text.split('\n')) await typeRaw(unixPre(line || '&nbsp;'));
+        }
+
+        async function runUnix(command) {
+            const parts = command.trim().split(/\s+/);
+            const name = parts[0].toLowerCase();
+            const args = parts.slice(1);
+            const rest = command.trim().slice(parts[0].length).trim();
+            switch (name) {
+                case 'git': return unixGit(args);
+                case 'dig': return unixDig(args, 'dig');
+                case 'nslookup': return unixDig(args, 'nslookup');
+                case 'uptime': return unixUptime();
+                case 'uname': return unixUname(args);
+                case 'hostname': SoundFX.enter(); return typeRaw('miit-daga');
+                case 'lsb_release': return unixLsb(args);
+                case 'ps': return unixPs();
+                case 'kill': return unixKill(args);
+                case 'echo': return unixEcho(rest);
+                case 'env':
+                case 'printenv': return unixEnv(args);
+                case 'export': return unixExport(rest);
+                case 'cal': return unixCal(args);
+                case 'finger': return unixFinger(args);
+                case 'cowsay': return unixCowsay(rest);
+                case 'figlet': return unixFiglet(rest);
+                case 'base64': return unixBase64(args);
+                case 'sha256sum': return unixSha256(rest);
+            }
+        }
+
+        // git: log and status are real; everything else is politely refused
+        async function unixGit(args) {
+            const sub = (args[0] || '').toLowerCase();
+            if (!sub) {
+                await typeRaw('usage: git &lt;command&gt;');
+                await typeRaw(`This repository answers <span class="nav-link" onclick="runCommandFromClick('git log')">git log</span>, <span class="nav-link" onclick="runCommandFromClick('git log --oneline')">git log --oneline</span> and <span class="nav-link" onclick="runCommandFromClick('git status')">git status</span>.`);
+                return;
+            }
+            if (sub === 'status') {
+                SoundFX.enter();
+                await typeRaw(unixPre(
+                    'On branch main\nYour branch is up to date with \'origin/main\'.\n\n' +
+                    'nothing to commit, working tree clean'
+                ));
+                return;
+            }
+            if (sub === 'push' || sub === 'commit' || sub === 'reset' || sub === 'rebase') {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">git ${escapeHtml(sub)}: Permission denied (publickey).</span>`);
+                await typeRaw('<span class="highlight-dim">Read-only clone. The author pushes; visitors read the log.</span>');
+                return;
+            }
+            if (sub !== 'log') {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">git: '${escapeHtml(sub)}' is not available here. Try git log or git status.</span>`);
+                return;
+            }
+            const oneline = args.includes('--oneline');
+            const nIdx = args.findIndex((a) => a === '-n');
+            const nArg = nIdx !== -1 ? Number(args[nIdx + 1]) : Number((args.find((a) => /^-\d+$/.test(a)) || '').slice(1));
+            const count = Math.min(30, Math.max(1, nArg || (oneline ? 10 : 5)));
+            await typeSpinner('Fetching origin/main...', 500);
+            let commits;
+            try {
+                const res = await fetch(`https://api.github.com/repos/miit-daga/Portfolio/commits?per_page=${count}`);
+                if (!res.ok) throw new Error(res.status === 403 ? 'GitHub rate limit reached, try again in a while' : `HTTP ${res.status}`);
+                commits = await res.json();
+            } catch (err) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">git log: ${escapeHtml(err.message || 'network error')}</span>`);
+                return;
+            }
+            SoundFX.dataBurst();
+            for (const c of commits) {
+                const sha = c.sha.slice(0, 7);
+                const subject = (c.commit.message || '').split('\n')[0];
+                if (oneline) {
+                    await typeRaw(`<span class="highlight-value">${sha}</span> ${escapeHtml(subject)}`);
+                } else {
+                    const when = new Date(c.commit.author.date);
+                    await typeRaw(unixPre(
+                        `<span class="highlight-value">commit ${escapeHtml(c.sha)}</span>\n` +
+                        `Author: ${escapeHtml(c.commit.author.name)}\n` +
+                        `Date:   ${escapeHtml(when.toString().replace(/ GMT.*$/, ''))}\n\n` +
+                        `    ${escapeHtml(subject)}\n`
+                    ));
+                }
+            }
+        }
+
+        // dig / nslookup: real queries through Google's DNS-over-HTTPS resolver
+        const DNS_TYPES = { A: 1, NS: 2, CNAME: 5, SOA: 6, MX: 15, TXT: 16, AAAA: 28 };
+        const DNS_NAMES = Object.fromEntries(Object.entries(DNS_TYPES).map(([k, v]) => [v, k]));
+        async function unixDig(args, mode) {
+            // The domain is whichever argument has a dot in it; a bare word is the record type
+            const host = (args.find((a) => a.includes('.')) || '').replace(/\.$/, '');
+            const type = (args.find((a) => DNS_TYPES[a.toUpperCase()] && a !== host) || 'A').toUpperCase();
+            if (!host || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(host)) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">usage: ${mode} &lt;domain&gt;${mode === 'dig' ? ' [A|AAAA|MX|TXT|NS|CNAME]' : ''}</span>`);
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('${mode} miitdaga.dev')">${mode} miitdaga.dev</span>.`);
+                return;
+            }
+            const started = performance.now();
+            let data;
+            try {
+                const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(host)}&type=${type}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                data = await res.json();
+            } catch (err) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">;; connection timed out; no servers could be reached</span>`);
+                return;
+            }
+            const ms = Math.round(performance.now() - started);
+            const answers = data.Answer || [];
+            const status = ['NOERROR', 'FORMERR', 'SERVFAIL', 'NXDOMAIN'][data.Status] || `RCODE${data.Status}`;
+            SoundFX.dataBurst();
+            if (mode === 'nslookup') {
+                let out = 'Server:\t\tdns.google\nAddress:\t8.8.8.8#443\n\n';
+                if (status === 'NXDOMAIN') {
+                    out += `** server can't find ${escapeHtml(host)}: NXDOMAIN`;
+                } else {
+                    out += 'Non-authoritative answer:\n';
+                    const addrs = answers.filter((a) => a.type === 1 || a.type === 28);
+                    const cnames = answers.filter((a) => a.type === 5);
+                    for (const c of cnames) out += `${escapeHtml(c.name.replace(/\.$/, ''))}\tcanonical name = ${escapeHtml(c.data)}\n`;
+                    if (addrs.length) for (const a of addrs) out += `Name:\t${escapeHtml(host)}\nAddress: ${escapeHtml(a.data)}\n`;
+                    else out += `*** Can't find ${escapeHtml(host)}: No answer`;
+                }
+                await unixLines(out.trimEnd());
+                return;
+            }
+            let out =
+                `; &lt;&lt;&gt;&gt; DiG 9.18 &lt;&lt;&gt;&gt; ${escapeHtml(host)} ${type}\n` +
+                `;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status: ${status}\n\n` +
+                `;; QUESTION SECTION:\n;${escapeHtml(host)}.\t\tIN\t${type}\n`;
+            if (answers.length) {
+                out += '\n;; ANSWER SECTION:\n';
+                for (const a of answers) {
+                    out += `${escapeHtml(a.name)}\t${a.TTL}\tIN\t${DNS_NAMES[a.type] || a.type}\t<span class="highlight-value">${escapeHtml(a.data)}</span>\n`;
+                }
+            }
+            out += `\n;; Query time: ${ms} msec\n;; SERVER: 8.8.8.8#443(dns.google) (HTTPS)\n;; WHEN: ${escapeHtml(new Date().toString().replace(/ GMT.*$/, ''))}`;
+            await unixLines(out);
+        }
+
+        async function unixUptime() {
+            SoundFX.enter();
+            const mins = Math.max(0, Math.floor((Date.now() - PAGE_LOADED_AT.getTime()) / 60000));
+            const up = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, '0')}`;
+            const now = new Date().toTimeString().slice(0, 8);
+            // Load average: how many commands this session has run, scaled down
+            const load = (commandHistory.length / 20).toFixed(2);
+            await typeRaw(escapeHtml(` ${now} up ${up},  1 user,  load average: ${load}, ${(load * 0.8).toFixed(2)}, ${(load * 0.6).toFixed(2)}`));
+        }
+
+        async function unixUname(args) {
+            SoundFX.enter();
+            const flags = args.join('');
+            const parts = {
+                s: 'cosmic', n: 'miit-daga', r: '6.6.6',
+                v: `#1 SMP PREEMPT_DYNAMIC ${PAGE_LOADED_AT.toDateString()}`, m: 'x86_64', o: 'MIIT-DAGA-OS',
+            };
+            if (flags.includes('a')) {
+                await typeRaw(escapeHtml(`${parts.s} ${parts.n} ${parts.r} ${parts.v} ${parts.m} ${parts.o}`));
+                return;
+            }
+            const picked = [...'snrvmo'].filter((f) => flags.includes(f)).map((f) => parts[f]);
+            await typeRaw(escapeHtml(picked.length ? picked.join(' ') : parts.s));
+        }
+
+        async function unixLsb(args) {
+            SoundFX.enter();
+            if (!args.length) {
+                await typeRaw('No LSB modules are available.');
+                return;
+            }
+            await unixLines(
+                'Distributor ID:\tMIIT-DAGA-OS\n' +
+                'Description:\tMIIT-DAGA-OS v1.0 (Orbit)\n' +
+                'Release:\t1.0\n' +
+                'Codename:\torbit'
+            );
+        }
+
+        // ps / kill: a small, stable process table
+        const PROCESSES = [
+            { pid: 1, cmd: 'init', time: '00:00:02' },
+            { pid: 42, cmd: 'miitsh', time: '00:00:01' },
+            { pid: 88, cmd: 'matrix-rain', time: '00:03:14' },
+            { pid: 101, cmd: 'coffee.service', time: '99:59:59' },
+            { pid: 137, cmd: 'imposter-syndrome --quiet', time: '00:00:07' },
+            { pid: 256, cmd: 'overthink --recursive', time: '00:12:08' },
+        ];
+        const KILL_REPLIES = {
+            1: 'kill: (1) - Operation not permitted. init is load-bearing.',
+            42: 'kill: (42) - That is the shell you are typing into. Bold.',
+            88: 'kill: (88) - The rain keeps falling. It is decorative, not a process you can reason with.',
+            101: 'coffee.service terminated... and respawned immediately. It always does.',
+            137: 'imposter-syndrome terminated. It will be back before the next code review.',
+            256: 'overthink terminated. Or was it? Probably fine. Definitely fine.',
+        };
+        async function unixPs() {
+            SoundFX.enter();
+            let out = '  PID TTY          TIME CMD\n';
+            const rows = [...PROCESSES, { pid: 1000 + commandHistory.length, cmd: 'ps', time: '00:00:00' }];
+            for (const p of rows) out += `${String(p.pid).padStart(5)} pts/0    ${p.time} ${escapeHtml(p.cmd)}\n`;
+            await unixLines(out.trimEnd());
+        }
+        async function unixKill(args) {
+            const target = args.filter((a) => !a.startsWith('-')).pop();
+            if (!target) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">kill: usage: kill [-9] &lt;pid&gt;</span>');
+                await typeRaw(`See <span class="nav-link" onclick="runCommandFromClick('ps')">ps</span> for what is running.`);
+                return;
+            }
+            const pid = Number(target);
+            if (KILL_REPLIES[pid]) {
+                SoundFX.funny();
+                await typeRaw(escapeHtml(KILL_REPLIES[pid]));
+            } else {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">kill: (${escapeHtml(target)}) - No such process</span>`);
+            }
+        }
+
+        // echo / env / export
+        function expandVars(text) {
+            const env = shellEnv();
+            return text.replace(/\$\{(\w+)\}|\$(\w+)/g, (_, a, b) => env[a || b] ?? '');
+        }
+        async function unixEcho(rest) {
+            SoundFX.enter();
+            // Quotes group words in a real shell; here they are simply removed
+            const text = expandVars(rest.replace(/^(['"])(.*)\1$/, '$2').replace(/["']/g, ''));
+            await typeRaw(escapeHtml(text) || '&nbsp;');
+        }
+        async function unixEnv(args) {
+            const env = shellEnv();
+            if (args.length) {
+                const v = env[args[0]];
+                if (v === undefined) return;
+                SoundFX.enter();
+                await typeRaw(escapeHtml(v));
+                return;
+            }
+            SoundFX.enter();
+            await unixLines(Object.entries(env).map(([k, v]) => `${k}=${escapeHtml(String(v))}`).join('\n'));
+        }
+        async function unixExport(rest) {
+            if (!rest) {
+                SoundFX.enter();
+                await unixLines(Object.entries(shellEnv()).map(([k, v]) => `declare -x ${k}="${escapeHtml(String(v))}"`).join('\n'));
+                return;
+            }
+            const m = rest.match(/^([A-Za-z_]\w*)=(.*)$/);
+            if (!m) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">export: \`${escapeHtml(rest)}': not a valid identifier</span>`);
+                return;
+            }
+            if (m[1] === 'USER') {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">export: USER is read-only here. Use <span class="nav-link" onclick="runCommandFromClick('login')">login</span> to change your name.</span>`);
+                return;
+            }
+            SHELL_EXPORTS[m[1]] = m[2].replace(/^(['"])(.*)\1$/, '$2');
+            SoundFX.enter();
+        }
+
+        // cal: this month, today highlighted
+        async function unixCal(args) {
+            SoundFX.enter();
+            const now = new Date();
+            const month = args[0] ? Math.min(12, Math.max(1, Number(args[0]) || now.getMonth() + 1)) - 1 : now.getMonth();
+            const year = args[1] ? Number(args[1]) || now.getFullYear() : now.getFullYear();
+            const title = new Date(year, month, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+            const startDay = new Date(year, month, 1).getDay();
+            const days = new Date(year, month + 1, 0).getDate();
+            let out = title.padStart(Math.floor((20 + title.length) / 2)).padEnd(20) + '\nSu Mo Tu We Th Fr Sa\n';
+            let line = '   '.repeat(startDay);
+            for (let d = 1; d <= days; d++) {
+                const isToday = d === now.getDate() && month === now.getMonth() && year === now.getFullYear();
+                const cell = String(d).padStart(2);
+                line += (isToday ? `<span style="background:var(--term-primary);color:#000">${cell}</span>` : cell) + ' ';
+                if ((startDay + d) % 7 === 0) { out += line.trimEnd() + '\n'; line = ''; }
+            }
+            if (line) out += line.trimEnd();
+            await typeRaw(unixPre(out.trimEnd()));
+        }
+
+        async function unixFinger(args) {
+            const who = (args[0] || '').toLowerCase();
+            if (!who) {
+                SoundFX.enter();
+                await unixLines(
+                    'Login     Name          Tty      Idle  Login Time\n' +
+                    `miit      Miit Daga     pts/0       -  (Kolkata)\n` +
+                    `${escapeHtml(termUser.padEnd(9))} a visitor     pts/1       -  ${escapeHtml(PAGE_LOADED_AT.toTimeString().slice(0, 5))}`
+                );
+                return;
+            }
+            if (who === 'miit' || who === 'miit-daga' || who === 'miitdaga') {
+                SoundFX.dataBurst();
+                const now = MOCK_DATA.experience[0];
+                await unixLines(
+                    'Login: miit                             Name: Miit Daga\n' +
+                    'Directory: /home/miit-daga              Shell: /bin/miitsh\n' +
+                    'On since forever on pts/0 from Kolkata, India\n' +
+                    'No unread mail.\n' +
+                    '<span class="highlight-value">Plan:</span>\n' +
+                    `  ${escapeHtml(now.role.split('·')[0].trim())}, building full-stack products.\n` +
+                    '  Research on the side: 10 Scopus-indexed papers and counting.\n' +
+                    `  Always up for an interesting problem. <span class="nav-link" onclick="runCommandFromClick('contact')">contact</span> if you have one.`
+                );
+                return;
+            }
+            if (who === termUser.toLowerCase()) {
+                SoundFX.enter();
+                await unixLines(
+                    `Login: ${escapeHtml(termUser.padEnd(33))}Name: (a visitor)\n` +
+                    `On since ${escapeHtml(PAGE_LOADED_AT.toTimeString().slice(0, 5))} on pts/1\n` +
+                    'No Plan.'
+                );
+                return;
+            }
+            SoundFX.error();
+            await typeRaw(`<span class="error-text">finger: ${escapeHtml(args[0])}: no such user.</span>`);
+        }
+
+        // cowsay: the classic, word-wrapped at 40
+        async function unixCowsay(rest) {
+            if (!rest) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">cowsay: what should the cow say?</span>');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('cowsay hello from the terminal')">cowsay hello from the terminal</span>.`);
+                return;
+            }
+            SoundFX.funny();
+            const words = rest.split(/\s+/);
+            const lines = [];
+            let cur = '';
+            for (const w of words) {
+                if ((cur + ' ' + w).trim().length > 40 && cur) { lines.push(cur); cur = w; }
+                else cur = (cur + ' ' + w).trim();
+            }
+            if (cur) lines.push(cur);
+            const width = Math.max(...lines.map((l) => l.length));
+            let out = ' ' + '_'.repeat(width + 2) + '\n';
+            if (lines.length === 1) {
+                out += `< ${lines[0]} >\n`;
+            } else {
+                lines.forEach((l, i) => {
+                    const [a, b] = i === 0 ? ['/', '\\'] : i === lines.length - 1 ? ['\\', '/'] : ['|', '|'];
+                    out += `${a} ${l.padEnd(width)} ${b}\n`;
+                });
+            }
+            out += ' ' + '-'.repeat(width + 2) + '\n' +
+                '        \\   ^__^\n' +
+                '         \\  (oo)\\_______\n' +
+                '            (__)\\       )\\/\\\n' +
+                '                ||----w |\n' +
+                '                ||     ||';
+            await typeRaw(unixPre(escapeHtml(out)));
+        }
+
+        // figlet: a five-row block face, wrapped at 12 characters a row
+        const FIGLET_FONT = {
+            A: [' ███ ', '█   █', '█████', '█   █', '█   █'], B: ['████ ', '█   █', '████ ', '█   █', '████ '],
+            C: [' ████', '█    ', '█    ', '█    ', ' ████'], D: ['████ ', '█   █', '█   █', '█   █', '████ '],
+            E: ['█████', '█    ', '████ ', '█    ', '█████'], F: ['█████', '█    ', '████ ', '█    ', '█    '],
+            G: [' ████', '█    ', '█  ██', '█   █', ' ████'], H: ['█   █', '█   █', '█████', '█   █', '█   █'],
+            I: ['█████', '  █  ', '  █  ', '  █  ', '█████'], J: ['█████', '   █ ', '   █ ', '█  █ ', ' ██  '],
+            K: ['█   █', '█  █ ', '███  ', '█  █ ', '█   █'], L: ['█    ', '█    ', '█    ', '█    ', '█████'],
+            M: ['█   █', '██ ██', '█ █ █', '█   █', '█   █'], N: ['█   █', '██  █', '█ █ █', '█  ██', '█   █'],
+            O: [' ███ ', '█   █', '█   █', '█   █', ' ███ '], P: ['████ ', '█   █', '████ ', '█    ', '█    '],
+            Q: [' ███ ', '█   █', '█ █ █', '█  █ ', ' ██ █'], R: ['████ ', '█   █', '████ ', '█  █ ', '█   █'],
+            S: [' ████', '█    ', ' ███ ', '    █', '████ '], T: ['█████', '  █  ', '  █  ', '  █  ', '  █  '],
+            U: ['█   █', '█   █', '█   █', '█   █', ' ███ '], V: ['█   █', '█   █', '█   █', ' █ █ ', '  █  '],
+            W: ['█   █', '█   █', '█ █ █', '██ ██', '█   █'], X: ['█   █', ' █ █ ', '  █  ', ' █ █ ', '█   █'],
+            Y: ['█   █', ' █ █ ', '  █  ', '  █  ', '  █  '], Z: ['█████', '   █ ', '  █  ', ' █   ', '█████'],
+            0: [' ███ ', '█  ██', '█ █ █', '██  █', ' ███ '], 1: [' ██  ', '█ █  ', '  █  ', '  █  ', '█████'],
+            2: [' ███ ', '█   █', '  ██ ', ' █   ', '█████'], 3: ['████ ', '    █', ' ███ ', '    █', '████ '],
+            4: ['█   █', '█   █', '█████', '    █', '    █'], 5: ['█████', '█    ', '████ ', '    █', '████ '],
+            6: [' ███ ', '█    ', '████ ', '█   █', ' ███ '], 7: ['█████', '    █', '   █ ', '  █  ', '  █  '],
+            8: [' ███ ', '█   █', ' ███ ', '█   █', ' ███ '], 9: [' ███ ', '█   █', ' ████', '    █', ' ███ '],
+            ' ': ['   ', '   ', '   ', '   ', '   '], '!': ['█', '█', '█', ' ', '█'],
+            '?': ['███ ', '   █', ' ██ ', '    ', ' █  '], '.': [' ', ' ', ' ', ' ', '█'],
+            '-': ['    ', '    ', '████', '    ', '    '],
+        };
+        async function unixFiglet(rest) {
+            if (!rest) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">figlet: nothing to print</span>');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('figlet hello')">figlet hello</span>.`);
+                return;
+            }
+            SoundFX.funny();
+            const text = rest.toUpperCase().slice(0, 48);
+            // Break on words where possible, 12 characters to a row
+            const rows = [];
+            let cur = '';
+            for (const w of text.split(' ')) {
+                for (const chunk of w.match(/.{1,12}/g) || ['']) {
+                    if (cur && cur.length + 1 + chunk.length > 12) { rows.push(cur); cur = chunk; }
+                    else cur = cur ? `${cur} ${chunk}` : chunk;
+                }
+            }
+            if (cur) rows.push(cur);
+            let out = '';
+            for (const row of rows) {
+                const glyphs = [...row].map((ch) => FIGLET_FONT[ch] || FIGLET_FONT[' ']);
+                for (let r = 0; r < 5; r++) out += glyphs.map((g) => g[r]).join(' ') + '\n';
+                out += '\n';
+            }
+            await typeRaw(unixPre(out.trimEnd(), 'color:var(--term-accent);line-height:1.1'));
+        }
+
+        // base64 / sha256sum: real transforms of the text given
+        async function unixBase64(args) {
+            const decode = args[0] === '-d' || args[0] === '--decode';
+            const text = (decode ? args.slice(1) : args).join(' ');
+            if (!text) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">usage: base64 [-d] &lt;text&gt;</span>');
+                return;
+            }
+            try {
+                let out;
+                if (decode) {
+                    const bin = atob(text);
+                    out = new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+                } else {
+                    const bytes = new TextEncoder().encode(text);
+                    out = btoa(String.fromCharCode(...bytes));
+                }
+                SoundFX.enter();
+                await typeRaw(escapeHtml(out));
+            } catch (e) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">base64: invalid input</span>');
+            }
+        }
+        async function unixSha256(rest) {
+            if (!rest) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">usage: sha256sum &lt;text&gt;</span>');
+                return;
+            }
+            // Hashes the text followed by a newline, which is what
+            // `echo text | sha256sum` hashes in a real shell
+            const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rest + '\n'));
+            const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+            SoundFX.enter();
+            await typeRaw(`${hex}  -`);
+        }
+
         // --- MANUAL ------------------------------------------------------
         const MANUAL = {
             help:         { syn: 'help',                    sum: 'List every command, grouped by category.' },
@@ -1577,6 +2659,27 @@
             tail:         { syn: '<command> | tail [-n N]',  sum: 'Last N lines, default 10.' },
             man:          { syn: 'man <command>',           sum: 'Show the manual entry for a command.' },
             find:         { syn: 'find <term>',              sum: 'Search experience, education, skills, achievements, publications and projects at once, and report where the term appears. Unlike grep, which filters a single command\'s output.' },
+            abstract:     { syn: 'abstract [n|term]',        sum: "A paper's abstract in full, exactly as published. abstract 1, or a word from the title: abstract quantum. With no argument, lists the papers." },
+            demo:         { syn: 'demo [repo]',              sum: "Replay a featured project's run: the command types out and the output prints, the same scripts as the terminals on the site's project cards. Nothing executes. demo quick, or demo alone for the list. Ctrl+C stops it." },
+            which:        { syn: 'which <command|skill>',    sum: 'For a command, its path, as a real shell prints it. For a skill, where it was used: which fastapi.' },
+            git:          { syn: 'git log [--oneline] [-n N] | git status', sum: "This repository's real commit history, read from GitHub. Pushing is refused: read-only clone." },
+            dig:          { syn: 'dig <domain> [A|AAAA|MX|TXT|NS|CNAME]', sum: 'A real DNS query, sent over HTTPS to Google Public DNS, printed dig-style.' },
+            nslookup:     { syn: 'nslookup <domain>',        sum: 'The same real lookup as dig, in nslookup form.' },
+            uptime:       { syn: 'uptime',                   sum: 'How long this tab has been open. Load average rises with the commands you run.' },
+            uname:        { syn: 'uname [-a|-s|-n|-r|-m]',   sum: 'Kernel and system identity.' },
+            hostname:     { syn: 'hostname',                 sum: 'The name of this machine.' },
+            lsb_release:  { syn: 'lsb_release [-a]',         sum: 'Distribution details.' },
+            ps:           { syn: 'ps',                       sum: 'What is running. Some of it cannot be stopped.' },
+            kill:         { syn: 'kill [-9] <pid>',          sum: 'Try to stop a process from ps. Results vary.' },
+            echo:         { syn: 'echo <text>',              sum: 'Print text, expanding $VARIABLES: echo $USER.' },
+            env:          { syn: 'env | printenv [NAME]',    sum: 'The session environment.' },
+            export:       { syn: 'export [NAME=value]',      sum: 'Set a variable for this session, then read it back with echo.' },
+            cal:          { syn: 'cal [month] [year]',       sum: 'A calendar, today highlighted.' },
+            finger:       { syn: 'finger [user]',            sum: "Who is on this machine. finger miit for the author's plan." },
+            cowsay:       { syn: 'cowsay <text>',            sum: 'The cow says it.' },
+            figlet:       { syn: 'figlet <text>',            sum: 'Big block letters.' },
+            base64:       { syn: 'base64 [-d] <text>',       sum: 'Encode, or with -d decode, for real.' },
+            sha256sum:    { syn: 'sha256sum <text>',         sum: 'A real SHA-256 digest of the text plus a newline, matching echo text | sha256sum.' },
             tree:         { syn: 'tree',                     sum: 'The home directory, drawn out. Still read-only.' },
             curl:         { syn: 'curl [-i|-I] [-s] [-X <method>] [-d <data>] <url>', sum: 'Real HTTP. Paths on this origin are fetched directly, so -X and -d work against them. api.github.com and api.wheretheiss.at are proxied read-only; every other host is refused, because browsers cannot fetch arbitrary origins. JSON is pretty-printed. HTML responses are summarised (title, size, first few lines) rather than dumped, since a page of markup is noise here; -i still shows the headers. A payload containing | or ; should be avoided, as this shell has no quoting outside -d.' },
             ping:         { syn: 'ping <host>',              sum: 'Four simulated packets. Nothing leaves your browser. One host answers more slowly than the rest.' },
@@ -3699,6 +4802,12 @@
                 // Reuse the real dispatch, so the tour can never drift from what
                 // the commands actually do.
                 await executeCommand(stop.cmd);
+                // Each stop ends its own turn, which hands the prompt back and
+                // clears isTyping. Take it back, or Ctrl+C would see an idle
+                // shell and the tour would carry on regardless.
+                isTyping = true;
+                inputLine.disabled = true;
+                setPromptVisible(false);
             }
 
             throwIfCancelled();
@@ -3761,6 +4870,7 @@
             } catch (err) {
                 if (err instanceof Cancelled) {
                     captureBuffer = null; // a cancelled pipeline must not stay capturing
+                    cancelRequested = false; // or typeRaw's own cancel check throws again here
                     await typeRaw('<span class="highlight-dim">^C</span>');
                 } else {
                     throw err;
@@ -3864,6 +4974,34 @@
             // find: search every section at once
             if (cmd === 'find' || cmd.startsWith('find ')) {
                 await findAcross(command.substring(4));
+                endTurn();
+                return;
+            }
+
+            // abstract: a paper's published abstract, in full
+            if (cmd === 'abstract' || cmd.startsWith('abstract ')) {
+                await showAbstract(command.substring(8).trim());
+                endTurn();
+                return;
+            }
+
+            // demo: replay a featured project's run, same scripts as the site's cards
+            if (cmd === 'demo' || cmd.startsWith('demo ')) {
+                await playDemo(command.substring(4).trim());
+                endTurn();
+                return;
+            }
+
+            // which: a command's path, or where a skill was used
+            if (cmd === 'which' || cmd.startsWith('which ')) {
+                await runWhich(command.substring(5).trim());
+                endTurn();
+                return;
+            }
+
+            // Everyday Unix commands (see UNIX COMMANDS)
+            if (UNIX_COMMANDS.includes(cmd.split(/\s+/)[0])) {
+                await runUnix(command);
                 endTurn();
                 return;
             }
@@ -4261,9 +5399,10 @@
                 case 'help':
                     SoundFX.enter();
                     const helpCategories = {
-                        'Profile': ['tour', 'brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications'],
-                        'Connect': ['contact', 'socials', 'projects', 'resume', 'guestbook', 'sign', 'home'],
-                        'Search': ['find', 'grep'],
+                        'Profile': ['tour', 'brief', 'about', 'experience', 'education', 'skills', 'achievements', 'publications', 'abstract'],
+                        'Connect': ['contact', 'socials', 'projects', 'demo', 'resume', 'guestbook', 'sign', 'home'],
+                        'Search': ['find', 'grep', 'which'],
+                        'Unix': ['git', 'dig', 'nslookup', 'uptime', 'uname', 'hostname', 'lsb_release', 'ps', 'kill', 'echo', 'env', 'export', 'cal', 'finger', 'cowsay', 'figlet', 'base64', 'sha256sum'],
                         'Network': ['curl', 'open', 'ping', 'ssh', 'scp', 'telnet'],
                         'System': ['man', 'login', 'logout', 'clear', 'mute', 'theme', 'screensaver', 'neofetch', 'history', 'date', 'top', 'stats', 'exit', 'reboot'],
                         'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
@@ -4653,6 +5792,20 @@
             }
             return false;
         }
+
+        // Ctrl+C while a command runs. The input is disabled for the duration
+        // of a command, and a disabled input receives no key events, so the
+        // input's own handler below never sees this keystroke mid-command.
+        // Only fires when the key did not come from the input itself, so the
+        // two handlers never both act on one press.
+        document.addEventListener('keydown', (e) => {
+            if (e.target === inputLine) return;
+            if (!(e.ctrlKey && !e.metaKey && e.key === 'c')) return;
+            if (!isTyping) return;
+            if (window.getSelection && String(window.getSelection())) return; // let copy through
+            e.preventDefault();
+            cancelRequested = true;
+        });
 
         inputLine.addEventListener('keydown', (e) => {
             // A masked prompt is open: resolve on Enter, cancel on Escape, and
