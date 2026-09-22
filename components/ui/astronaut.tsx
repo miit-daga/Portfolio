@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useReducedMotion } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
 import { ASTRONAUT_SVG } from "./astronaut-art";
@@ -335,23 +335,24 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
 
         const wave = () => {
             const arm = part("astro-arm-wave");
-            if (!arm || sleepRef.current) return;
-            arm.style.transformBox = "view-box";
-            arm.style.transformOrigin = "86px 74px";
-            // The arm is drawn already raised; the wave swings it about the
-            // shoulder (set as its transform origin in SvgArt)
+            // One wave at a time: the timed wave could land mid-click-wave
+            if (!arm || sleepRef.current || arm.getAnimations().length) return;
+            // At rest the arm hangs at his side (the art's own style: rotate 130
+            // about the shoulder). The wave raises it to the drawn pose (0),
+            // swings wide enough to read at 60px tall, and lowers it again;
+            // when it ends the resting style takes over.
             arm.animate(
-                // Wide enough to read as a wave at 60px tall
                 [
-                    { transform: "rotate(0deg)" },
-                    { transform: "rotate(-40deg)" },
-                    { transform: "rotate(22deg)" },
-                    { transform: "rotate(-40deg)" },
-                    { transform: "rotate(22deg)" },
-                    { transform: "rotate(-40deg)" },
-                    { transform: "rotate(0deg)" },
+                    { transform: "rotate(130deg)", offset: 0 },
+                    { transform: "rotate(0deg)", offset: 0.18 },
+                    { transform: "rotate(-40deg)", offset: 0.3 },
+                    { transform: "rotate(22deg)", offset: 0.44 },
+                    { transform: "rotate(-40deg)", offset: 0.58 },
+                    { transform: "rotate(22deg)", offset: 0.72 },
+                    { transform: "rotate(0deg)", offset: 0.84 },
+                    { transform: "rotate(130deg)", offset: 1 },
                 ],
-                { duration: 1600, easing: "ease-in-out" },
+                { duration: 2300, easing: "ease-in-out" },
             );
         };
 
@@ -457,8 +458,15 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
     );
 };
 
-// The SVG artwork. Its parts are found by id when needed (see part() above)
-const SvgArt = ({ asleep }: { asleep: boolean }) => {
+// Built once. A fresh { __html } object on every render made React rewrite the
+// markup whenever the hero re-rendered (its glitch and typewriter do, often),
+// replacing the arm mid-wave with a new one at rest. The same thing, with
+// cached parts, once made the wave animate nothing at all.
+const SVG_HTML = { __html: ASTRONAUT_SVG };
+
+// The SVG artwork. Its parts are found by id when needed (see part() above).
+// Memoised on asleep, so a parent re-render never reaches the markup.
+const SvgArt = memo(function SvgArt({ asleep }: { asleep: boolean }) {
     const hostRef = useRef<HTMLDivElement>(null);
 
     // Asleep: chest lights off, visor glint dimmed
@@ -474,5 +482,5 @@ const SvgArt = ({ asleep }: { asleep: boolean }) => {
     }, [asleep]);
 
     // Our own static file, never user input
-    return <div ref={hostRef} className="h-full w-full" dangerouslySetInnerHTML={{ __html: ASTRONAUT_SVG }} />;
-};
+    return <div ref={hostRef} className="h-full w-full" dangerouslySetInnerHTML={SVG_HTML} />;
+});
