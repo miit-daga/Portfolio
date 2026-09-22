@@ -1,8 +1,8 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { IconAddressBook, IconDownload, IconTicket, IconX } from "@tabler/icons-react";
+import { IconAddressBook, IconCamera, IconDownload, IconPhotoUp, IconTicket, IconTrash, IconX } from "@tabler/icons-react";
 
 // Two actions under the crew ID card:
 //   Save contact  - a real vCard, so the details land in the visitor's phone
@@ -10,6 +10,9 @@ import { IconAddressBook, IconDownload, IconTicket, IconX } from "@tabler/icons-
 //   Visitor pass  - a boarding pass drawn for this visitor: their session
 //                   callsign (the one in the footer), the city the signal globe
 //                   located them in, and when they came aboard. Downloadable.
+//                   Visitors can add their own photo, uploaded or taken with
+//                   the camera. It is drawn on the pass in their browser and
+//                   never leaves the device: nothing is sent anywhere.
 
 const VCARD = [
     "BEGIN:VCARD",
@@ -77,7 +80,7 @@ function seeded(seedText: string) {
 
 // Resolves to an object URL for the PNG, which the caller revokes. A data URL
 // of a 2000px pass is about 3 MB of string, held twice (img and link).
-async function drawPass(callsign: string, origin: string, boarded: Date): Promise<string> {
+async function drawPass(callsign: string, origin: string, boarded: Date, photo?: ImageBitmap | null): Promise<string> {
     const W = 1000;
     const H = 620;
     const S = 2; // drawn at 2x for a crisp download
@@ -153,6 +156,35 @@ async function drawPass(callsign: string, origin: string, boarded: Date): Promis
     g.beginPath();
     g.ellipse(px, py, pr * 1.75, pr * 0.42, -0.35, 0, Math.PI);
     g.stroke();
+
+    // Visitor's photo: a gold-rimmed porthole below the planet, centre-cropped
+    if (photo) {
+        const cx = 842;
+        const cy = 398;
+        const r = 76;
+        const side = Math.min(photo.width, photo.height);
+        g.save();
+        g.beginPath();
+        g.arc(cx, cy, r, 0, Math.PI * 2);
+        g.clip();
+        g.drawImage(photo, (photo.width - side) / 2, (photo.height - side) / 2, side, side, cx - r, cy - r, r * 2, r * 2);
+        g.restore();
+        g.strokeStyle = "#fbbf24";
+        g.lineWidth = 4;
+        g.beginPath();
+        g.arc(cx, cy, r + 2, 0, Math.PI * 2);
+        g.stroke();
+        g.strokeStyle = "rgba(251,191,36,0.35)";
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.arc(cx, cy, r + 10, 0, Math.PI * 2);
+        g.stroke();
+        g.fillStyle = "#71717a";
+        g.font = `500 12px ui-monospace, SFMono-Regular, Menlo, monospace`;
+        g.textAlign = "center";
+        g.fillText("CREW PHOTO", cx, cy + r + 30);
+        g.textAlign = "left";
+    }
 
     // Header
     g.fillStyle = "#5eead4";
@@ -237,19 +269,118 @@ export const ContactActions = () => {
     const [pass, setPass] = useState<{ url: string; callsign: string } | null>(null);
     const [busy, setBusy] = useState(false);
     const [mounted, setMounted] = useState(false);
+    // Fixed for the life of the dialog, so adding a photo redraws the same pass
+    const passInfo = useRef<{ callsign: string; origin: string; boarded: Date } | null>(null);
+    const [photo, setPhoto] = useState<ImageBitmap | null>(null);
+    const [camera, setCamera] = useState<MediaStream | null>(null);
+    const [cameraError, setCameraError] = useState<string | null>(null);
+    const fileRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
     useEffect(() => setMounted(true), []);
+
+    const render = useCallback(async (withPhoto: ImageBitmap | null) => {
+        const info = passInfo.current;
+        if (!info) return;
+        const url = await drawPass(info.callsign, info.origin, info.boarded, withPhoto);
+        if (url) setPass({ url, callsign: info.callsign });
+    }, []);
 
     const issuePass = useCallback(async () => {
         setBusy(true);
-        const callsign = readCallsign();
-        const url = await drawPass(callsign, readOrigin(), new Date());
+        passInfo.current = { callsign: readCallsign(), origin: readOrigin(), boarded: new Date() };
+        await render(photo);
         setBusy(false);
-        if (url) setPass({ url, callsign });
+    }, [render, photo]);
+
+    const applyPhoto = useCallback(
+        async (bitmap: ImageBitmap) => {
+            setPhoto(bitmap);
+            await render(bitmap);
+        },
+        [render],
+    );
+
+    const onFile = useCallback(
+        async (e: React.ChangeEvent<HTMLInputElement>) => {
+            const file = e.target.files?.[0];
+            e.target.value = ""; // the same file can be picked again
+            if (!file) return;
+            try {
+                await applyPhoto(await createImageBitmap(file));
+            } catch {
+                setCameraError("That file could not be read as an image.");
+            }
+        },
+        [applyPhoto],
+    );
+
+    const stopCamera = useCallback(() => {
+        setCamera((stream) => {
+            stream?.getTracks().forEach((t) => t.stop());
+            return null;
+        });
+    }, []);
+
+    const startCamera = useCallback(async () => {
+        setCameraError(null);
+        if (!navigator.mediaDevices?.getUserMedia) {
+            // No camera API (old browser, or not HTTPS): the file picker still
+            // offers the camera on phones
+            fileRef.current?.click();
+            return;
+        }
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+                audio: false,
+            });
+            setCamera(stream);
+        } catch {
+            setCameraError("Camera unavailable or permission denied. You can upload a photo instead.");
+        }
     }, []);
 
     useEffect(() => {
+        if (camera && videoRef.current) {
+            videoRef.current.srcObject = camera;
+            videoRef.current.play().catch(() => {});
+        }
+    }, [camera]);
+
+    const capture = useCallback(async () => {
+        const video = videoRef.current;
+        if (!video || !video.videoWidth) return;
+        const side = Math.min(video.videoWidth, video.videoHeight);
+        const c = document.createElement("canvas");
+        c.width = side;
+        c.height = side;
+        const g = c.getContext("2d");
+        if (!g) return;
+        // Mirrored, to match the preview the visitor was looking at
+        g.translate(side, 0);
+        g.scale(-1, 1);
+        g.drawImage(video, (video.videoWidth - side) / 2, (video.videoHeight - side) / 2, side, side, 0, 0, side, side);
+        stopCamera();
+        await applyPhoto(await createImageBitmap(c));
+    }, [stopCamera, applyPhoto]);
+
+    const removePhoto = useCallback(async () => {
+        setPhoto(null);
+        await render(null);
+    }, [render]);
+
+    const close = useCallback(() => {
+        stopCamera();
+        setCameraError(null);
+        setPass(null);
+    }, [stopCamera]);
+
+    // Never leave the camera on
+    useEffect(() => () => camera?.getTracks().forEach((t) => t.stop()), [camera]);
+
+    useEffect(() => {
         if (!pass) return;
-        const onKey = (e: KeyboardEvent) => e.key === "Escape" && setPass(null);
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
         window.addEventListener("keydown", onKey);
         const url = pass.url;
         return () => {
@@ -257,7 +388,7 @@ export const ContactActions = () => {
             // Released once the dialog has had time to animate out
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         };
-    }, [pass]);
+    }, [pass, close]);
 
     return (
         <>
@@ -285,7 +416,7 @@ export const ContactActions = () => {
                                 aria-modal="true"
                                 aria-label="Your visitor pass"
                             >
-                                <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={() => setPass(null)} />
+                                <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={close} />
                                 <motion.div
                                     className="relative flex w-full max-w-2xl flex-col items-center gap-5"
                                     initial={{ scale: 0.92, y: 24, rotateX: 12 }}
@@ -294,22 +425,69 @@ export const ContactActions = () => {
                                     transition={{ type: "spring", stiffness: 240, damping: 24 }}
                                     style={{ perspective: 900 }}
                                 >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                        src={pass.url}
-                                        alt={`Visitor pass for ${pass.callsign}`}
-                                        className="w-full rounded-[22px] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9),0_0_40px_rgba(251,191,36,0.12)]"
-                                    />
-                                    <div className="flex items-center gap-3">
-                                        <a href={pass.url} download={`visitor-pass-${pass.callsign}.png`} className={actionClass}>
-                                            <IconDownload className="h-4 w-4" stroke={1.6} />
-                                            Download pass
-                                        </a>
-                                        <button type="button" onClick={() => setPass(null)} className={actionClass}>
-                                            <IconX className="h-4 w-4" stroke={1.6} />
-                                            Close
-                                        </button>
-                                    </div>
+                                    {camera ? (
+                                        // Viewfinder: square, mirrored like a selfie camera
+                                        <div className="flex flex-col items-center gap-4">
+                                            <video
+                                                ref={videoRef}
+                                                playsInline
+                                                muted
+                                                className="aspect-square w-72 rounded-full border-4 border-amber-400/80 object-cover shadow-[0_0_40px_rgba(251,191,36,0.25)] sm:w-80"
+                                                style={{ transform: "scaleX(-1)" }}
+                                            />
+                                            <div className="flex items-center gap-3">
+                                                <button type="button" onClick={capture} className={actionClass}>
+                                                    <IconCamera className="h-4 w-4" stroke={1.6} />
+                                                    Capture
+                                                </button>
+                                                <button type="button" onClick={stopCamera} className={actionClass}>
+                                                    <IconX className="h-4 w-4" stroke={1.6} />
+                                                    Cancel
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={pass.url}
+                                            alt={`Visitor pass for ${pass.callsign}`}
+                                            className="w-full rounded-[22px] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9),0_0_40px_rgba(251,191,36,0.12)]"
+                                        />
+                                    )}
+                                    {!camera && (
+                                        <>
+                                            <div className="flex flex-wrap items-center justify-center gap-3">
+                                                <button type="button" onClick={() => fileRef.current?.click()} className={actionClass}>
+                                                    <IconPhotoUp className="h-4 w-4" stroke={1.6} />
+                                                    {photo ? "Change photo" : "Upload photo"}
+                                                </button>
+                                                <button type="button" onClick={startCamera} className={actionClass}>
+                                                    <IconCamera className="h-4 w-4" stroke={1.6} />
+                                                    Take photo
+                                                </button>
+                                                {photo && (
+                                                    <button type="button" onClick={removePhoto} className={actionClass}>
+                                                        <IconTrash className="h-4 w-4" stroke={1.6} />
+                                                        Remove photo
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-wrap items-center justify-center gap-3">
+                                                <a href={pass.url} download={`visitor-pass-${pass.callsign}.png`} className={actionClass}>
+                                                    <IconDownload className="h-4 w-4" stroke={1.6} />
+                                                    Download pass
+                                                </a>
+                                                <button type="button" onClick={close} className={actionClass}>
+                                                    <IconX className="h-4 w-4" stroke={1.6} />
+                                                    Close
+                                                </button>
+                                            </div>
+                                        </>
+                                    )}
+                                    <p className="text-center font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+                                        {cameraError ?? "Your photo stays on your device. Nothing is uploaded."}
+                                    </p>
+                                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />
                                 </motion.div>
                             </motion.div>
                         )}
