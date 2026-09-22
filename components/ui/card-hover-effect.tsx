@@ -124,7 +124,9 @@ const TiltCard = ({
   } else {
     itemResponsiveBasisClasses = ["basis-full", "md:basis-1/2", "lg:basis-1/2"];
   }
-  const linkWrapperBaseClasses = ["relative", "group", "block", "p-2", "flex-shrink-0", "perspective-1000"];
+  // min-w-0: a flex item's minimum width defaults to its content's, so one
+  // card with a long unbreakable line grew past its third and wrapped alone
+  const linkWrapperBaseClasses = ["relative", "group", "block", "p-2", "flex-shrink-0", "min-w-0", "perspective-1000"];
 
   return (
     <motion.div

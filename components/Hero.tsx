@@ -249,7 +249,9 @@ const Hero = () => {
                 onClick={handleAvatarClick}
                 whileTap={{ scale: 0.97 }}
                 style={{ rotateX: hologramRotateX, rotateY: hologramRotateY, transformStyle: "preserve-3d" }}
-                className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer"
+                // select-none: repeated clicks for quotes selected the image and
+                // drew the browser's blue selection box around it
+                className="relative w-64 h-64 md:w-80 md:h-80 lg:w-[500px] lg:h-[500px] group cursor-pointer select-none"
               >
                 {/* Projector beam, widening upward from the base ring. Static
                     gradients under a clip-path, so it costs nothing per frame
@@ -259,7 +261,7 @@ const Hero = () => {
                   className="holo-beam pointer-events-none absolute -bottom-3 left-1/2 z-0 h-[92%] w-[78%] -translate-x-1/2 lg:-bottom-9"
                   style={{
                     clipPath: "polygon(38% 100%, 62% 100%, 100% 0%, 0% 0%)",
-                    background: "linear-gradient(to top, rgba(45,212,191,0.24), rgba(45,212,191,0.07) 55%, transparent 90%)",
+                    background: "linear-gradient(to top, rgba(251,191,36,0.26), rgba(251,191,36,0.08) 55%, transparent 90%)",
                     maskImage: "linear-gradient(to right, transparent, black 30%, black 70%, transparent)",
                     WebkitMaskImage: "linear-gradient(to right, transparent, black 30%, black 70%, transparent)",
                   }}
@@ -267,7 +269,7 @@ const Hero = () => {
                 {/* Projector ring on the floor */}
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute -bottom-4 left-1/2 z-0 h-3.5 w-[44%] -translate-x-1/2 rounded-[50%] border border-teal-300/50 lg:-bottom-10 lg:h-5 shadow-[0_0_22px_rgba(45,212,191,0.45),inset_0_0_12px_rgba(45,212,191,0.35)]"
+                  className="pointer-events-none absolute -bottom-4 left-1/2 z-0 h-3.5 w-[44%] -translate-x-1/2 rounded-[50%] border border-amber-200/60 lg:-bottom-10 lg:h-5 shadow-[0_0_22px_rgba(251,191,36,0.45),inset_0_0_12px_rgba(251,191,36,0.35)]"
                 />
 
                 <motion.div
@@ -289,6 +291,7 @@ const Hero = () => {
                     <Image
                       src="/hero-portrait.png"
                       alt="Miit Daga"
+                      draggable={false}
                       fill
                       // Matches the box (w-64 / md:w-80 / lg:500px). Without it
                       // next/image assumed 100vw and served a 3840px file to a
@@ -311,8 +314,8 @@ const Hero = () => {
                       aria-hidden
                       className="pointer-events-none absolute left-[12%] right-[12%] z-30 h-[2px] rounded-full"
                       style={{
-                        background: "linear-gradient(90deg, transparent, #99f6e4, #ffffff, #99f6e4, transparent)",
-                        boxShadow: "0 0 14px rgba(45,212,191,0.9)",
+                        background: "linear-gradient(90deg, transparent, #fde68a, #ffffff, #fde68a, transparent)",
+                        boxShadow: "0 0 14px rgba(251,191,36,0.9)",
                       }}
                       initial={{ bottom: "0%", opacity: 0 }}
                       animate={{ bottom: "100%", opacity: [0, 1, 1, 0] }}
@@ -335,7 +338,7 @@ const Hero = () => {
 
                   {/* 3. Subtle Glitch Gradient Overlay (Disappears on hover) */}
                   <div
-                    className="absolute inset-0 z-30 bg-gradient-to-t from-teal-500/20 via-transparent to-transparent mix-blend-color-dodge opacity-40 pointer-events-none transition-opacity duration-500 group-hover:opacity-0"
+                    className="absolute inset-0 z-30 bg-gradient-to-t from-amber-500/20 via-transparent to-transparent mix-blend-color-dodge opacity-40 pointer-events-none transition-opacity duration-500 group-hover:opacity-0"
                     style={{ maskImage: HOLO_OVERLAY_MASK, WebkitMaskImage: HOLO_OVERLAY_MASK }}
                   />
 
@@ -372,7 +375,7 @@ const Hero = () => {
                 </motion.div>
 
                 {/* 4. Glowing Base Platform (Changes color on hover) */}
-                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-[80%] h-12 bg-teal-500/40 blur-[40px] rounded-full transition-colors duration-700 group-hover:bg-blue-500/50" />
+                <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 w-[80%] h-12 bg-amber-500/35 blur-[40px] rounded-full transition-colors duration-700 group-hover:bg-amber-400/50" />
               </motion.div>
             ) : (
               // === PATH B: CLEAN PORTAL (Hover: Focus & Expand) ===

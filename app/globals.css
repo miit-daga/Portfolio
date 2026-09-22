@@ -293,16 +293,21 @@ html {
   opacity: 1;
 }
 /* --- Hero hologram ---
-   The photo keeps its natural colours; the hologram read comes from a cyan
-   rim light (drop-shadow follows the cutout's alpha, so it hugs the figure),
-   the projector cone and scanlines. Hover brightens the rim. */
+   The photo keeps its natural colours; the hologram read comes from a rim
+   light (drop-shadow follows the cutout's alpha, so it hugs the figure), the
+   projector cone and scanlines. Hover brightens the rim.
+   The hero's drifting glows are all light pastels (violet, blue, mint, peach,
+   sky), so no single hue always contrasts: a cyan rim vanished whenever the
+   mint glow passed behind. A tight dark contour comes first and separates the
+   figure from any of them by brightness; the warm gold rim sits outside it.
+   Filters chain, so each drop-shadow outlines the one before. */
 .holo-figure {
-  filter: drop-shadow(0 0 1px rgba(153, 246, 228, 0.85)) drop-shadow(0 0 14px rgba(45, 212, 191, 0.4));
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.85)) drop-shadow(0 0 1px rgba(254, 243, 199, 0.95)) drop-shadow(0 0 14px rgba(251, 191, 36, 0.4));
   transition: filter 0.7s ease-out;
 }
 
 .group:hover .holo-figure {
-  filter: drop-shadow(0 0 1.5px rgba(204, 251, 241, 1)) drop-shadow(0 0 22px rgba(45, 212, 191, 0.6));
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 1.5px rgba(255, 251, 235, 1)) drop-shadow(0 0 22px rgba(251, 191, 36, 0.6));
 }
 
 /* Projector beam: a faint, irregular flicker, like a real hologram's lamp */

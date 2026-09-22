@@ -139,7 +139,10 @@ export const TerminalReel = ({ reel }: { reel: Reel }) => {
           <span className="h-[7px] w-[7px] rounded-full bg-[#febc2e]/80" />
           <span className="h-[7px] w-[7px] rounded-full bg-[#28c840]/80" />
         </span>
-        <span className="flex-1 truncate text-center font-mono text-[9px] text-zinc-500">{reel.title}</span>
+        {/* min-w-0: without it this flex item's minimum width is the full,
+            untruncated path, which widened the whole card and pushed DisMan
+            onto a row of its own */}
+        <span className="min-w-0 flex-1 truncate text-center font-mono text-[9px] text-zinc-500">{reel.title}</span>
         {reel.note ? (
           <span
             className="rounded border px-1 font-mono text-[8px] uppercase tracking-wider"
