@@ -424,7 +424,9 @@ export const AstronautBuddy = ({ className }: { className?: string }) => {
 
                 {/* Sleep: a slow drift of z's */}
                 {asleep && !reduce && (
-                    <div aria-hidden className="pointer-events-none absolute -right-3 -top-4">
+                    // Just off the helmet's upper right (the helmet is centred at 30, 20 in
+                    // this 60 x 75 box, radius 12.5); the SVG's empty margin put them adrift
+                    <div aria-hidden className="pointer-events-none absolute" style={{ left: 38, top: 6 }}>
                         {[0, 1, 2].map((i) => (
                             <span
                                 key={i}

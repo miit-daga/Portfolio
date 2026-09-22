@@ -331,5 +331,5 @@ html {
 @keyframes astro-z {
   0% { transform: translate(0, 0); opacity: 0; }
   20% { opacity: 1; }
-  100% { transform: translate(10px, -22px); opacity: 0; }
+  100% { transform: translate(7px, -16px); opacity: 0; }
 }
