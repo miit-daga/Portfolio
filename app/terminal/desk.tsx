@@ -12,6 +12,7 @@ import {
     playNotify,
     playPour,
     playPowerButton,
+    playRefill,
     playQuack,
     playShutter,
     playSip,
@@ -308,7 +309,7 @@ export function Desk() {
             else if (d.type === "notify") pushNote(d.app || "Terminal", d.text || "", "✍️");
             else if (d.type === "fullscreen") setFull((f) => !f);
             else if (d.type === "refill") {
-                playPour();
+                playRefill();
                 setChai(4);
                 setFreshUntil(Date.now() + 20 * 60000);
                 pushNote("Chai", "Fresh cup poured from the terminal. Careful, it is hot", "☕");
@@ -670,7 +671,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
     useEffect(() => {
         if (chai > 0 || !chaiTime) return;
         const id = window.setTimeout(() => {
-            playPour();
+            playRefill();
             setChai(4);
             pushNote("Chai", "Fresh cup poured. It is chai-time in Kolkata", "☕");
         }, 4000);

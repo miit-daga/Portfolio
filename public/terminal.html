@@ -5850,6 +5850,8 @@
                 await typeRaw('<span style="color:#d6a86a">☕ Putting the kettle on...</span>');
                 await typeSpinner('Brewing chai', 1400);
                 deskSay('refill');
+                await typeRaw('<span class="highlight-dim">pouring...</span>');
+                await pause(2000);
                 await typeLine('Poured. A fresh cup on the desk, and careful, it is hot.', 14);
                 endTurn();
                 return;

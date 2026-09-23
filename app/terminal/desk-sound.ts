@@ -13,6 +13,17 @@ function audio(): AudioContext | null {
     return ctx.state === "running" ? ctx : null;
 }
 
+// For a sound asked for before audio is running (a command typed in the
+// display, before any click on the desk itself): wait for it, then play
+function whenAudio(play: (a: AudioContext) => void) {
+    const a = audio();
+    if (a) return play(a);
+    if (!ctx) return;
+    ctx.resume()
+        .then(() => ctx && ctx.state === "running" && play(ctx))
+        .catch(() => {});
+}
+
 function tone(a: AudioContext, f: number, t: number, dur: number, level: number, type: OscillatorType = "sine") {
     const o = a.createOscillator();
     o.type = type;
@@ -133,25 +144,25 @@ export function setFan(level: number) {
 
 /** The rubber duck: a squeaky toy's two-part squeeze. */
 export function playQuack() {
-    const a = audio();
-    if (!a) return;
-    const t = a.currentTime + 0.01;
-    [0, 0.13].forEach((d, i) => {
-        const o = a.createOscillator();
-        o.type = "sawtooth";
-        o.frequency.setValueAtTime(i ? 620 : 700, t + d);
-        o.frequency.exponentialRampToValueAtTime(i ? 380 : 460, t + d + 0.11);
-        const bp = a.createBiquadFilter();
-        bp.type = "bandpass";
-        bp.frequency.value = 1300;
-        bp.Q.value = 3;
-        const g = a.createGain();
-        g.gain.setValueAtTime(0.0001, t + d);
-        g.gain.exponentialRampToValueAtTime(0.16, t + d + 0.015);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.12);
-        o.connect(bp).connect(g).connect(a.destination);
-        o.start(t + d);
-        o.stop(t + d + 0.14);
+    whenAudio((a) => {
+        const t = a.currentTime + 0.01;
+        [0, 0.13].forEach((d, i) => {
+            const o = a.createOscillator();
+            o.type = "sawtooth";
+            o.frequency.setValueAtTime(i ? 620 : 700, t + d);
+            o.frequency.exponentialRampToValueAtTime(i ? 380 : 460, t + d + 0.11);
+            const bp = a.createBiquadFilter();
+            bp.type = "bandpass";
+            bp.frequency.value = 1300;
+            bp.Q.value = 3;
+            const g = a.createGain();
+            g.gain.setValueAtTime(0.0001, t + d);
+            g.gain.exponentialRampToValueAtTime(0.16, t + d + 0.015);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.12);
+            o.connect(bp).connect(g).connect(a.destination);
+            o.start(t + d);
+            o.stop(t + d + 0.14);
+        });
     });
 }
 
@@ -199,11 +210,11 @@ export function playDrawer(open: boolean) {
 
 /** The webcam's shutter. */
 export function playShutter() {
-    const a = audio();
-    if (!a) return;
-    const t = a.currentTime + 0.01;
-    whoosh(a, t, 0.06, 3000, 5000, 0.1, 0.8);
-    whoosh(a, t + 0.09, 0.06, 5000, 2600, 0.08, 0.8);
+    whenAudio((a) => {
+        const t = a.currentTime + 0.01;
+        whoosh(a, t, 0.06, 3000, 5000, 0.1, 0.8);
+        whoosh(a, t + 0.09, 0.06, 5000, 2600, 0.08, 0.8);
+    });
 }
 
 /** A fragment picked up: a sparkle. */
@@ -344,4 +355,61 @@ export function playHum() {
         o.stop(t0 + at + dur + 0.05);
         vib.stop(t0 + at + dur + 0.05);
     }
+}
+
+/** A cup being filled: a stream of chai, bubbling, its note rising as the cup
+ * fills, and a last drip. About two seconds. */
+export function playRefill() {
+    whenAudio((a) => {
+        const t = a.currentTime + 0.05;
+        const dur = 2.1;
+        // the stream: noise through a narrow band that climbs as the cup fills,
+        // wobbling as a pour does
+        const n = noise(a, dur + 0.2);
+        const bp = a.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.Q.value = 5;
+        for (let i = 0; i <= 50; i++) {
+            const at = t + (dur * i) / 50;
+            const base = 520 + 900 * (i / 50);
+            bp.frequency.setValueAtTime(base * (0.85 + Math.random() * 0.3), at);
+        }
+        const g = a.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.12);
+        g.gain.setValueAtTime(0.14, t + dur - 0.3);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        n.connect(bp).connect(g).connect(a.destination);
+        n.start(t);
+        n.stop(t + dur + 0.2);
+        // a softer splash underneath
+        const s2 = noise(a, dur);
+        const lp = a.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 700;
+        const g2 = a.createGain();
+        g2.gain.setValueAtTime(0.0001, t);
+        g2.gain.exponentialRampToValueAtTime(0.05, t + 0.15);
+        g2.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        s2.connect(lp).connect(g2).connect(a.destination);
+        s2.start(t);
+        s2.stop(t + dur);
+        // bubbles, higher as the level rises
+        for (let i = 0; i < 18; i++) {
+            const at = t + 0.2 + Math.random() * (dur - 0.4);
+            const f = 900 + 1400 * ((at - t) / dur) + Math.random() * 300;
+            const o = a.createOscillator();
+            o.frequency.setValueAtTime(f, at);
+            o.frequency.exponentialRampToValueAtTime(f * 1.5, at + 0.03);
+            const bg = a.createGain();
+            bg.gain.setValueAtTime(0.0001, at);
+            bg.gain.exponentialRampToValueAtTime(0.035, at + 0.005);
+            bg.gain.exponentialRampToValueAtTime(0.0001, at + 0.04);
+            o.connect(bg).connect(a.destination);
+            o.start(at);
+            o.stop(at + 0.05);
+        }
+        // the last drip
+        tone(a, 1900, t + dur + 0.15, 0.06, 0.05);
+    });
 }
