@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
 import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, isChaiTime, useChaiTime, type Note, type Stick } from "./props";
-import { Drawer, Duck, Life, Webcam, asciiSelfie } from "./desk-extras";
+import { Drawer, Duck, Life, Webcam, asciiFrame, closeCamera, openCamera, type Camera } from "./desk-extras";
 import {
     playAirDrop,
     playDrawer,
@@ -117,11 +117,24 @@ export function Desk() {
     const [mugDrag, setMugDrag] = useState<{ dx: number; dy: number } | null>(null);
     const [pouring, setPouring] = useState(false);
     const plantRef = useRef<HTMLDivElement>(null);
+    // What the plant says, in a bubble beside it; and whether the mug is over it
+    const [plantSays, setPlantSays] = useState<{ text: string; n: number } | null>(null);
+    const [overPlant, setOverPlant] = useState(false);
+    const [rustle, setRustle] = useState(0);
+    const sayTimer = useRef(0);
+    const plantSay = useCallback((text: string) => {
+        window.clearTimeout(sayTimer.current);
+        setPlantSays({ text, n: Date.now() });
+        sayTimer.current = window.setTimeout(() => setPlantSays(null), 3800);
+    }, []);
     const [plant, setPlant] = useState({ stage: 2, droop: false, watered: 0, visits: 1 });
     const [drawer, setDrawer] = useState(false);
     const [fragment, setFragment] = useState(true);
     const [quack, setQuack] = useState(0);
     const [camLive, setCamLive] = useState(false);
+    const cam = useRef<Camera | null>(null);
+    const camTimer = useRef(0);
+    const [flash, setFlash] = useState(0);
     const [flight, setFlight] = useState<{ n: number; from: { x: number; y: number }; to: { x: number; y: number }; name: string } | null>(null);
     const [airdrop, setAirdrop] = useState(0);
     const [pressed, setPressed] = useState<Set<string>>(new Set());
@@ -199,8 +212,9 @@ export function Desk() {
     // First notes on the phone
     useEffect(() => {
         const k = kolkataNow();
-        noteId.current = 2;
+        noteId.current = 3;
         setNotes([
+            { id: 3, app: "Desk", text: "Type desk in the terminal to see what this desk can do", icon: "🖥️" },
             { id: 2, app: "Desk", text: "Plug a drive from the stand into the tower", icon: "🔌" },
             { id: 1, app: "Kolkata station", text: `Miit is ${k.mood.label}. ${k.mood.reply[0].toUpperCase()}${k.mood.reply.slice(1)}.`, icon: "🛰️" },
         ]);
@@ -239,20 +253,39 @@ export function Desk() {
             else if (d.type === "quack") {
                 playQuack();
                 setQuack((q) => q + 1);
-            } else if (d.type === "selfie") {
-                setCamLive(true);
-                asciiSelfie().then((r) => {
-                    setCamLive(false);
-                    if ("art" in r) {
-                        playShutter();
-                        pushNote("Camera", "Selfie taken · printed in the terminal, never uploaded", "📸");
-                    }
+            } else if (d.type === "selfie-open" || d.type === "selfie-snap") {
+                const reply = (r: { art: string } | { error: string } | { ready: true }) => {
                     try {
-                        (frameRef.current?.contentWindow as TermWindow | null)?.deskSelfie?.(r);
+                        (frameRef.current?.contentWindow as TermWindow | null)?.deskSelfie?.(r as { art: string });
                     } catch {
                         /* ignore */
                     }
-                });
+                };
+                const off = () => {
+                    window.clearTimeout(camTimer.current);
+                    closeCamera(cam.current);
+                    cam.current = null;
+                    setCamLive(false);
+                };
+                if (d.type === "selfie-open") {
+                    off();
+                    openCamera().then((c) => {
+                        if ("error" in c) return reply({ error: c.error });
+                        cam.current = c;
+                        setCamLive(true);
+                        // never left on: off again if the countdown is abandoned
+                        camTimer.current = window.setTimeout(off, 15000);
+                        reply({ ready: true });
+                    });
+                } else {
+                    const art = cam.current ? asciiFrame(cam.current.video) : null;
+                    off();
+                    if (!art) return reply({ error: "failed" });
+                    playShutter();
+                    setFlash((f) => f + 1);
+                    pushNote("Camera", "Selfie taken · printed in the terminal, never uploaded", "📸");
+                    reply({ art });
+                }
             }
             else if (d.type === "unmount" || d.type === "mounted") {
                 const label = (d as { label?: string }).label || "";
@@ -524,7 +557,10 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         } catch {
             setPlant((p) => ({ ...p, droop: false, watered: p.watered + 1 }));
         }
-        window.setTimeout(() => pushNote("Plant", grew ? "Watered with chai. It seems to like it, and it grew a little" : "Watered already today. It is happy", "🪴"), 900);
+        window.setTimeout(() => {
+            pushNote("Plant", grew ? "Watered with chai. It seems to like it, and it grew a little" : "Watered already today. It is happy", "🪴");
+            plantSay(grew ? "Ahh, chai. I grew a little 🌱" : "Already watered today. Thank you!");
+        }, 900);
     };
     // The chai's level is kept between visits: a reload is not a fresh cup.
     // Away for an hour or more at chai-time, though, and there is a new one
@@ -571,6 +607,10 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         if (left === 0 && !hot) pushNote("Chai", "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
     };
     // Click the mug to sip; drag it onto the plant to water it
+    const overThePlant = (x: number, y: number) => {
+        const r = plantRef.current?.getBoundingClientRect();
+        return !!r && x > r.left - 30 && x < r.right + 30 && y > r.top - 30 && y < r.bottom + 20;
+    };
     const mugDown = (e: React.PointerEvent) => {
         if (pouring) return;
         const x0 = e.clientX;
@@ -580,17 +620,23 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             const dx = (ev.clientX - x0) / view.s;
             const dy = (ev.clientY - y0) / view.s;
             if (Math.hypot(dx, dy) > 5) moved = true;
-            if (moved) setMugDrag({ dx, dy });
+            if (moved) {
+                setMugDrag({ dx, dy });
+                setOverPlant(overThePlant(ev.clientX, ev.clientY));
+            }
         };
         const up = (ev: PointerEvent) => {
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
             setMugDrag(null);
+            setOverPlant(false);
             if (!moved) return sip();
-            const r = plantRef.current?.getBoundingClientRect();
-            if (r && ev.clientX > r.left - 30 && ev.clientX < r.right + 30 && ev.clientY > r.top - 30 && ev.clientY < r.bottom + 20) {
+            if (overThePlant(ev.clientX, ev.clientY)) {
                 if (chai > 0) water();
-                else pushNote("Plant", "The mug is empty. Nothing to water it with", "🪴");
+                else {
+                    pushNote("Plant", "The mug is empty. Nothing to water it with", "🪴");
+                    plantSay("That mug is empty…");
+                }
             }
         };
         window.addEventListener("pointermove", move);
@@ -604,6 +650,13 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         }
     };
     useEffect(() => () => stopMusic(), []);
+    useEffect(
+        () => () => {
+            window.clearTimeout(camTimer.current);
+            closeCamera(cam.current);
+        },
+        [],
+    );
     const openDrawer = () => {
         playDrawer(!drawer);
         setDrawer((d) => !d);
@@ -644,7 +697,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
     const glow = game ? tint : busy ? `${tint}99` : "transparent";
 
     return (
-        <main className="fixed inset-0 overflow-hidden bg-[#03040a] text-white">
+        <main className="fixed inset-0 select-none overflow-hidden bg-[#03040a] text-white">
             {/* space */}
             <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(60% 50% at 20% 10%, rgba(99,102,241,0.14), transparent 60%), radial-gradient(50% 40% at 85% 20%, rgba(45,212,191,0.08), transparent 60%)" }}>
                 {STARS.map((st, i) => (
@@ -713,8 +766,49 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                 <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} unmounted={unmounted} onPower={power} onPull={pull} hdd={hdd} />
                 <Duck quack={quack} onClick={askDuck} />
                 <HardDrive on={hdd} idle={unmounted.has("TIMECAPSULE")} busy={hdd && busy && !unmounted.has("TIMECAPSULE")} onClick={toggleHdd} />
-                <div ref={plantRef} className="absolute" style={{ left: PLANT.x, top: PLANT.y }} title={`A plant, doing its best in orbit · visit ${plant.visits}${plant.droop ? " · thirsty: drag the mug onto it" : ""}`}>
-                    <Plant stage={plant.stage} droop={plant.droop} watered={plant.watered} />
+                <div
+                    ref={plantRef}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="The plant. Drag the mug onto it to water it"
+                    className="absolute cursor-pointer"
+                    style={{ left: PLANT.x, top: PLANT.y }}
+                    title="Drag the mug onto the plant to water it"
+                    onClick={() => {
+                        setRustle((r) => r + 1);
+                        plantSay(plant.droop ? "Thirsty… drag the mug onto me ☕" : `Visit ${plant.visits}, and still growing. Drag the mug onto me to water me`);
+                    }}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && plantSay("Drag the mug onto me to water me ☕")}
+                >
+                    {/* lit up as a drop target while the mug is being carried */}
+                    <AnimatePresence>
+                        {mugDrag && (
+                            <motion.span
+                                aria-hidden
+                                className="pointer-events-none absolute left-[-5px] top-[100px] block h-[80px] w-[130px] rounded-full"
+                                style={{ background: "radial-gradient(closest-side, rgba(74,222,128,0.35), transparent)" }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: overPlant ? 1 : 0.45, scale: overPlant ? 1.15 : 1 }}
+                                exit={{ opacity: 0 }}
+                            />
+                        )}
+                    </AnimatePresence>
+                    <motion.div key={rustle} style={{ originY: 1 }} animate={rustle ? { rotate: [0, -4, 3, -2, 0] } : undefined} transition={{ duration: 0.6 }}>
+                        <Plant stage={plant.stage} droop={plant.droop} watered={plant.watered} />
+                    </motion.div>
+                    <AnimatePresence>
+                        {(plantSays || mugDrag) && (
+                            <motion.span
+                                key={mugDrag ? "drop" : plantSays?.n}
+                                className="pointer-events-none absolute bottom-[172px] right-[-10px] block w-max max-w-[190px] rounded-[12px] rounded-br-[3px] bg-white px-3 py-1.5 text-[12px] leading-snug text-neutral-900 shadow-[0_10px_24px_-8px_rgba(0,0,0,0.8)]"
+                                initial={{ opacity: 0, y: 8, scale: 0.9 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 4 }}
+                            >
+                                {mugDrag ? (overPlant ? "Let go to water me 💧" : "Over here! 🌱") : plantSays?.text}
+                            </motion.span>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* the drives, standing in a block */}
@@ -807,6 +901,20 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     <span className="relative rounded bg-black/70 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">asleep · tap to wake</span>
                 </button>
             )}
+            {/* the camera's flash, over the screen */}
+            <AnimatePresence>
+                {flash > 0 && (
+                    <motion.div
+                        key={flash}
+                        aria-hidden
+                        className="pointer-events-none absolute z-40 bg-white"
+                        style={screenRect}
+                        initial={{ opacity: 0.85 }}
+                        animate={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                    />
+                )}
+            </AnimatePresence>
             {full && (
                 <button type="button" onClick={() => setFull(false)} className="fixed right-4 top-4 z-50 rounded-full border border-white/20 bg-black/70 px-3 py-1.5 font-mono text-xs text-neutral-200 backdrop-blur hover:text-white">
                     exit full screen · esc

@@ -17,7 +17,7 @@ export function Duck({ quack, onClick }: { quack: number; onClick: () => void })
             type="button"
             onClick={onClick}
             aria-label="The rubber duck. Explain your bug to it"
-            title="Rubber duck: explain your bug to it"
+            title="Rubber duck: click, or type duck, and explain your bug to it"
             className="absolute block"
             style={{ left: 496, top: 610, width: 62, height: 58, originY: 1 }}
             key={quack}
@@ -54,7 +54,7 @@ export function Webcam({ live, onClick }: { live: boolean; onClick: () => void }
             type="button"
             onClick={onClick}
             aria-label="The webcam. Take an ASCII selfie in the terminal"
-            title="Webcam: an ASCII selfie, made in your browser and never uploaded"
+            title="Webcam: click, or type selfie, for an ASCII selfie. Made in your browser, never uploaded"
             className="absolute flex items-center justify-center gap-[6px] rounded-t-[8px] rounded-b-[4px]"
             style={{ left: 690, top: 20, width: 60, height: 20, background: "linear-gradient(180deg, #2a2d33, #0e0f12)", boxShadow: "0 3px 6px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.12)" }}
         >
@@ -64,9 +64,11 @@ export function Webcam({ live, onClick }: { live: boolean; onClick: () => void }
     );
 }
 
-/** One frame from the camera, as rows of characters. The picture stays here. */
-export async function asciiSelfie(): Promise<{ art: string } | { error: "denied" | "none" | "failed" }> {
-    let stream: MediaStream | null = null;
+/** The camera, on: a stream playing into a video element that is never shown. */
+export type Camera = { stream: MediaStream; video: HTMLVideoElement };
+
+export async function openCamera(): Promise<Camera | { error: "denied" | "none" | "failed" }> {
+    let stream: MediaStream;
     try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: "user" }, audio: false });
     } catch (e) {
@@ -79,49 +81,55 @@ export async function asciiSelfie(): Promise<{ art: string } | { error: "denied"
         video.playsInline = true;
         video.srcObject = stream;
         await video.play();
-        // a moment for the exposure to settle
-        await new Promise((r) => window.setTimeout(r, 700));
-        const cols = 96;
-        const vw = video.videoWidth || 320;
-        const vh = video.videoHeight || 240;
-        // characters are about twice as tall as they are wide
-        const rows = Math.round((cols * vh) / vw / 1.25);
-        const c = document.createElement("canvas");
-        c.width = cols;
-        c.height = rows;
-        const ctx = c.getContext("2d", { willReadFrequently: true });
-        if (!ctx) return { error: "failed" };
-        // mirrored, as a selfie is
-        ctx.translate(cols, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, cols, rows);
-        const px = ctx.getImageData(0, 0, cols, rows).data;
-        // stretch the contrast to what the frame actually has
-        const lum: number[] = [];
-        let lo = 255;
-        let hi = 0;
-        for (let i = 0; i < px.length; i += 4) {
-            const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
-            lum.push(l);
-            lo = Math.min(lo, l);
-            hi = Math.max(hi, l);
-        }
-        const RAMP = " .:-=+*#%@";
-        const span = Math.max(1, hi - lo);
-        let art = "";
-        for (let y = 0; y < rows; y++) {
-            for (let x = 0; x < cols; x++) {
-                const v = (lum[y * cols + x] - lo) / span;
-                art += RAMP[Math.min(RAMP.length - 1, Math.floor(v * RAMP.length))];
-            }
-            art += "\n";
-        }
-        return { art: art.trimEnd() };
+        return { stream, video };
     } catch {
-        return { error: "failed" };
-    } finally {
         stream.getTracks().forEach((t) => t.stop());
+        return { error: "failed" };
     }
+}
+
+export function closeCamera(cam: Camera | null) {
+    cam?.stream.getTracks().forEach((t) => t.stop());
+}
+
+/** One frame from the camera, as rows of characters. The picture stays here. */
+export function asciiFrame(video: HTMLVideoElement): string | null {
+    const cols = 96;
+    const vw = video.videoWidth || 320;
+    const vh = video.videoHeight || 240;
+    // characters are about twice as tall as they are wide
+    const rows = Math.round((cols * vh) / vw / 1.25);
+    const c = document.createElement("canvas");
+    c.width = cols;
+    c.height = rows;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    // mirrored, as a selfie is
+    ctx.translate(cols, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, cols, rows);
+    const px = ctx.getImageData(0, 0, cols, rows).data;
+    // stretch the contrast to what the frame actually has
+    const lum: number[] = [];
+    let lo = 255;
+    let hi = 0;
+    for (let i = 0; i < px.length; i += 4) {
+        const l = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+        lum.push(l);
+        lo = Math.min(lo, l);
+        hi = Math.max(hi, l);
+    }
+    const RAMP = " .:-=+*#%@";
+    const span = Math.max(1, hi - lo);
+    let art = "";
+    for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+            const v = (lum[y * cols + x] - lo) / span;
+            art += RAMP[Math.min(RAMP.length - 1, Math.floor(v * RAMP.length))];
+        }
+        art += "\n";
+    }
+    return art.trimEnd();
 }
 
 // ---- The desk drawer --------------------------------------------------------
@@ -159,7 +167,7 @@ function NoteArt({ big }: { big?: boolean }) {
 }
 
 // Picked up out of the drawer: the thing up close, what it is, and where it leads
-function Held({ what, onClose }: { what: "floppy" | "note"; onClose: () => void }) {
+function Held({ what, onClose }: { what: "floppy" | "note" | "fragment"; onClose: () => void }) {
     const ref = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -174,6 +182,44 @@ function Held({ what, onClose }: { what: "floppy" | "note"; onClose: () => void 
         };
     }, [onClose]);
     const floppy = what === "floppy";
+    if (what === "fragment") {
+        return (
+            <motion.div
+                ref={ref}
+                role="dialog"
+                aria-label="A cosmic fragment"
+                className="absolute left-1/2 z-40 flex w-[360px] items-center gap-4 rounded-[16px] border border-teal-400/25 bg-[#0d1017]/95 p-4 text-left shadow-[0_30px_60px_-20px_rgba(0,0,0,0.95)] backdrop-blur"
+                style={{ bottom: DRAWER.h + PULL + 14, x: "-50%" }}
+                initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 30, scale: 0.9 }}
+                transition={{ type: "spring", stiffness: 320, damping: 26 }}
+            >
+                <span className="flex h-[96px] w-[96px] shrink-0 items-center justify-center">
+                    <motion.span
+                        className="block h-[40px] w-[40px] rounded-[6px] bg-gradient-to-br from-teal-100 to-teal-500"
+                        style={{ boxShadow: "0 0 36px rgba(45,212,191,0.9)" }}
+                        animate={{ rotate: [45, 225] }}
+                        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+                    />
+                </span>
+                <span className="flex min-w-0 flex-col gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-teal-300/80">cosmic fragment · pocketed</span>
+                    <span className="text-[13px] leading-snug text-neutral-200">
+                        One of five, scattered across the main page. This one counts there: open it and the counter in the bottom-left goes up. Find all five for a secret.
+                    </span>
+                    <span className="flex flex-wrap gap-2">
+                        <a href="/" target="_blank" rel="noopener noreferrer" className="rounded-full bg-teal-400/90 px-3 py-1 text-[12px] font-medium text-black transition-colors hover:bg-teal-300">
+                            Hunt the other four ↗
+                        </a>
+                        <button type="button" onClick={onClose} className="rounded-full border border-white/15 px-3 py-1 text-[12px] text-neutral-300 transition-colors hover:text-white">
+                            Close
+                        </button>
+                    </span>
+                </span>
+            </motion.div>
+        );
+    }
     return (
         <motion.div
             ref={ref}
@@ -225,7 +271,7 @@ export function Drawer({
     fragment: boolean;
     onFragment: (at: { x: number; y: number }) => void;
 }) {
-    const [held, setHeld] = useState<"floppy" | "note" | null>(null);
+    const [held, setHeld] = useState<"floppy" | "note" | "fragment" | null>(null);
     const putBack = useCallback(() => setHeld(null), []);
     useEffect(() => {
         if (!open) setHeld(null);
@@ -274,6 +320,7 @@ export function Drawer({
                                     onClick={(e) => {
                                         const r = e.currentTarget.getBoundingClientRect();
                                         onFragment({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+                                        setHeld("fragment");
                                     }}
                                     aria-label="A glowing cosmic fragment. Take it"
                                     title="A cosmic fragment: take it"

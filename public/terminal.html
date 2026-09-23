@@ -186,6 +186,8 @@
         // game, download, notify, eject, fullscreen. The desk plugs in USB
         // drives through window.deskMount.
         const DESK = window.parent !== window && new URLSearchParams(location.search).get('screen') === '1';
+        // Commands that only the desk answers
+        const DESK_WORDS = ['duck', 'quack', 'selfie', 'camera', 'webcam', 'photo', 'cheese', 'desk'];
         function deskSay(type, detail = {}) {
             if (!DESK) return;
             try { window.parent.postMessage({ source: 'mdos', type, ...detail }, location.origin); } catch (e) {}
@@ -3330,7 +3332,7 @@
         }
 
         // Commands that exist but are deliberately absent from the public list.
-        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie']);
+        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'quack', 'camera', 'webcam', 'photo', 'cheese']);
         function isKnownCommand(text) {
             const base = (text || '').trim().split(/\s+/)[0].toLowerCase();
             if (!base) return false;
@@ -4955,7 +4957,7 @@
             }
 
             // --- The desk's USB drives, and its full screen ----------------
-            if (cmd === 'fullscreen' || cmd === 'duck' || cmd === 'selfie' || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
+            if (cmd === 'fullscreen' || DESK_WORDS.includes(cmd) || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
                 await deskCommand(command);
                 return;
             }
@@ -5828,13 +5830,18 @@
                 endTurn();
                 return;
             }
-            if (cmd === 'duck') {
+            if (cmd === 'duck' || cmd === 'quack') {
                 await rubberDuck();
                 endTurn();
                 return;
             }
-            if (cmd === 'selfie') {
+            if (['selfie', 'camera', 'webcam', 'photo', 'cheese'].includes(cmd)) {
                 await deskSelfie();
+                endTurn();
+                return;
+            }
+            if (cmd === 'desk') {
+                await deskHelp();
                 endTurn();
                 return;
             }
@@ -5968,12 +5975,36 @@
             'Take a break and drink some water. The duck insists.',
             'Are you editing the file you are running?',
         ];
+        // While the duck listens, the prompt is the duck's, not the shell's
+        const duckStyle = document.createElement('style');
+        duckStyle.textContent = ".prompt.duck-prompt::before { content: '🦆 duck ›\\00a0'; color: #facc15; }";
+        document.head.appendChild(duckStyle);
+        function duckAsk() {
+            return new Promise((resolve) => {
+                const prompt = promptRow && promptRow.querySelector('.prompt');
+                if (prompt) prompt.classList.add('duck-prompt');
+                inputLine.value = '';
+                ghostInput.value = '';
+                inputLine.disabled = false;
+                setPromptVisible(true);
+                inputLine.focus();
+                terminal.scrollTop = terminal.scrollHeight;
+                pendingPrompt = (value) => {
+                    pendingPrompt = null;
+                    if (prompt) prompt.classList.remove('duck-prompt');
+                    inputLine.value = '';
+                    inputLine.disabled = true;
+                    setPromptVisible(false);
+                    resolve(value);
+                };
+            });
+        }
         async function rubberDuck() {
             await typeRaw('<span style="color:#facc15">🦆 The duck is listening.</span> <span class="highlight-dim">Explain your bug. Empty line or Esc to stop.</span>');
             for (let turn = 0; turn < 12; turn++) {
-                const said = await promptFor('<span style="color:#facc15">duck ›</span> ');
+                const said = await duckAsk();
                 if (said === null || !said.trim()) break;
-                await typeRaw(`<span class="highlight-dim">${escapeHtml(said)}</span>`);
+                await typeRaw(`<span style="color:#facc15;font-weight:700">🦆 duck ›</span> ${escapeHtml(said)}`);
                 deskSay('quack');
                 await typeSpinner('The duck is thinking', 900);
                 const low = said.toLowerCase();
@@ -5984,34 +6015,65 @@
             await typeRaw('<span class="highlight-dim">The duck goes back to staring at the screen.</span>');
         }
 
-        // The webcam on top of the display: the desk takes one frame, turns it
-        // into characters in the visitor's browser, and hands the text back.
-        // The picture itself never leaves the desk page
-        let selfieDone = null;
-        window.deskSelfie = (result) => { if (selfieDone) selfieDone(result); };
+        // The webcam on top of the display: the desk turns it on, this counts
+        // down, then the desk takes one frame, turns it into characters in the
+        // visitor's browser, and hands the text back. The picture never leaves
+        let deskReply = null;
+        window.deskSelfie = (result) => { if (deskReply) deskReply(result); };
+        const askDesk = (type, ms) => new Promise((resolve) => {
+            deskReply = resolve;
+            deskSay(type);
+            window.setTimeout(() => resolve({ error: 'timeout' }), ms);
+        });
+        const pause = (ms) => new Promise((r) => window.setTimeout(r, ms));
         async function deskSelfie() {
-            await typeRaw('<span class="highlight-dim">Look at the camera on top of the display. Your browser asks first; the picture never leaves it.</span>');
-            const result = await new Promise((resolve) => {
-                selfieDone = resolve;
-                deskSay('selfie');
-                window.setTimeout(() => resolve({ error: 'timeout' }), 30000);
-            });
-            selfieDone = null;
-            if (!result || result.error) {
+            await typeRaw('<span class="highlight-dim">Turning on the camera on top of the display. Your browser asks first; the picture never leaves it.</span>');
+            const ready = await askDesk('selfie-open', 30000);
+            if (!ready || ready.error) {
+                deskReply = null;
                 SoundFX.error();
-                const why = result && result.error === 'denied' ? 'camera permission was not given' : result && result.error === 'none' ? 'no camera found' : 'the camera did not answer';
+                const why = ready && ready.error === 'denied' ? 'camera permission was not given' : ready && ready.error === 'none' ? 'no camera found' : 'the camera did not answer';
                 await typeRaw(`<span class="error-text">selfie: ${why}.</span>`);
                 return;
             }
+            const id = `cheese-${Date.now()}`;
+            await typeRaw(`<span class="highlight-value" id="${id}">Say cheese! 3…</span>`);
+            for (const n of ['2…', '1…', '📸']) {
+                await pause(800);
+                const el = document.getElementById(id);
+                if (el) el.textContent += ` ${n}`;
+            }
+            const shot = await askDesk('selfie-snap', 10000);
+            deskReply = null;
+            if (!shot || !shot.art) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">selfie: the camera did not answer.</span>');
+                return;
+            }
             SoundFX.successChime();
-            await typeRaw(`<pre style="margin:4px 0;font-size:7px;line-height:7px;letter-spacing:0.5px;color:var(--term-primary)">${escapeHtml(result.art)}</pre>`);
-            await typeRaw('<span class="highlight-dim">Say cheese. It is only on this screen, and gone when you run clear.</span>');
+            await typeRaw(`<pre style="margin:4px 0;font-size:7px;line-height:7px;letter-spacing:0.5px;color:var(--term-primary)">${escapeHtml(shot.art)}</pre>`);
+            await typeRaw('<span class="highlight-dim">Only on this screen, and gone when you run clear. Run selfie again for another.</span>');
+        }
+
+        // What the desk adds, since help lists the terminal's own commands
+        async function deskHelp() {
+            const row = (c, what) => `  <span class="nav-link" onclick="runCommandFromClick('${/[<\[]/.test(c) ? c.split(' ')[0] : c}')">${escapeHtml(c.padEnd(15))}</span>${escapeHtml(what)}`;
+            await typeRaw('<span class="highlight-name">THIS DESK</span>  <span class="highlight-dim">commands that work only here</span>');
+            for (const line of [
+                row('selfie', 'an ASCII selfie from the webcam on the display (or click the webcam)'),
+                row('duck', 'explain your bug to the rubber duck (or click the duck)'),
+                row('ls /Volumes', 'the USB drives plugged into the tower'),
+                row('mount <drive>', 'mount a drive plugged in from the stand'),
+                row('eject [drive]', 'unmount a drive; pull it out of the tower to disconnect it'),
+                row('fullscreen', 'the terminal, full screen (Esc to leave)'),
+            ]) await typeRaw(line);
+            await typeRaw('<span class="highlight-dim">And on the desk: sip the chai, drag it onto the plant to water it, open the drawer, and try the phone\'s apps.</span>');
         }
 
         // The desk's commands complete like the rest (inside the desk only), and
         // eject completes with whatever is mounted
         if (DESK) {
-            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie');
+            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk');
             ARG_TARGETS.eject = () => [...mounted].map((l) => l.toLowerCase());
             ARG_TARGETS.mount = () => [...connected].filter((l) => !mounted.has(l)).map((l) => l.toLowerCase());
         }
