@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
-import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, useChaiTime, type Note, type Stick } from "./props";
+import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, isChaiTime, useChaiTime, type Note, type Stick } from "./props";
 import { Drawer, Duck, Life, Webcam, asciiSelfie } from "./desk-extras";
 import {
     playAirDrop,
@@ -69,6 +69,7 @@ const MUG = { x: 352, y: 692 };
 const PLANT = { x: 1282, y: 616 };
 const POUR = { x: 1236, y: 634 };
 const PLANT_KEY = "desk-plant";
+const CHAI_KEY = "desk-chai";
 const FRAGMENT_KEY = "desk-fragment";
 
 const STICKS: (Stick & { term: string })[] = [
@@ -112,6 +113,7 @@ export function Desk() {
     // Chai: sips left of 4; the mug, dragged or pouring
     const hot = useChaiTime();
     const [chai, setChai] = useState(4);
+    const [chaiLoaded, setChaiLoaded] = useState(false);
     const [mugDrag, setMugDrag] = useState<{ dx: number; dy: number } | null>(null);
     const [pouring, setPouring] = useState(false);
     const plantRef = useRef<HTMLDivElement>(null);
@@ -524,9 +526,39 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         }
         window.setTimeout(() => pushNote("Plant", grew ? "Watered with chai. It seems to like it, and it grew a little" : "Watered already today. It is happy", "🪴"), 900);
     };
-    // A sip; empty, it refills at chai-time, and otherwise waits
-    const refill = useRef(0);
-    useEffect(() => () => window.clearTimeout(refill.current), []);
+    // The chai's level is kept between visits: a reload is not a fresh cup.
+    // Away for an hour or more at chai-time, though, and there is a new one
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(CHAI_KEY) || "null") as { level: number; at: number } | null;
+            if (saved && Number.isFinite(saved.level)) {
+                const stale = Date.now() - saved.at > 3600000;
+                setChai(stale && isChaiTime() ? 4 : Math.max(0, Math.min(4, saved.level)));
+            }
+        } catch {
+            /* ignore */
+        }
+        setChaiLoaded(true);
+    }, []);
+    useEffect(() => {
+        if (!chaiLoaded) return;
+        try {
+            localStorage.setItem(CHAI_KEY, JSON.stringify({ level: chai, at: Date.now() }));
+        } catch {
+            /* ignore */
+        }
+    }, [chai, chaiLoaded]);
+    // Empty at chai-time: a fresh cup, a few seconds later
+    useEffect(() => {
+        if (chai > 0 || !hot) return;
+        const id = window.setTimeout(() => {
+            playPour();
+            setChai(4);
+            pushNote("Chai", "Fresh cup poured. It is chai-time in Kolkata", "☕");
+        }, 4000);
+        return () => window.clearTimeout(id);
+    }, [chai, hot, pushNote]);
+    // A sip; empty, it waits for chai-time
     const sip = () => {
         if (chai <= 0) {
             pushNote("Chai", hot ? "Pouring a fresh cup…" : "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
@@ -536,14 +568,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         const left = chai - 1;
         setChai(left);
         if (!hot && left === 3) pushNote("Chai", "Stone cold. Miit forgot this one hours ago", "🧊");
-        if (left === 0 && hot) {
-            window.clearTimeout(refill.current);
-            refill.current = window.setTimeout(() => {
-                playPour();
-                setChai(4);
-                pushNote("Chai", "Fresh cup poured. It is chai-time in Kolkata", "☕");
-            }, 4000);
-        } else if (left === 0) pushNote("Chai", "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
+        if (left === 0 && !hot) pushNote("Chai", "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
     };
     // Click the mug to sip; drag it onto the plant to water it
     const mugDown = (e: React.PointerEvent) => {
@@ -758,8 +783,6 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     open={drawer}
                     onToggle={openDrawer}
                     fragment={fragment}
-                    onFloppy={() => pushNote("Floppy disk", "Nothing here reads this any more. The resume page still has a drive", "💾")}
-                    onNote={() => pushNote("Sticky note", "↑ ↑ ↓ ↓ ← → ← → B A · try it at the very bottom of the main page", "📝")}
                     onFragment={takeFragment}
                 />
                 <Phone ref={phoneRef} notes={notes} airdrop={airdrop} music={music} onMusic={toggleMusic} onSigned={(name, message) => pushNote("Guestbook", `${name}: ${message}`, "✍️")} />

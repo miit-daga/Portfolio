@@ -499,7 +499,7 @@ export const Phone = forwardRef<
                                 onClick={() => setApp(null)}
                                 aria-label="Close the app"
                                 title="Back (Esc)"
-                                className="absolute left-[5px] top-[4px] z-20 flex h-[12px] items-center gap-[1px] rounded-full bg-black/40 pl-[3px] pr-[5px] text-[7px] font-medium text-sky-300 backdrop-blur hover:bg-black/60 hover:text-sky-200"
+                                className="absolute left-[6px] top-[18px] z-20 flex h-[12px] items-center gap-[1px] rounded-full bg-black/40 pl-[3px] pr-[5px] text-[7px] font-medium text-sky-300 backdrop-blur hover:bg-black/60 hover:text-sky-200"
                             >
                                 <span className="text-[9px] leading-none">‹</span>
                                 Back
@@ -556,7 +556,7 @@ function MessagesApp({ reply, onSigned }: { reply: string; onSigned: (name: stri
         }
     };
     return (
-        <div className="flex h-full flex-col pb-[12px] pt-[20px] text-[7px] text-white">
+        <div className="flex h-full flex-col pb-[12px] pt-[33px] text-[7px] text-white">
             <div className="flex items-center gap-1 border-b border-white/10 px-2 pb-1">
                 <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-indigo-500 text-[7px] font-bold">M</span>
                 <div className="leading-tight">
@@ -617,7 +617,7 @@ function WeatherApp() {
             .catch(() => setFailed(true));
     }, []);
     return (
-        <div className="flex h-full flex-col items-center px-2 pb-[14px] pt-[24px] text-center text-white" style={{ background: w?.day === false ? "linear-gradient(180deg, #1e1b4b, #0f172a)" : "linear-gradient(180deg, #2563eb, #60a5fa)" }}>
+        <div className="flex h-full flex-col items-center px-2 pb-[14px] pt-[34px] text-center text-white" style={{ background: w?.day === false ? "linear-gradient(180deg, #1e1b4b, #0f172a)" : "linear-gradient(180deg, #2563eb, #60a5fa)" }}>
             <p className="text-[9px] font-medium">Kolkata</p>
             {w ? (
                 <>
@@ -651,7 +651,7 @@ function WeatherApp() {
 function MusicApp({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     const reduce = useReducedMotion();
     return (
-        <div className="flex h-full flex-col items-center px-3 pb-[16px] pt-[24px] text-center text-white">
+        <div className="flex h-full flex-col items-center px-3 pb-[16px] pt-[34px] text-center text-white">
             <div className="relative flex h-[76px] w-[76px] items-end justify-center gap-[3px] overflow-hidden rounded-[10px] pb-2" style={{ background: "radial-gradient(circle at 30% 20%, #f0abfc, #7c3aed 45%, #0f172a)" }}>
                 {[0, 1, 2, 3, 4, 5].map((i) => (
                     <motion.span
@@ -675,6 +675,7 @@ function MusicApp({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 // ---- Desk touches -----------------------------------------------------------
 
 const CHAI_TIME = ["morning coffee", "evening chai", "waking up slowly", "lunch break", "late-night commits"];
+export const isChaiTime = () => CHAI_TIME.includes(kolkataNow().mood.label);
 /** Is it chai-time in Kolkata? Checked every minute. */
 export function useChaiTime() {
     const [hot, setHot] = useState(true);
@@ -690,9 +691,9 @@ export function useChaiTime() {
 /** Chai, seen from the chair: the front of the mug, and the chai inside, `level` sips of 4 left. */
 export function Mug({ level, hot, pouring }: { level: number; hot: boolean; pouring: boolean }) {
     const reduce = useReducedMotion();
-    // The chai's surface sinks into the mug as it is drunk: the lower it is,
-    // the less of it shows past the rim
-    const depth = [30, 21, 14, 7, 1][Math.max(0, Math.min(4, level))];
+    // The chai's surface sinks into the mug as it is drunk: full, it sits at
+    // the rim; each sip lowers it, so less of it shows past the rim
+    const sink = (4 - Math.max(0, Math.min(4, level))) * 2.4;
     return (
         <div className="relative h-[84px] w-[80px]">
             <svg width="80" height="84" viewBox="0 0 80 84" aria-hidden className="absolute inset-0 overflow-visible drop-shadow-[0_10px_8px_rgba(0,0,0,0.55)]">
@@ -717,8 +718,8 @@ export function Mug({ level, hot, pouring }: { level: number; hot: boolean; pour
                 <ellipse cx="34" cy="18" rx="27" ry="8" fill="#e7dcc6" />
                 <g clipPath="url(#mugRim)">
                     <ellipse cx="34" cy="18" rx="27" ry="8" fill="#b9a784" opacity="0.5" transform="translate(0 -3)" />
-                    {level > 0 && <ellipse cx="34" cy={18 + (30 - depth) * 0.36} rx="26" ry="7.4" fill={hot ? "#b87a44" : "#7a5634"} />}
-                    {level > 0 && hot && <ellipse cx="30" cy={16 + (30 - depth) * 0.36} rx="10" ry="2.4" fill="#ecd3b0" opacity="0.35" />}
+                    {level > 0 && <ellipse cx="34" cy={18.5 + sink} rx="26" ry="7.4" fill={hot ? "#b87a44" : "#7a5634"} />}
+                    {level > 0 && hot && <ellipse cx="30" cy={16.5 + sink} rx="10" ry="2.4" fill="#ecd3b0" opacity="0.35" />}
                     {level === 0 && <ellipse cx="34" cy="24" rx="20" ry="4" fill="none" stroke="#8a6a47" strokeWidth="1" opacity="0.5" />}
                 </g>
                 <ellipse cx="34" cy="18" rx="27" ry="8" fill="none" stroke="#fbf7ef" strokeWidth="1.6" />

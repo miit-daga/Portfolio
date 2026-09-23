@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 // More of the terminal desk (desk.tsx), in the scene's design units:
@@ -129,23 +129,110 @@ export async function asciiSelfie(): Promise<{ art: string } | { error: "denied"
 export const DRAWER = { x: 590, y: 796, w: 260, h: 36 };
 const PULL = 58;
 
+function FloppyArt({ size }: { size: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 46 46" aria-hidden className="block drop-shadow-[0_3px_3px_rgba(0,0,0,0.7)]">
+            <path d="M 2 4 Q 2 2 4 2 H 40 L 44 6 V 42 Q 44 44 42 44 H 4 Q 2 44 2 42 Z" fill="#1f3b73" />
+            <rect x="12" y="2" width="22" height="13" rx="1" fill="#cbd5e1" />
+            <rect x="26" y="4" width="5" height="9" fill="#1f3b73" />
+            <rect x="8" y="22" width="30" height="20" rx="1.5" fill="#f8fafc" />
+            <text x="23" y="31" textAnchor="middle" fontSize="5" fontFamily="ui-monospace, monospace" fill="#1e293b" fontWeight="700">
+                RESUME
+            </text>
+            <text x="23" y="38" textAnchor="middle" fontSize="3.6" fontFamily="ui-monospace, monospace" fill="#64748b">
+                MIIT-DOS 6.22
+            </text>
+        </svg>
+    );
+}
+
+function NoteArt({ big }: { big?: boolean }) {
+    return (
+        <span
+            className={`flex flex-col items-center justify-center bg-[#fde68a] font-mono font-bold text-[#78350f] shadow-[0_3px_4px_rgba(0,0,0,0.6)] ${big ? "h-[120px] w-[130px] text-[20px] leading-[28px]" : "h-[44px] w-[48px] text-[8px] leading-[10px]"}`}
+        >
+            <span>↑↑↓↓</span>
+            <span>←→←→</span>
+            <span>B A</span>
+        </span>
+    );
+}
+
+// Picked up out of the drawer: the thing up close, what it is, and where it leads
+function Held({ what, onClose }: { what: "floppy" | "note"; onClose: () => void }) {
+    const ref = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+        const onDown = (e: PointerEvent) => ref.current && !ref.current.contains(e.target as Node) && onClose();
+        window.addEventListener("keydown", onKey);
+        // after the click that picked it up
+        const id = window.setTimeout(() => window.addEventListener("pointerdown", onDown), 0);
+        return () => {
+            window.clearTimeout(id);
+            window.removeEventListener("keydown", onKey);
+            window.removeEventListener("pointerdown", onDown);
+        };
+    }, [onClose]);
+    const floppy = what === "floppy";
+    return (
+        <motion.div
+            ref={ref}
+            role="dialog"
+            aria-label={floppy ? "A floppy disk" : "A sticky note"}
+            className="absolute left-1/2 z-40 flex w-[340px] items-center gap-4 rounded-[16px] border border-white/10 bg-[#0d1017]/95 p-4 text-left shadow-[0_30px_60px_-20px_rgba(0,0,0,0.95)] backdrop-blur"
+            style={{ bottom: DRAWER.h + PULL + 14, x: "-50%" }}
+            initial={{ opacity: 0, y: 30, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.9 }}
+            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+        >
+            <motion.span className="shrink-0" initial={{ rotate: floppy ? -8 : 5 }} animate={{ rotate: floppy ? -3 : 2 }}>
+                {floppy ? <FloppyArt size={112} /> : <NoteArt big />}
+            </motion.span>
+            <span className="flex min-w-0 flex-col gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-teal-300/80">{floppy ? "3.5-inch floppy" : "sticky note"}</span>
+                <span className="text-[13px] leading-snug text-neutral-200">
+                    {floppy
+                        ? "Nothing on this desk can read it any more. The beige computer on the resume page still can."
+                        : "Type it anywhere on the main page. Something big happens."}
+                </span>
+                <span className="flex flex-wrap gap-2">
+                    <a
+                        href={floppy ? "/resume" : "/"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-full bg-teal-400/90 px-3 py-1 text-[12px] font-medium text-black transition-colors hover:bg-teal-300"
+                    >
+                        {floppy ? "Open the resume page ↗" : "Open the main page ↗"}
+                    </a>
+                    <button type="button" onClick={onClose} className="rounded-full border border-white/15 px-3 py-1 text-[12px] text-neutral-300 transition-colors hover:text-white">
+                        Put it back
+                    </button>
+                </span>
+            </span>
+        </motion.div>
+    );
+}
+
 export function Drawer({
     open,
     onToggle,
     fragment,
-    onFloppy,
-    onNote,
     onFragment,
 }: {
     open: boolean;
     onToggle: () => void;
     fragment: boolean;
-    onFloppy: () => void;
-    onNote: () => void;
     onFragment: (at: { x: number; y: number }) => void;
 }) {
+    const [held, setHeld] = useState<"floppy" | "note" | null>(null);
+    const putBack = useCallback(() => setHeld(null), []);
+    useEffect(() => {
+        if (!open) setHeld(null);
+    }, [open]);
     return (
         <div className="absolute" style={{ left: DRAWER.x, top: DRAWER.y, width: DRAWER.w, height: DRAWER.h + PULL }}>
+            <AnimatePresence>{held && <Held key={held} what={held} onClose={putBack} />}</AnimatePresence>
             {/* the drawer's inside, seen from above as it comes out */}
             <AnimatePresence>
                 {open && (
@@ -159,27 +246,26 @@ export function Drawer({
                     >
                         <div className="absolute inset-0 flex items-center justify-around px-4">
                             {/* a floppy, from the resume page's computer */}
-                            <button type="button" onClick={onFloppy} aria-label="A floppy disk" title="A floppy disk. Nothing here reads it any more" className="block" style={{ transform: "rotate(-8deg) scaleY(0.72)" }}>
-                                <svg width="46" height="46" viewBox="0 0 46 46" aria-hidden className="block drop-shadow-[0_3px_3px_rgba(0,0,0,0.7)]">
-                                    <path d="M 2 4 Q 2 2 4 2 H 40 L 44 6 V 42 Q 44 44 42 44 H 4 Q 2 44 2 42 Z" fill="#1f3b73" />
-                                    <rect x="12" y="2" width="22" height="13" rx="1" fill="#cbd5e1" />
-                                    <rect x="26" y="4" width="5" height="9" fill="#1f3b73" />
-                                    <rect x="8" y="22" width="30" height="20" rx="1.5" fill="#f8fafc" />
-                                    <text x="23" y="31" textAnchor="middle" fontSize="5" fontFamily="ui-monospace, monospace" fill="#1e293b" fontWeight="700">
-                                        RESUME
-                                    </text>
-                                    <text x="23" y="38" textAnchor="middle" fontSize="3.6" fontFamily="ui-monospace, monospace" fill="#64748b">
-                                        MIIT-DOS 6.22
-                                    </text>
-                                </svg>
+                            <button
+                                type="button"
+                                onClick={() => setHeld("floppy")}
+                                aria-label="A floppy disk. Pick it up"
+                                title="A floppy disk: pick it up"
+                                className="block"
+                                style={{ transform: "rotate(-8deg) scaleY(0.72)", opacity: held === "floppy" ? 0 : 1 }}
+                            >
+                                <FloppyArt size={46} />
                             </button>
                             {/* a sticky note, with the keys on it */}
-                            <button type="button" onClick={onNote} aria-label="A sticky note with arrow keys written on it" title="A sticky note" className="block" style={{ transform: "rotate(5deg) scaleY(0.72)" }}>
-                                <span className="flex h-[44px] w-[48px] flex-col items-center justify-center bg-[#fde68a] font-mono text-[8px] font-bold leading-[10px] text-[#78350f] shadow-[0_3px_4px_rgba(0,0,0,0.6)]">
-                                    <span>↑↑↓↓</span>
-                                    <span>←→←→</span>
-                                    <span>B A</span>
-                                </span>
+                            <button
+                                type="button"
+                                onClick={() => setHeld("note")}
+                                aria-label="A sticky note with arrow keys written on it. Pick it up"
+                                title="A sticky note: pick it up"
+                                className="block"
+                                style={{ transform: "rotate(5deg) scaleY(0.72)", opacity: held === "note" ? 0 : 1 }}
+                            >
+                                <NoteArt />
                             </button>
                             {/* a cosmic fragment, until it is pocketed */}
                             {fragment ? (
