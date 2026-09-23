@@ -422,6 +422,19 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     issPausedRef.current = false
   }
 
+  // Escape closes the transmission too
+  useEffect(() => {
+    if (!issModalOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      setIssModal(null)
+      setIssTelemetry(null)
+      issPausedRef.current = false
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [issModalOpen])
+
   useEffect(() => {
     const canvas = canvasRef.current
     const backgroundCanvas = backgroundCanvasRef.current
