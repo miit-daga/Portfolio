@@ -19,6 +19,7 @@ import {
     IconTarget,
 } from "@tabler/icons-react";
 import { warpForJump } from "@/components/ui/warp-overlay";
+import { RESUME_PAGE } from "@/lib/resume";
 
 export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) {
     // defaultOpen: the lazy loader mounts this on the first Cmd+K, already open
@@ -89,7 +90,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                 <Command.Separator className="my-2 h-px bg-white/10" />
 
                                 <Command.Group heading="External Links">
-                                    <Item external icon={<IconFileText />} onSelect={() => runCommand(() => window.open(process.env.NEXT_PUBLIC_RESUME_LINK, "_blank"))}>Resume</Item>
+                                    <Item external icon={<IconFileText />} onSelect={() => runCommand(() => window.open(RESUME_PAGE, "_blank"))}>Resume</Item>
                                     <Item external icon={<IconBrandGithub />} onSelect={() => runCommand(() => window.open("https://github.com/miit-daga", "_blank"))}>GitHub</Item>
                                     <Item external icon={<IconBrandLinkedin />} onSelect={() => runCommand(() => window.open("https://www.linkedin.com/in/miit-daga", "_blank"))}>LinkedIn</Item>
                                 </Command.Group>

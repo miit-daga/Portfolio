@@ -3,10 +3,12 @@ import { useCallback, useRef, useState } from "react";
 import { motion, useMotionValue, useMotionTemplate, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import Image from "next/image";
+import { RESUME_PAGE_ABSOLUTE } from "@/lib/resume";
 
 // Holographic crew ID: tilts with the cursor, foil shine sweeps across the
 // face, click/tap flips it over to a QR code linking to the resume.
-const QR_TARGET = process.env.NEXT_PUBLIC_RESUME_LINK || "https://miitdaga.dev";
+// The on-site resume page, so a scan lands on the site rather than in Drive
+const QR_TARGET = RESUME_PAGE_ABSOLUTE;
 
 export const CrewCard = () => {
     const reduce = useReducedMotion();

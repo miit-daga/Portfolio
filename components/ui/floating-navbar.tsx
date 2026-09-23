@@ -9,6 +9,7 @@ import {
 } from "framer-motion";
 import { cn } from "@/utils/cn";
 import Link from "next/link";
+import { RESUME_PAGE } from "@/lib/resume";
 import { IconMenu2, IconX } from "@tabler/icons-react";
 import { IconFileText } from "@tabler/icons-react";
 import { scrollToSection } from "@/lib/scroll-to-section";
@@ -197,7 +198,8 @@ export const FloatingNav = ({
     return () => clearTimeout(id);
   }, [activeSection]);
 
-  const resumeLink = process.env.NEXT_PUBLIC_RESUME_LINK;
+  // The on-site resume page (lib/resume.ts), not the raw Drive file
+  const resumeLink = RESUME_PAGE;
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
 
   // In-page links glide via the shared eased window scroll (lib/scroll-to-section)

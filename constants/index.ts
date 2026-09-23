@@ -38,7 +38,8 @@ export const socials: {
     },
     {
         name: 'Resume',
-        url: 'https://drive.google.com/file/d/1s1R9I9_M97iFpcxYwwsb490K2puJW4r1/view?usp=sharing',
+        // The on-site resume page (app/resume); the Drive file is set in lib/resume.ts
+        url: '/resume',
         key: 'resume',
         icon: BsFileEarmarkPerson
     },

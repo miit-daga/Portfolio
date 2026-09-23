@@ -5455,7 +5455,7 @@
                         row('EDUCATION', `B.Tech IT, VIT · CGPA 9.22 / 10 · 2022–2026`) + `\n\n` +
                         row('CONTACT', `<a href="mailto:${MOCK_DATA.email}" class="nav-link">${MOCK_DATA.email}</a>`) + `\n` +
                         row('LINKS', MOCK_DATA.socials.map(s => `<a href="${s.url}" target="_blank" class="nav-link">${s.name}</a>`).join('  ') +
-                            `  <a href="${MOCK_DATA.resumeUrl}" target="_blank" class="nav-link">Resume</a>`) +
+                            `  <a href="/resume" target="_blank" class="nav-link">Resume</a>`) +
                         `</div>`
                     );
                     await typeRaw(
@@ -5627,7 +5627,7 @@
                     await typeLine("Accessing secure file...", 30);
                     await new Promise(r => setTimeout(r, 500));
                     await typeLine("Opening resume in new tab...", 30);
-                    window.open(MOCK_DATA.resumeUrl, '_blank');
+                    window.open('/resume', '_blank'); // the site's resume page; scp still fetches the raw PDF
                     break;
                 case 'clear':
                     SoundFX.enter();
