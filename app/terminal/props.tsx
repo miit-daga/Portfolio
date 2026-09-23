@@ -375,12 +375,13 @@ export function HardDrive({ on, idle, busy, onClick }: { on: boolean; idle: bool
 
 export const PHONE = { x: 92, y: 410, w: 112, h: 226 };
 export type Note = { id: number; app: string; text: string; icon: string };
-type App = "messages" | "weather" | "music" | "qr";
+type App = "messages" | "weather" | "music" | "airdrop" | "qr";
 
 const APPS: { id: App; icon: string; label: string; bg: string }[] = [
     { id: "messages", icon: "💬", label: "Messages", bg: "linear-gradient(160deg, #4ade80, #16a34a)" },
     { id: "weather", icon: "⛅", label: "Weather", bg: "linear-gradient(160deg, #60a5fa, #1d4ed8)" },
     { id: "music", icon: "♫", label: "Music", bg: "linear-gradient(160deg, #fb7185, #be123c)" },
+    { id: "airdrop", icon: "⇪", label: "AirDrop, to the display", bg: "linear-gradient(160deg, #7dd3fc, #0284c7)" },
     { id: "qr", icon: "▦", label: "Take the site with you", bg: "linear-gradient(160deg, #e5e7eb, #9ca3af)" },
 ];
 
@@ -389,8 +390,8 @@ const APPS: { id: App; icon: string; label: string; bg: string }[] = [
 // up off the stand, bigger, so it can be used
 export const Phone = forwardRef<
     HTMLDivElement,
-    { notes: Note[]; airdrop: number; music: boolean; onMusic: (on: boolean) => void; onSigned: (name: string, message: string) => void; onDismiss: (id: number) => void }
->(function Phone({ notes, airdrop, music, onMusic, onSigned, onDismiss }, ref) {
+    { notes: Note[]; airdrop: number; music: boolean; onMusic: (on: boolean) => void; onSigned: (name: string, message: string) => void; onDismiss: (id: number) => void; onSend: (item: SendItem) => void }
+>(function Phone({ notes, airdrop, music, onMusic, onSigned, onDismiss, onSend }, ref) {
     const [now, setNow] = useState<ReturnType<typeof kolkataNow> | null>(null);
     const [app, setApp] = useState<App | null>(null);
     useEffect(() => {
@@ -462,7 +463,7 @@ export const Phone = forwardRef<
                                         onClick={() => setApp(a.id)}
                                         aria-label={a.label}
                                         title={a.label}
-                                        className="flex h-[19px] w-[19px] items-center justify-center rounded-[6px] text-[10px] leading-none text-white transition-transform hover:scale-110"
+                                        className="flex h-[16px] w-[16px] items-center justify-center rounded-[5px] text-[9px] leading-none text-white transition-transform hover:scale-110"
                                         style={{ background: a.bg, color: a.id === "qr" ? "#111827" : undefined }}
                                     >
                                         {a.icon}
@@ -482,6 +483,15 @@ export const Phone = forwardRef<
                     {app === "messages" && <MessagesApp reply={now?.mood.reply ?? ""} onSigned={onSigned} />}
                     {app === "weather" && <WeatherApp />}
                     {app === "music" && <MusicApp on={music} onToggle={() => onMusic(!music)} />}
+                    {app === "airdrop" && (
+                        <AirDropApp
+                            onSend={(item) => {
+                                // put the phone down, then send: the file flies from it
+                                setApp(null);
+                                window.setTimeout(() => onSend(item), 350);
+                            }}
+                        />
+                    )}
                     {/* back, top left; and the home bar */}
                     {app && (
                         <>
@@ -664,6 +674,52 @@ function WeatherApp() {
             ) : (
                 <p className="mt-6 text-[7px] text-white/80">{failed ? "No signal from Kolkata right now." : "Asking the sky…"}</p>
             )}
+        </div>
+    );
+}
+
+// AirDrop, the other way: from the phone to the display, where the terminal
+// opens what arrives (desk.tsx sends it on to terminal.html)
+export type SendItem = { id: string; name: string; icon: string };
+const SENDABLE: (SendItem & { what: string })[] = [
+    { id: "postcard", name: "howrah-bridge.txt", icon: "🌉", what: "A postcard from Kolkata" },
+    { id: "wallpaper", name: "wallpaper.theme", icon: "🎨", what: "A new colour for the terminal" },
+    { id: "note", name: "note-to-self.txt", icon: "🐮", what: "A reminder, read out by a cow" },
+    { id: "memo", name: "voice-memo.m4a", icon: "🎙️", what: "Four seconds of humming" },
+    { id: "snake", name: "snake.app", icon: "🐍", what: "A game, to play on the big screen" },
+];
+
+function AirDropApp({ onSend }: { onSend: (item: SendItem) => void }) {
+    const reduce = useReducedMotion();
+    return (
+        <div className="flex h-full flex-col pb-[14px] pt-[33px] text-white">
+            <div className="flex items-center gap-1.5 px-2">
+                <span className="relative flex h-[16px] w-[16px] items-center justify-center rounded-full bg-sky-500 text-[8px]">
+                    ⇪
+                    {!reduce && <motion.span className="absolute inset-0 rounded-full border border-sky-400" animate={{ scale: [1, 1.9], opacity: [0.8, 0] }} transition={{ duration: 1.6, repeat: Infinity }} />}
+                </span>
+                <div className="leading-tight">
+                    <p className="text-[8px] font-semibold">AirDrop</p>
+                    <p className="text-[5.5px] text-neutral-400">to the display on the desk</p>
+                </div>
+            </div>
+            <div className="mt-1.5 flex-1 space-y-[3px] overflow-y-auto px-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {SENDABLE.map((item) => (
+                    <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onSend(item)}
+                        className="flex w-full items-center gap-1.5 rounded-[7px] bg-white/10 px-1.5 py-[3px] text-left transition-colors hover:bg-white/20"
+                    >
+                        <span className="flex h-[16px] w-[16px] shrink-0 items-center justify-center rounded-[4px] bg-white/10 text-[9px]">{item.icon}</span>
+                        <span className="min-w-0 leading-tight">
+                            <span className="block truncate text-[6.5px] font-medium">{item.name}</span>
+                            <span className="block truncate text-[5.5px] text-neutral-400">{item.what}</span>
+                        </span>
+                    </button>
+                ))}
+            </div>
+            <p className="px-2 pt-1 text-center text-[5.5px] text-neutral-500">Tap one to send it</p>
         </div>
     );
 }

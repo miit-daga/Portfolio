@@ -306,3 +306,42 @@ export function stopMusic() {
     music?.stop();
     music = null;
 }
+
+/** The voice memo AirDropped from the phone: four seconds of someone humming. */
+export function playHum() {
+    const a = audio();
+    if (!a) return;
+    const t0 = a.currentTime + 0.05;
+    // hmm hmm hmmm, hm hmmm: a soft, breathy tune
+    const tune: [number, number, number][] = [
+        [220, 0, 0.35],
+        [247, 0.45, 0.35],
+        [262, 0.9, 0.7],
+        [247, 1.75, 0.25],
+        [220, 2.1, 1.1],
+    ];
+    for (const [f, at, dur] of tune) {
+        const o = a.createOscillator();
+        o.type = "triangle";
+        o.frequency.setValueAtTime(f * 0.98, t0 + at);
+        o.frequency.linearRampToValueAtTime(f, t0 + at + 0.08);
+        const vib = a.createOscillator();
+        vib.frequency.value = 5;
+        const vibGain = a.createGain();
+        vibGain.gain.value = 2.5;
+        vib.connect(vibGain).connect(o.frequency);
+        const lp = a.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 900;
+        const g = a.createGain();
+        g.gain.setValueAtTime(0.0001, t0 + at);
+        g.gain.exponentialRampToValueAtTime(0.09, t0 + at + 0.06);
+        g.gain.setValueAtTime(0.09, t0 + at + dur * 0.7);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur);
+        o.connect(lp).connect(g).connect(a.destination);
+        o.start(t0 + at);
+        vib.start(t0 + at);
+        o.stop(t0 + at + dur + 0.05);
+        vib.stop(t0 + at + dur + 0.05);
+    }
+}

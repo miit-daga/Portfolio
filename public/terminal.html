@@ -187,7 +187,7 @@
         // drives through window.deskMount.
         const DESK = window.parent !== window && new URLSearchParams(location.search).get('screen') === '1';
         // Commands that only the desk answers
-        const DESK_WORDS = ['duck', 'quack', 'selfie', 'camera', 'webcam', 'photo', 'cheese', 'desk'];
+        const DESK_WORDS = ['duck', 'quack', 'selfie', 'camera', 'webcam', 'photo', 'cheese', 'desk', 'airdrop'];
         function deskSay(type, detail = {}) {
             if (!DESK) return;
             try { window.parent.postMessage({ source: 'mdos', type, ...detail }, location.origin); } catch (e) {}
@@ -3332,7 +3332,7 @@
         }
 
         // Commands that exist but are deliberately absent from the public list.
-        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'quack', 'camera', 'webcam', 'photo', 'cheese']);
+        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'quack', 'camera', 'webcam', 'photo', 'cheese', 'airdrop']);
         function isKnownCommand(text) {
             const base = (text || '').trim().split(/\s+/)[0].toLowerCase();
             if (!base) return false;
@@ -4957,7 +4957,7 @@
             }
 
             // --- The desk's USB drives, and its full screen ----------------
-            if (cmd === 'fullscreen' || DESK_WORDS.includes(cmd) || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
+            if (cmd === 'fullscreen' || DESK_WORDS.includes(cmd) || cmd.startsWith('airdrop ') || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
                 await deskCommand(command);
                 return;
             }
@@ -5845,6 +5845,12 @@
                 endTurn();
                 return;
             }
+            if (cmd === 'airdrop' || cmd.startsWith('airdrop ')) {
+                // Things sent from the phone; most open with the terminal's own
+                // commands, which end the turn themselves
+                if (await deskAirdrop(cmd.replace(/^airdrop\s*/, '').trim())) endTurn();
+                return;
+            }
             if (cmd.startsWith('eject')) {
                 // eject LABEL, or with nothing named, every drive
                 const want = command.replace(/^eject\s*(\/volumes\/)?/i, '').trim().toUpperCase();
@@ -6055,6 +6061,63 @@
             await typeRaw('<span class="highlight-dim">Only on this screen, and gone when you run clear. Run selfie again for another.</span>');
         }
 
+        // AirDrop, from the phone on the desk to this screen. Returns true when
+        // the caller should end the turn; false when a command it ran has
+        const AIRDROP = {
+            postcard: 'howrah-bridge.txt',
+            wallpaper: 'wallpaper.theme',
+            note: 'note-to-self.txt',
+            memo: 'voice-memo.m4a',
+            snake: 'snake.app',
+        };
+        async function deskAirdrop(what) {
+            const file = AIRDROP[what];
+            if (!file) {
+                await typeRaw('<span class="highlight-dim">AirDrop lives on the phone: open its AirDrop app and tap something to send it here.</span>');
+                return true;
+            }
+            SoundFX.successChime();
+            await typeRaw(`<span style="color:#38bdf8">📥 AirDrop from Miit's iPhone</span> <span class="highlight-value">${escapeHtml(file)}</span> <span class="highlight-dim">· accepted</span>`);
+            if (what === 'postcard') {
+                const art = [
+                    '            /\\                              /\\',
+                    '           /  \\____________________________/  \\',
+                    '          / || \\ \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/ / || \\',
+                    '         /  ||  \\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/\\/  ||  \\',
+                    '____________||______________________________||____________',
+                    '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
+                    '     ~    ~    ~     the Hooghly     ~    ~    ~    ~',
+                ].join('\n');
+                await typeRaw(`<pre style="margin:4px 0;color:var(--term-primary)">${escapeHtml(art)}</pre>`);
+                const time = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' }).format(new Date());
+                await typeLine(`Greetings from Kolkata, where it is ${time}. Wish you were here. · Miit`, 14);
+                return true;
+            }
+            if (what === 'wallpaper') {
+                // the next of the terminal's themes after the one it has now
+                const now = getComputedStyle(document.documentElement).getPropertyValue('--term-primary').trim().toLowerCase();
+                const names = Object.keys(THEMES);
+                const at = names.findIndex((n) => THEMES[n].primary.toLowerCase() === now);
+                await executeCommand(`theme ${names[(at + 1) % names.length]}`);
+                return false;
+            }
+            if (what === 'note') {
+                const notes = ['Drink some water.', 'Commit your work.', 'Stretch. You have been sitting a while.', 'Reply to that email.', 'It is probably a caching issue.'];
+                await executeCommand(`cowsay ${notes[Math.floor(Math.random() * notes.length)]}`);
+                return false;
+            }
+            if (what === 'memo') {
+                await typeRaw('<span class="highlight-dim">🎙️ Voice memo · 0:04 · playing</span>');
+                await typeLine('Transcript: "hmm hmm hmmm, hm hmmm..." (it is just Miit humming)', 18);
+                return true;
+            }
+            if (what === 'snake') {
+                await executeCommand('play snake');
+                return false;
+            }
+            return true;
+        }
+
         // What the desk adds, since help lists the terminal's own commands
         async function deskHelp() {
             const row = (c, what) => `  <span class="nav-link" onclick="runCommandFromClick('${/[<\[]/.test(c) ? c.split(' ')[0] : c}')">${escapeHtml(c.padEnd(15))}</span>${escapeHtml(what)}`;
@@ -6063,23 +6126,26 @@
                 row('selfie', 'an ASCII selfie from the webcam on the display (or click the webcam)'),
                 row('duck', 'explain your bug to the rubber duck (or click the duck)'),
                 row('ls /Volumes', 'the USB drives plugged into the tower'),
+                row('scp resume.pdf .', 'download the resume; it AirDrops to the phone too'),
                 row('mount <drive>', 'mount a drive plugged in from the stand'),
                 row('eject [drive]', 'unmount a drive; pull it out of the tower to disconnect it'),
                 row('fullscreen', 'the terminal, full screen (Esc to leave)'),
             ]) await typeRaw(line);
-            await typeRaw('<span class="highlight-dim">And on the desk: sip the chai, drag it onto the plant to water it, open the drawer, and try the phone\'s apps.</span>');
+            await typeRaw('<span class="highlight-dim">And on the desk: sip the chai, water the plant from the glass, open the drawer, and try the phone\'s apps. Its AirDrop sends things to this screen.</span>');
         }
 
         // The desk's commands complete like the rest (inside the desk only), and
         // eject completes with whatever is mounted
         if (DESK) {
-            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk');
+            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'airdrop');
+            ARG_TARGETS.airdrop = () => Object.keys(AIRDROP);
             ARG_TARGETS.eject = () => [...mounted].map((l) => l.toLowerCase());
             ARG_TARGETS.mount = () => [...connected].filter((l) => !mounted.has(l)).map((l) => l.toLowerCase());
         }
 
         // Called by the desk when a stick goes into the tower, and when it is pulled out
         const whenIdle = (fn) => (isTyping ? window.setTimeout(() => whenIdle(fn), 250) : fn());
+        window.deskAirdrop = (what) => whenIdle(() => runCommand(`airdrop ${what}`));
         window.deskMount = (label) => {
             connected.add(label);
             whenIdle(() => runCommand(`mount ${label}`));

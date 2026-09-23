@@ -2,11 +2,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
-import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, WaterGlass, isChaiTime, useChaiTime, type Note, type Stick } from "./props";
+import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, WaterGlass, isChaiTime, useChaiTime, type Note, type SendItem, type Stick } from "./props";
 import { Drawer, Duck, Life, Webcam, asciiFrame, closeCamera, openCamera, type Camera } from "./desk-extras";
 import {
     playAirDrop,
     playDrawer,
+    playHum,
     playMusic,
     playNotify,
     playPour,
@@ -58,6 +59,7 @@ type TermWindow = Window & {
     deskMount?: (label: string) => void;
     deskEject?: (label: string) => void;
     deskSelfie?: (result: { art: string } | { error: string }) => void;
+    deskAirdrop?: (what: string) => void;
 };
 
 // The desk's surface: a plane of SURFACE.w x SURFACE.d, its front edge at
@@ -144,7 +146,8 @@ export function Desk() {
     const cam = useRef<Camera | null>(null);
     const camTimer = useRef(0);
     const [flash, setFlash] = useState(0);
-    const [flight, setFlight] = useState<{ n: number; from: { x: number; y: number }; to: { x: number; y: number }; name: string } | null>(null);
+    // A file in flight: the resume to the phone, or something from the phone to the screen
+    const [flight, setFlight] = useState<{ n: number; from: { x: number; y: number }; to: { x: number; y: number }; name: string; icon?: string } | null>(null);
     const [airdrop, setAirdrop] = useState(0);
     const [pressed, setPressed] = useState<Set<string>>(new Set());
     const [tint, setTint] = useState("#2dd4bf");
@@ -262,6 +265,26 @@ export function Desk() {
             }, 900);
         },
         [screenRect, pushNote],
+    );
+
+    // AirDrop the other way: from the phone to the screen, where the terminal opens it
+    const sendToScreen = useCallback(
+        (item: SendItem) => {
+            const p = phoneRef.current?.getBoundingClientRect();
+            const from = p ? { x: p.left + p.width / 2, y: p.top + p.height / 2 } : { x: 100, y: 500 };
+            const to = { x: screenRect.left + screenRect.width / 2, y: screenRect.top + screenRect.height / 2 };
+            playAirDrop();
+            setAsleep(false);
+            setFlight({ n: Date.now(), from, to, name: item.name, icon: item.icon });
+            window.setTimeout(() => {
+                if (item.id === "memo") playHum();
+                whenReady(() => {
+                    term()?.deskAirdrop?.(item.id);
+                    refocus();
+                });
+            }, 900);
+        },
+        [screenRect, whenReady, refocus],
     );
 
     // Messages from the terminal
@@ -962,7 +985,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     fragment={fragment}
                     onFragment={takeFragment}
                 />
-                <Phone ref={phoneRef} notes={notes} airdrop={airdrop} music={music} onMusic={toggleMusic} onSigned={(name, message) => pushNote("Guestbook", `${name}: ${message}`, "✍️")} onDismiss={(id) => setNotes((ns) => ns.filter((n) => n.id !== id))} />
+                <Phone ref={phoneRef} notes={notes} airdrop={airdrop} music={music} onMusic={toggleMusic} onSigned={(name, message) => pushNote("Guestbook", `${name}: ${message}`, "✍️")} onDismiss={(id) => setNotes((ns) => ns.filter((n) => n.id !== id))} onSend={sendToScreen} />
             </div>
 
             {/* the terminal, over the screen at its real size */}
@@ -1020,9 +1043,13 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                         transition={{ duration: 0.9, ease: "easeInOut" }}
                         onAnimationComplete={() => setFlight(null)}
                     >
-                        <div className="flex h-[60px] w-[48px] items-end justify-center rounded-[6px] bg-white pb-1 shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
-                            <span className="rounded bg-red-500 px-1 text-[9px] font-bold text-white">PDF</span>
-                        </div>
+                        {flight.icon ? (
+                            <div className="flex h-[60px] w-[48px] items-center justify-center rounded-[10px] bg-white/95 text-[26px] shadow-[0_10px_30px_rgba(0,0,0,0.6)]">{flight.icon}</div>
+                        ) : (
+                            <div className="flex h-[60px] w-[48px] items-end justify-center rounded-[6px] bg-white pb-1 shadow-[0_10px_30px_rgba(0,0,0,0.6)]">
+                                <span className="rounded bg-red-500 px-1 text-[9px] font-bold text-white">PDF</span>
+                            </div>
+                        )}
                         <span className="mt-1 whitespace-nowrap rounded-full bg-sky-500/90 px-2 py-0.5 text-[10px] font-medium text-white">AirDrop</span>
                     </motion.div>
                 )}
