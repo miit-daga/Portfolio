@@ -1,9 +1,8 @@
 "use client";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { motion, useScroll, useTransform, useReducedMotion, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { glideTo } from "@/lib/glide";
-import { kolkataNow } from "@/lib/kolkata";
 
 interface ParagraphProps {
   para: string;
@@ -13,7 +12,7 @@ interface ParagraphProps {
 // The About paragraph. As it scrolls through the viewport each word decodes
 // from signal glyphs into letters. The highlighted keywords show where the
 // claim is backed up and fly there on click; the languages say hello in
-// their own script. A "currently" line sits underneath with Kolkata's clock.
+// their own script.
 
 type Keyword = {
   title: string;
@@ -53,13 +52,13 @@ const KEYWORDS: Record<string, Keyword> = {
     section: "publications",
   },
   ml: {
-    title: "Three research papers",
+    title: "Published research",
     detail: "quantum kernels, abstaining classifiers, anonymisation",
     target: () => byText("#publications h4", "Quantum")?.closest(".group") ?? null,
     section: "publications",
   },
   "deep learning": {
-    title: "Studying it right now",
+    title: "Exploring it on the side",
     detail: "AquaSelect put it to work on underwater species",
     target: () => byText("#publications h4", "AquaSelect")?.closest(".group") ?? null,
     section: "publications",
@@ -198,37 +197,6 @@ function flyTo(k: Keyword) {
   glideTo(el, k.section === "skills-achievements" && el.tagName === "LI" ? () => (el as HTMLElement).click() : undefined);
 }
 
-// "currently" status under the paragraph: role, what's being learnt, and the
-// hour in Kolkata with what that hour usually means
-const Currently = () => {
-  const [now, setNow] = useState<ReturnType<typeof kolkataNow> | null>(null);
-  useEffect(() => {
-    const tick = () => setNow(kolkataNow());
-    tick();
-    const id = window.setInterval(tick, 30_000);
-    return () => window.clearInterval(id);
-  }, []);
-
-  return (
-    <div className="mt-8 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-neutral-500 md:text-xs">
-      <span className="text-sky-400/80">currently</span>
-      <span className="text-neutral-700">·</span>
-      <span>software development engineer, remote</span>
-      <span className="text-neutral-700">·</span>
-      <span>studying deep learning</span>
-      {now && (
-        <>
-          <span className="text-neutral-700">·</span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: now.mood.color, boxShadow: `0 0 6px ${now.mood.color}` }} />
-            kolkata {now.time}, {now.mood.label}
-          </span>
-        </>
-      )}
-    </div>
-  );
-};
-
 const Paragraph: React.FC<ParagraphProps> = ({ para, className }) => {
   const ref = useRef<HTMLParagraphElement>(null);
   const reduce = useReducedMotion();
@@ -316,7 +284,6 @@ const Paragraph: React.FC<ParagraphProps> = ({ para, className }) => {
       <p ref={ref} className={textClass}>
         {out}
       </p>
-      <Currently />
     </div>
   );
 };

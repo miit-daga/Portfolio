@@ -46,4 +46,4 @@ export const socials: {
 ]
 
 
-export const aboutme = "I’m a software development engineer who loves backend development, with a B.Tech in Information Technology from VIT. I’m deep into AI and ML, currently Deep Learning, and happiest turning ideas into systems people use. I speak English, Hindi, Gujarati and Bengali, and I learn fast and work best alongside a team."
+export const aboutme = "I’m a software development engineer who loves backend development, with a B.Tech in Information Technology from VIT. I’m also into AI and ML on the side, exploring Deep Learning lately, and I’m happiest turning ideas into systems people use. I speak English, Hindi, Gujarati and Bengali, and I learn fast and work best alongside a team."
