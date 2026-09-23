@@ -390,6 +390,9 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         });
         w.addEventListener("mousedown", (e) => pressButton(e.button));
         w.addEventListener("mouseup", releaseButton);
+        // a right click opens the browser's menu, which keeps the mouseup: its
+        // opening ends the click instead
+        w.addEventListener("contextmenu", releaseButton);
         w.addEventListener("wheel", () => setWheel((n) => n + 1), { passive: true });
         const overlay = d.getElementById("start-overlay");
         if (overlay) {
@@ -405,9 +408,11 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         const down = (e: MouseEvent) => pressButton(e.button);
         window.addEventListener("mousedown", down);
         window.addEventListener("mouseup", releaseButton);
+        window.addEventListener("contextmenu", releaseButton);
         return () => {
             window.removeEventListener("mousedown", down);
             window.removeEventListener("mouseup", releaseButton);
+            window.removeEventListener("contextmenu", releaseButton);
             window.clearTimeout(buttonTimer.current);
         };
     }, [big, pressButton, releaseButton]);
