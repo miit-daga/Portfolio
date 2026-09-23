@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { PdfScreen, type Phosphor, type Tube } from "./pdf-screen";
+import { DosBoot, DosPrompt, FKeyBar, HelpBox, dosColours, type FKey } from "./dos";
+import { playDiskTick, playPowerOff, playPowerOn } from "./crt-sound";
 
 // The resume on a beige 1980s CRT monitor, floating in zero-g: a speaker
 // grille, vents and a mission sticker, on its stand. The screen is the resume
@@ -13,8 +15,11 @@ import { PdfScreen, type Phosphor, type Tube } from "./pdf-screen";
 //   PHOSPHOR  paper (as printed), green or amber: the page goes dark and the
 //             ink glows, as on a monochrome monitor
 // The yellow push-button beside them switches the monitor off and on again.
+//
+// It runs MIIT-DOS (dos.tsx): a DOS start-up, a function-key bar along the
+// bottom of the screen (F1 help, F2 download, F3 phosphor, F4 tube, F10 quit),
+// and a C:\> prompt to quit to.
 
-const BOOT_LINES = ["MIIT-1 CREW TERMINAL  v2.6", "memory check .......... ok", "uplink kolkata station . ok", "loading crew record: MIIT DAGA"];
 const TUBES: Tube[] = ["off", "soft", "full"];
 const PHOSPHORS: Phosphor[] = ["paper", "green", "amber"];
 const ANGLE = [-55, 0, 55];
@@ -43,40 +48,91 @@ function useSession<T extends string>(key: string, init: T, allowed: readonly T[
     return [v, set] as const;
 }
 
-export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string }) {
+export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallback: string; download: string }) {
     const reduce = useReducedMotion();
     const [tube, setTube] = useSession<Tube>("resume-tube", "soft", TUBES);
     const [phosphor, setPhosphor] = useSession<Phosphor>("resume-phosphor", "paper", PHOSPHORS);
     const [power, setPower] = useState(true);
     const [boot, setBoot] = useState(0); // bumped to replay the start-up
     const [booted, setBooted] = useState(false);
-    const [typed, setTyped] = useState(0);
     const [ready, setReady] = useState(false);
+    // The resume, or quit to the C:\> prompt
+    const [mode, setMode] = useState<"resume" | "prompt">("resume");
+    const [help, setHelp] = useState(false);
+    // The drive light, busy while the machine reads from its disk
+    const [disk, setDisk] = useState(false);
 
-    // The start-up: the tube warms, then a line at a time
+    // Each power-on starts the machine afresh (DosBoot runs the start-up)
     useEffect(() => {
         if (!power) return;
-        setBooted(false);
-        setTyped(0);
-        if (reduce) {
-            setBooted(true);
-            return;
-        }
-        const t = BOOT_LINES.map((_, i) => window.setTimeout(() => setTyped(i + 1), 520 + i * 320));
-        t.push(window.setTimeout(() => setBooted(true), 520 + BOOT_LINES.length * 320 + 420));
-        return () => t.forEach(clearTimeout);
+        setBooted(!!reduce);
+        setMode("resume");
+        setHelp(false);
     }, [power, boot, reduce]);
 
     const powerKey = () => {
-        if (power) setPower(false);
-        else {
+        if (power) {
+            playPowerOff();
+            setPower(false);
+        } else {
+            playPowerOn();
             setPower(true);
             setBoot((b) => b + 1);
         }
     };
 
+    // Skipping the start-up mid-read must not leave the drive light on
+    useEffect(() => {
+        if (booted) setDisk(false);
+    }, [booted]);
+
+    // The drive light ticks as it reads
+    useEffect(() => {
+        if (!disk) return;
+        playDiskTick();
+        const id = window.setInterval(playDiskTick, 140);
+        return () => window.clearInterval(id);
+    }, [disk]);
+
     const tubeIdx = TUBES.indexOf(tube);
     const phIdx = PHOSPHORS.indexOf(phosphor);
+    const nextTube = () => setTube(TUBES[(tubeIdx + 1) % 3]);
+    const nextPhosphor = () => setPhosphor(PHOSPHORS[(phIdx + 1) % 3]);
+    const downloadPdf = () => {
+        window.location.href = download;
+    };
+
+    const fkeys: FKey[] =
+        mode === "resume"
+            ? [
+                  { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
+                  { n: "2", label: "Download", key: "F2", run: downloadPdf },
+                  { n: "3", label: "Phosphor", key: "F3", run: nextPhosphor },
+                  { n: "4", label: "Tube", key: "F4", run: nextTube },
+                  { n: "10", label: "Quit", key: "F10", run: () => setMode("prompt") },
+              ]
+            : [
+                  { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
+                  { n: "2", label: "Download", key: "F2", run: downloadPdf },
+                  { n: "3", label: "Phosphor", key: "F3", run: nextPhosphor },
+                  { n: "4", label: "Tube", key: "F4", run: nextTube },
+                  { n: "10", label: "Resume", key: "F10", run: () => setMode("resume") },
+              ];
+
+    // The function keys on the visitor's own keyboard (F5 and F11 are left to the browser)
+    useEffect(() => {
+        if (!power || !booted) return;
+        const onKey = (e: KeyboardEvent) => {
+            const hit = fkeys.find((k) => k.key === e.key);
+            if (hit) {
+                e.preventDefault();
+                hit.run();
+            } else if (e.key === "Escape" && help) setHelp(false);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    });
+    const c = dosColours(phosphor);
     const glow = phosphor === "green" ? "74,222,128" : phosphor === "amber" ? "251,191,36" : "186,230,253";
 
     return (
@@ -105,7 +161,19 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
                                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.9)",
                             }}
                         >
-                            {power && <PdfScreen src={pdf} fallback={fallback} phosphor={phosphor} tube={tube} onReady={() => setReady(true)} />}
+                            {/* The resume, above the function-key bar */}
+                            {power && (
+                                <div className="absolute inset-x-0 top-0 bottom-[26px]" style={{ visibility: mode === "resume" ? "visible" : "hidden" }}>
+                                    <PdfScreen src={pdf} fallback={fallback} phosphor={phosphor} tube={tube} onReady={() => setReady(true)} />
+                                </div>
+                            )}
+                            {power && booted && mode === "prompt" && (
+                                <div className="absolute inset-x-0 top-0 bottom-[26px]">
+                                    <DosPrompt phosphor={phosphor} onResume={() => setMode("resume")} onDownload={downloadPdf} onDisk={setDisk} />
+                                </div>
+                            )}
+                            {power && booted && <FKeyBar keys={fkeys} phosphor={phosphor} />}
+                            <AnimatePresence>{power && booted && help && <HelpBox phosphor={phosphor} onClose={() => setHelp(false)} />}</AnimatePresence>
 
                             {/* ---- the tube's effects ---- */}
                             <AnimatePresence>
@@ -173,7 +241,8 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
                                         type="button"
                                         aria-label="Skip the start-up"
                                         onClick={() => setBooted(true)}
-                                        className="absolute inset-0 z-10 flex cursor-pointer flex-col items-start justify-center bg-[#040604] px-6 text-left sm:px-14"
+                                        className="absolute inset-0 z-10 flex cursor-pointer flex-col items-start justify-start px-5 pt-5 text-left sm:px-10 sm:pt-8"
+                                        style={{ background: c.bg }}
                                         exit={{ opacity: 0, transition: { duration: 0.4 } }}
                                     >
                                         <motion.span
@@ -183,15 +252,10 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
                                             animate={{ scaleY: [0.004, 0.004, 1], scaleX: [0.15, 1, 1], opacity: [1, 1, 0] }}
                                             transition={{ duration: 0.55, times: [0, 0.45, 1], ease: "easeOut" }}
                                         />
-                                        <div className="relative space-y-1.5 font-mono text-[11px] text-emerald-300/90 sm:text-sm" style={{ textShadow: "0 0 8px rgba(134,239,172,0.6)" }}>
-                                            {BOOT_LINES.slice(0, typed).map((l, i) => (
-                                                <p key={i}>
-                                                    <span className="text-emerald-500/70">&gt;</span> {l}
-                                                </p>
-                                            ))}
-                                            {typed > 0 && <span className="inline-block h-4 w-2 animate-pulse bg-emerald-300/80 align-middle motion-reduce:animate-none" />}
-                                        </div>
-                                        <span className="absolute bottom-4 right-5 font-mono text-[9px] uppercase tracking-[0.25em] text-emerald-500/40">tap to skip</span>
+                                        <DosBoot key={boot} phosphor={phosphor} onDone={() => setBooted(true)} onDisk={setDisk} />
+                                        <span className="absolute bottom-4 right-5 font-mono text-[9px] uppercase tracking-[0.25em]" style={{ color: c.dim }}>
+                                            tap to skip
+                                        </span>
                                     </motion.button>
                                 )}
                             </AnimatePresence>
@@ -250,6 +314,12 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
                             className="group flex flex-col items-center gap-1 focus-visible:outline-none"
                         >
                             <span className="flex items-center gap-1.5">
+                                {/* the drive light, flickering while it reads */}
+                                <span
+                                    title="drive"
+                                    className="h-1.5 w-1.5 rounded-full"
+                                    style={{ background: power && disk ? "#fb923c" : "#57534e", boxShadow: power && disk ? "0 0 6px #fb923c" : "none" }}
+                                />
                                 <span
                                     className="h-2 w-2 rounded-full transition-colors"
                                     style={{

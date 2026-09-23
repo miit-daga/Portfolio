@@ -83,7 +83,7 @@ export default function ResumePage() {
             </header>
 
             <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-6 sm:px-4 md:px-6">
-                <RetroComputer pdf="/api/resume-pdf" fallback={RESUME_PREVIEW_URL} />
+                <RetroComputer pdf="/api/resume-pdf" fallback={RESUME_PREVIEW_URL} download={RESUME_DOWNLOAD_URL} />
             </section>
         </main>
     );
