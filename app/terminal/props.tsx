@@ -444,8 +444,8 @@ export const Phone = forwardRef<
                             </p>
                             {/* the notifications, between the clock and the dock: scroll for older ones */}
                             <div
-                                className="absolute inset-x-0 bottom-[40px] top-[84px] space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                                style={{ maskImage: "linear-gradient(180deg, transparent, #000 6%, #000 84%, transparent)", WebkitMaskImage: "linear-gradient(180deg, transparent, #000 6%, #000 84%, transparent)" }}
+                                className="absolute inset-x-0 bottom-[40px] top-[85px] space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 pb-2 pt-[7px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                style={{ maskImage: "linear-gradient(180deg, transparent 0, #000 7px, #000 84%, transparent)", WebkitMaskImage: "linear-gradient(180deg, transparent 0, #000 7px, #000 84%, transparent)" }}
                             >
                                 <AnimatePresence initial={false}>
                                     {notes.map((n) => (
