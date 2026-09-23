@@ -18,8 +18,8 @@ import { LAND_COLS, LAND_MASK, LAND_ROWS, LAND_STEP } from "@/constants/land-mas
 //               back to facing the signal arc
 //   Continents  dot-matrix land, with city lights on the night side
 //   Explore     hover anywhere for the nearest city, its local time, and how
-//               far it is from Kolkata at lightspeed (Natural Earth's
-//               populated places, public domain, in public/data/cities.json)
+//               far it is from Kolkata at lightspeed (3,000 cities from
+//               GeoNames, CC BY 4.0, credited under the globe)
 //   Ping        click: a pulse runs to Kolkata and back while the browser
 //               times a real round trip to this site's nearest server
 //   ISS         hover it for live altitude and speed; click to follow it
@@ -888,6 +888,13 @@ export const SignalGlobe = () => {
                     <p className="pt-1 text-[9px] normal-case tracking-[0.12em] text-neutral-600">
                         <span className="hidden md:inline">drag to spin · click to ping · double-click for home</span>
                         <span className="md:hidden">drag to spin · tap to ping · double-tap for home</span>
+                    </p>
+                    <p className="text-[8.5px] normal-case tracking-[0.1em] text-neutral-700">
+                        cities{" "}
+                        <a href="https://www.geonames.org" target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-neutral-500">
+                            GeoNames
+                        </a>{" "}
+                        · CC BY 4.0
                     </p>
                 </div>
             )}
