@@ -3,34 +3,21 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { PdfScreen, type Phosphor, type Tube } from "./pdf-screen";
 
-// The resume on a beige 1980s desktop computer, floating in zero-g: a CRT
-// monitor with a speaker grille, vents and a mission sticker, on a stand,
-// with its keyboard. The screen is the resume itself, drawn by pdf.js
-// (pdf-screen.tsx).
+// The resume on a beige 1980s CRT monitor, floating in zero-g: a speaker
+// grille, vents and a mission sticker, on its stand. The screen is the resume
+// itself, drawn by pdf.js (pdf-screen.tsx).
 //
 // Two dials under the screen, both real:
 //   TUBE      off, soft (the glass's edges), full (scanlines everywhere, a
 //             rolling bar, flicker, colour fringing and bloom)
 //   PHOSPHOR  paper (as printed), green or amber: the page goes dark and the
 //             ink glows, as on a monochrome monitor
-// The keyboard's keys light up as the visitor types, and its yellow key
-// switches the monitor off and on again.
+// The yellow push-button beside them switches the monitor off and on again.
 
 const BOOT_LINES = ["MIIT-1 CREW TERMINAL  v2.6", "memory check .......... ok", "uplink kolkata station . ok", "loading crew record: MIIT DAGA"];
 const TUBES: Tube[] = ["off", "soft", "full"];
 const PHOSPHORS: Phosphor[] = ["paper", "green", "amber"];
 const ANGLE = [-55, 0, 55];
-
-// The keyboard, row by row: [label, width in key units, the key it lights for]
-type K = [string, number, string?];
-const ROWS: K[][] = [
-    [["", 1.2, "__power"], ["F1", 1, "F1"], ["F2", 1, "F2"], ["F3", 1, "F3"], ["F4", 1, "F4"], ["", 0.4], ["F5", 1, "F5"], ["F6", 1, "F6"], ["F7", 1, "F7"], ["F8", 1, "F8"], ["", 0.4], ["F9", 1, "F9"], ["F10", 1, "F10"]],
-    [["`", 1, "`"], ..."1234567890".split("").map((c): K => [c, 1, c]), ["-", 1, "-"], ["=", 1, "="], ["⌫", 1.6, "Backspace"]],
-    [["⇥", 1.4, "Tab"], ..."qwertyuiop".split("").map((c): K => [c.toUpperCase(), 1, c]), ["[", 1, "["], ["]", 1, "]"], ["\\", 1.2, "\\"]],
-    [["⇪", 1.7, "CapsLock"], ..."asdfghjkl".split("").map((c): K => [c.toUpperCase(), 1, c]), [";", 1, ";"], ["'", 1, "'"], ["↵", 1.9, "Enter"]],
-    [["⇧", 2.2, "Shift"], ..."zxcvbnm".split("").map((c): K => [c.toUpperCase(), 1, c]), [",", 1, ","], [".", 1, "."], ["/", 1, "/"], ["⇧", 2.4, "Shift"]],
-    [["ctrl", 1.5, "Control"], ["alt", 1.3, "Alt"], ["", 7.2, " "], ["alt", 1.3, "Alt"], ["←", 1, "ArrowLeft"], ["↓", 1, "ArrowDown"], ["↑", 1, "ArrowUp"], ["→", 1, "ArrowRight"]],
-];
 
 const BEIGE = "linear-gradient(170deg, #efe8d6 0%, #e4dbc4 45%, #d3c8ad 100%)";
 
@@ -65,7 +52,6 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
     const [booted, setBooted] = useState(false);
     const [typed, setTyped] = useState(0);
     const [ready, setReady] = useState(false);
-    const [pressed, setPressed] = useState<Set<string>>(new Set());
 
     // The start-up: the tube warms, then a line at a time
     useEffect(() => {
@@ -80,27 +66,6 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
         t.push(window.setTimeout(() => setBooted(true), 520 + BOOT_LINES.length * 320 + 420));
         return () => t.forEach(clearTimeout);
     }, [power, boot, reduce]);
-
-    // The keyboard follows the visitor's own
-    useEffect(() => {
-        const norm = (k: string) => (k.length === 1 ? k.toLowerCase() : k);
-        const down = (e: KeyboardEvent) => setPressed((s) => new Set(s).add(norm(e.key)));
-        const up = (e: KeyboardEvent) =>
-            setPressed((s) => {
-                const n = new Set(s);
-                n.delete(norm(e.key));
-                return n;
-            });
-        const clear = () => setPressed(new Set());
-        window.addEventListener("keydown", down);
-        window.addEventListener("keyup", up);
-        window.addEventListener("blur", clear);
-        return () => {
-            window.removeEventListener("keydown", down);
-            window.removeEventListener("keyup", up);
-            window.removeEventListener("blur", clear);
-        };
-    }, []);
 
     const powerKey = () => {
         if (power) setPower(false);
@@ -242,7 +207,7 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
                                             transition={{ duration: 1.6, times: [0, 0.25, 1] }}
                                             style={{ boxShadow: "0 0 12px 4px rgba(255,255,255,0.8)" }}
                                         />
-                                        <p className="absolute bottom-6 font-mono text-[10px] uppercase tracking-[0.25em] text-neutral-600">press the yellow key</p>
+                                        <p className="absolute bottom-6 font-mono text-[10px] uppercase tracking-[0.25em] text-neutral-600">press the yellow button</p>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
@@ -276,16 +241,37 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
                     <div className="ml-auto flex items-center gap-3 sm:ml-0 sm:gap-5">
                         <Dial label="tube" value={tube} angle={ANGLE[tubeIdx]} onTurn={() => setTube(TUBES[(tubeIdx + 1) % 3])} />
                         <Dial label="phosphor" value={phosphor} angle={ANGLE[phIdx]} onTurn={() => setPhosphor(PHOSPHORS[(phIdx + 1) % 3])} />
-                        <span className="flex flex-col items-center gap-1">
-                            <span
-                                className="h-2 w-2 rounded-full transition-colors"
-                                style={{
-                                    background: !power ? "#57534e" : ready && booted ? "#4ade80" : "#fbbf24",
-                                    boxShadow: !power ? "none" : ready && booted ? "0 0 8px #4ade80" : "0 0 8px #fbbf24",
-                                }}
-                            />
-                            <span className="font-mono text-[7px] uppercase tracking-[0.2em] text-stone-500">pwr</span>
-                        </span>
+                        {/* The power switch: a yellow push-button, with its light */}
+                        <button
+                            type="button"
+                            onClick={powerKey}
+                            aria-label={power ? "Switch the monitor off" : "Switch the monitor on"}
+                            aria-pressed={power}
+                            className="group flex flex-col items-center gap-1 focus-visible:outline-none"
+                        >
+                            <span className="flex items-center gap-1.5">
+                                <span
+                                    className="h-2 w-2 rounded-full transition-colors"
+                                    style={{
+                                        background: !power ? "#57534e" : ready && booted ? "#4ade80" : "#fbbf24",
+                                        boxShadow: !power ? "none" : ready && booted ? "0 0 8px #4ade80" : "0 0 8px #fbbf24",
+                                    }}
+                                />
+                                <span
+                                    className="block h-7 w-7 rounded-md transition-transform duration-75 group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-emerald-500/70 sm:h-8 sm:w-8"
+                                    style={{
+                                        background: "linear-gradient(180deg, #fcd34d, #f59e0b)",
+                                        boxShadow: power
+                                            ? "inset 0 1px 2px rgba(0,0,0,0.35), 0 0 0 2px #b8ad90"
+                                            : "0 3px 0 #b45309, 0 0 0 2px #b8ad90, inset 0 1px 0 rgba(255,255,255,0.6)",
+                                        transform: power ? "translateY(2px)" : undefined,
+                                    }}
+                                />
+                            </span>
+                            <span className="font-mono text-[7px] uppercase leading-none tracking-[0.15em] text-stone-500 sm:text-[8px]">
+                                power <span className="text-stone-700">{power ? "on" : "off"}</span>
+                            </span>
+                        </button>
                     </div>
                 </div>
 
@@ -301,53 +287,7 @@ export function RetroComputer({ pdf, fallback }: { pdf: string; fallback: string
             <div aria-hidden className="relative hidden h-8 w-[34%] sm:block" style={{ background: "linear-gradient(180deg, #c7bca0, #dcd2b8)", clipPath: "polygon(12% 0, 88% 0, 100% 100%, 0 100%)" }} />
             <div aria-hidden className="hidden h-3 w-[46%] rounded-b-lg sm:block" style={{ background: "linear-gradient(180deg, #e2d9c1, #cbbf9f)", boxShadow: "0 10px 20px -8px rgba(0,0,0,0.7)" }} />
 
-            {/* ---- the keyboard ---- */}
-            <div
-                className="mt-5 hidden w-full rounded-[14px] p-3 md:block"
-                style={{ background: BEIGE, boxShadow: "0 30px 60px -25px rgba(0,0,0,0.95), inset 0 2px 0 rgba(255,255,255,0.7), inset 0 -3px 0 rgba(0,0,0,0.12)" }}
-            >
-                <div className="space-y-1.5 rounded-lg p-2" style={{ background: "#cfc5aa", boxShadow: "inset 0 2px 5px rgba(0,0,0,0.2)" }}>
-                    {ROWS.map((row, r) => (
-                        <div key={r} className={`flex gap-1.5 ${r === 0 ? "mb-2" : ""}`}>
-                            {row.map(([label, w, key], i) => {
-                                if (!key) return <span key={i} style={{ flex: w }} />;
-                                const isPower = key === "__power";
-                                const down = pressed.has(key);
-                                const dark = r === 0 || /^(Tab|CapsLock|Shift|Enter|Backspace|Control|Alt)$/.test(key) || key.startsWith("Arrow");
-                                return (
-                                    <button
-                                        key={i}
-                                        type="button"
-                                        tabIndex={isPower ? 0 : -1}
-                                        aria-label={isPower ? (power ? "Switch the monitor off" : "Switch the monitor on") : undefined}
-                                        aria-hidden={isPower ? undefined : true}
-                                        onClick={isPower ? powerKey : undefined}
-                                        className={`h-7 rounded-[4px] font-mono text-[9px] font-semibold transition-all duration-75 ${isPower ? "cursor-pointer" : "cursor-default"}`}
-                                        style={{
-                                            flex: w,
-                                            background: isPower ? "linear-gradient(180deg, #fcd34d, #f59e0b)" : down ? `rgba(${glow},0.55)` : dark ? "linear-gradient(180deg, #b9ae93, #a89d82)" : "linear-gradient(180deg, #f3eee2, #ddd4bd)",
-                                            color: isPower ? "#78350f" : dark ? "#3f3a2e" : "#57503f",
-                                            boxShadow: down ? `inset 0 1px 2px rgba(0,0,0,0.3), 0 0 10px rgba(${glow},0.7)` : "0 2px 0 rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.6)",
-                                            transform: down ? "translateY(1px)" : undefined,
-                                        }}
-                                    >
-                                        {label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    ))}
-                </div>
-            </div>
 
-            {/* Phones have no keyboard to show, so the power key sits here */}
-            <button
-                type="button"
-                onClick={powerKey}
-                className="mt-3 flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-amber-200 md:hidden"
-            >
-                <span className="h-2 w-2 rounded-sm bg-amber-400" /> {power ? "power off" : "power on"}
-            </button>
         </motion.div>
     );
 }
