@@ -40,6 +40,8 @@ import { SKILL_USAGE, FALLBACK_USAGE } from "@/constants/skill-usage";
 import { saveContact } from "@/components/ui/contact-actions";
 import { glideTo } from "@/lib/glide";
 import { FRAGMENT_IDS, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
+import { OrcidIcon } from "@/components/ui/orcid-icon";
+import { ORCID_URL } from "@/lib/orcid";
 
 // The Cmd/Ctrl+K palette.
 //
@@ -387,6 +389,9 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 </Item>
                                                 <Item value="linkedin" external icon={<IconBrandLinkedin />} onSelect={() => runCommand(() => window.open("https://www.linkedin.com/in/miit-daga", "_blank"))}>
                                                     LinkedIn
+                                                </Item>
+                                                <Item value="orcid publications papers research record" external icon={<OrcidIcon />} hint="every publication, not only the highlights" onSelect={() => runCommand(() => window.open(ORCID_URL, "_blank"))}>
+                                                    ORCID
                                                 </Item>
                                                 <Item value="terminal mode shell" external icon={<IconTerminal />} hint="or type > here" onSelect={() => runCommand(() => window.open("/terminal.html", "_blank"))}>
                                                     Terminal Mode

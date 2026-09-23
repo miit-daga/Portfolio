@@ -3,6 +3,8 @@ import React from 'react';
 import { HoverEffectPublications } from "@/components/ui/card-hover-effect-publications"; // New import
 import Heading from "@/components/Heading";
 import { accentVars, getSection } from "@/constants/sections";
+import { OrcidIcon } from "@/components/ui/orcid-icon";
+import { ORCID_URL } from "@/lib/orcid";
 
 export const Publications = [
     {
@@ -102,6 +104,19 @@ const PublicationsSection = () => {
             <p className="mt-4 text-center text-sm md:text-base text-neutral-400">
                 A few highlights below, drawn from 10 Scopus-indexed papers (with more under review), plus a book chapter and a filed patent.
             </p>
+            {/* The whole list lives on ORCID */}
+            <div className="mt-4 flex justify-center">
+                <a
+                    href={ORCID_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-[rgba(var(--accent-rgb),0.6)] hover:bg-[rgba(var(--accent-rgb),0.08)] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--accent-rgb),0.7)]"
+                >
+                    <OrcidIcon className="h-4 w-4 shrink-0" />
+                    <span className="font-medium">Full publication record on ORCID</span>
+                    <span className="font-mono text-[11px] text-neutral-400 transition-colors group-hover:text-neutral-300">{ORCID_URL} ↗</span>
+                </a>
+            </div>
             <HoverEffectPublications items={items} />
         </div>
     );

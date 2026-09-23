@@ -8,6 +8,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { CommandMenuLoader } from "@/components/ui/command-menu-loader"
 import { StardustTrail } from "@/components/ui/stardust-trail"
+import { ORCID_URL } from "@/lib/orcid"
 
 const outfit = Outfit({ subsets: ["latin"] })
 
@@ -75,6 +76,7 @@ const jsonLd = {
     "https://www.linkedin.com/in/miit-daga/",
     "https://x.com/miit_daga",
     "https://instagram.com/miit_daga",
+    ORCID_URL,
   ],
   image: `${baseUrl}/profile.png`,
   mainEntityOfPage: baseUrl,
