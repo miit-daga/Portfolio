@@ -4917,6 +4917,10 @@
                 // error can never leave the prompt dead.
                 endTurn();
                 deskSay('busy', { on: false });
+                // The screensaver's idle clock starts when the output stops, not
+                // when the command was typed: a long one (tour, a mounted drive)
+                // must not use up the wait while it is still printing
+                lastActivity = Date.now();
             }
         }
 
@@ -5891,6 +5895,13 @@
                 return;
             }
             await executeCommand(vol.open);
+        }
+
+        // The desk's commands complete like the rest (inside the desk only), and
+        // eject completes with whatever is mounted
+        if (DESK) {
+            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen');
+            ARG_TARGETS.eject = () => [...mounted].map((l) => l.toLowerCase());
         }
 
         // Called by the desk when a stick goes into the tower, and when it is pulled out
