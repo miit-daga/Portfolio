@@ -3,34 +3,28 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { CipherText } from "./cipher-text";
 
-// A faint patch of sky hiding an "M" constellation. Click star to star to trace
-// it: real edges stay lit, wrong guesses flash, sting, and earn a sarcastic
+// A faint patch of sky hiding a constellation: a different one each day
+// (constants/constellations.ts), named in the prompt. Click star to star to
+// trace it: the stars answer the cursor, a thread runs from the last star to
+// it, real edges stay lit, wrong guesses flash, sting, and earn a sarcastic
 // caption. Three misses in a row flicker a ghost of a real edge as a hint.
-// Tracing the whole letter ignites it for the session with a glow sweep, an
-// arpeggio, and a "charted by <callsign>" credit.
-const STARS = [
-    // The "M" (indices 0-4)
-    { x: 70, y: 168 },
-    { x: 78, y: 52 },
-    { x: 125, y: 118 },
-    { x: 172, y: 50 },
-    { x: 182, y: 168 },
-    // Decoys
-    { x: 232, y: 72 },
-    { x: 268, y: 142 },
-    { x: 215, y: 32 },
-    { x: 292, y: 92 },
-    { x: 138, y: 22 },
-    { x: 40, y: 92 },
-];
-const EDGES = ["0-1", "1-2", "2-3", "3-4"];
-const M_PATH = "M 70 168 L 78 52 L 125 118 L 172 50 L 182 168";
+// Tracing the whole figure ignites it for the session with a glow sweep and an
+// arpeggio, hands over one of the hidden fragments, and records the charting
+// (/api/constellation) so it can say how many visitors have found it.
 import { CONSTELLATION_STORAGE_KEY } from "./constellation-key";
+import { todaysFigure } from "@/constants/constellations";
+import { useFragmentGift } from "./collectibles";
 export { CONSTELLATION_STORAGE_KEY };
 const STORAGE_KEY = CONSTELLATION_STORAGE_KEY;
 
-// One pluck per correct link, ascending (C5 E5 G5 C6)
-const LINK_NOTES = [523.25, 659.25, 783.99, 1046.5];
+const ordinal = (n: number) => {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+};
+
+// One pluck per correct link, climbing a major scale from C5
+const LINK_NOTES = [523.25, 587.33, 659.25, 698.46, 783.99, 880, 987.77, 1046.5];
 
 const MISS_QUIPS = [
     "that line exists in no sky",
@@ -76,6 +70,19 @@ const edgeKey = (a: number, b: number) => `${Math.min(a, b)}-${Math.max(a, b)}`;
 
 export const ConstellationPuzzle = () => {
     const reduce = useReducedMotion();
+    // Today's figure, fixed for the visit
+    const [figure] = useState(todaysFigure);
+    const STARS = [...figure.stars, ...figure.decoys];
+    const EDGES = figure.edges.map(([a, b]) => edgeKey(a, b));
+    const FIGURE_PATH = figure.edges.map(([a, b]) => `M ${STARS[a].x} ${STARS[a].y} L ${STARS[b].x} ${STARS[b].y}`).join(" ");
+    const centre = {
+        x: figure.stars.reduce((t, p) => t + p.x, 0) / figure.stars.length,
+        y: figure.stars.reduce((t, p) => t + p.y, 0) / figure.stars.length,
+    };
+    const gift = useFragmentGift();
+    // What the solve earned, and how many have charted it
+    const [reward, setReward] = useState<string | null>(null);
+    const [tally, setTally] = useState<string | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
     const [selected, setSelected] = useState<number | null>(null);
     const [hovered, setHovered] = useState<number | null>(null);
@@ -98,10 +105,15 @@ export const ConstellationPuzzle = () => {
 
     useEffect(() => {
         try {
-            if (sessionStorage.getItem(STORAGE_KEY)) {
+            // Solved this session, and it is still the same figure
+            if (sessionStorage.getItem(STORAGE_KEY) === figure.id) {
                 setSolved(true);
                 setDrawn(new Set(EDGES));
                 setCallsign(sessionStorage.getItem("visitor-callsign"));
+                fetch(`/api/constellation?fig=${figure.id}`)
+                    .then((r) => (r.ok ? r.json() : null))
+                    .then((d) => d && d.count > 0 && setTally(`charted by ${d.count} ${d.count === 1 ? "visitor" : "visitors"}`))
+                    .catch(() => {});
             }
         } catch {
             /* ignore */
@@ -109,6 +121,7 @@ export const ConstellationPuzzle = () => {
         return () => {
             if (quipTimer.current) clearTimeout(quipTimer.current);
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const showQuip = () => {
@@ -128,7 +141,15 @@ export const ConstellationPuzzle = () => {
             return;
         }
         const key = edgeKey(selected, i);
-        if (EDGES.includes(key) && !drawn.has(key)) {
+        // Back along a line already drawn: just move there. Branching figures
+        // (the rocket's fins, the dipper's handle) need to start a new stroke
+        // from a star already traced, and that should never count as a miss
+        if (drawn.has(key)) {
+            setSelected(i);
+            playNotes([392], { peak: 0.04, decay: 0.08 });
+            return;
+        }
+        if (EDGES.includes(key)) {
             const next = new Set(drawn);
             next.add(key);
             setDrawn(next);
@@ -142,11 +163,29 @@ export const ConstellationPuzzle = () => {
                 setCursor(null);
                 playNotes([659.25, 880, 1174.66, 1567.98], { step: 0.09, peak: 0.12 });
                 try {
-                    sessionStorage.setItem(STORAGE_KEY, "1");
+                    sessionStorage.setItem(STORAGE_KEY, figure.id);
                     setCallsign(sessionStorage.getItem("visitor-callsign"));
                 } catch {
                     /* ignore */
                 }
+                // A fragment, flown from the figure's heart to the counter
+                const r = svgRef.current?.getBoundingClientRect();
+                if (r) {
+                    const given = gift.give({ x: r.left + (centre.x / 320) * r.width, y: r.top + (centre.y / 200) * r.height });
+                    setReward(given ? "+1 fragment recovered" : "every fragment already found");
+                }
+                // Record the charting, and say where this visitor came in
+                fetch("/api/constellation", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ fig: figure.id }),
+                })
+                    .then((res) => (res.ok ? res.json() : null))
+                    .then((d) => {
+                        if (!d) return;
+                        setTally(d.place ? `you're the ${ordinal(d.place)} to chart ${figure.name}` : `charted by ${d.count} ${d.count === 1 ? "visitor" : "visitors"}`);
+                    })
+                    .catch(() => {});
             } else {
                 playNotes([LINK_NOTES[next.size - 1]]);
             }
@@ -184,7 +223,8 @@ export const ConstellationPuzzle = () => {
 
     const starState = (i: number) => {
         const inDrawn = [...drawn].some((k) => k.split("-").map(Number).includes(i));
-        return { lit: inDrawn || solved, sel: selected === i };
+        // Solved lights the figure only; decoys stay as background stars
+        return { lit: inDrawn || (solved && i < figure.stars.length), sel: selected === i };
     };
 
     return (
@@ -192,24 +232,27 @@ export const ConstellationPuzzle = () => {
             <svg
                 ref={svgRef}
                 viewBox="0 0 320 200"
-                className="w-full"
+                className={solved ? "w-full" : "w-full cursor-crosshair"}
                 role="img"
-                aria-label="A hidden constellation puzzle"
+                aria-label={`A hidden constellation puzzle: ${figure.noun} is hidden in the stars`}
                 onMouseMove={onMouseMove}
                 onMouseLeave={() => setCursor(null)}
             >
                 {/* Rubber-band aiming line */}
                 {selected !== null && cursor && !solved && (
-                    <line
-                        x1={STARS[selected].x}
-                        y1={STARS[selected].y}
-                        x2={cursor.x}
-                        y2={cursor.y}
-                        stroke="rgba(94,234,212,0.4)"
-                        strokeWidth={1}
-                        strokeDasharray="4 4"
-                        pointerEvents="none"
-                    />
+                    <g pointerEvents="none">
+                        <line
+                            x1={STARS[selected].x}
+                            y1={STARS[selected].y}
+                            x2={cursor.x}
+                            y2={cursor.y}
+                            stroke="rgba(94,234,212,0.7)"
+                            strokeWidth={1.4}
+                            strokeDasharray="5 4"
+                            strokeLinecap="round"
+                        />
+                        <circle cx={cursor.x} cy={cursor.y} r={2} fill="rgba(153,246,228,0.9)" />
+                    </g>
                 )}
 
                 {/* Traced edges */}
@@ -305,7 +348,7 @@ export const ConstellationPuzzle = () => {
                             role="button"
                             tabIndex={solved ? -1 : 0}
                             aria-label={`Star ${i + 1}`}
-                            className={solved ? undefined : "cursor-pointer outline-none"}
+                            className={solved ? "outline-none" : "cursor-crosshair outline-none"}
                         >
                             {/* generous invisible hit area */}
                             <circle cx={s.x} cy={s.y} r={16} fill="transparent" />
@@ -324,10 +367,14 @@ export const ConstellationPuzzle = () => {
                                     style={{ transformOrigin: `${s.x}px ${s.y}px` }}
                                 />
                             )}
+                            {/* Hover halo: the star answers the cursor */}
+                            {hov && !sel && (
+                                <circle cx={s.x} cy={s.y} r={11} fill="rgba(94,234,212,0.12)" stroke="rgba(94,234,212,0.45)" strokeWidth={1} pointerEvents="none" />
+                            )}
                             <motion.circle
                                 cx={s.x}
                                 cy={s.y}
-                                r={lit ? 5.5 : sel || hov ? 5 : 4}
+                                r={lit ? 5.5 : hov ? 6.5 : sel ? 5 : 4}
                                 fill={lit ? "#99f6e4" : sel ? "#5eead4" : hov ? "#ccfbf1" : "rgba(226,232,240,0.75)"}
                                 animate={
                                     !lit && !sel && !reduce
@@ -362,8 +409,8 @@ export const ConstellationPuzzle = () => {
                     <>
                         {/* Ignition burst from the constellation's heart */}
                         <motion.circle
-                            cx={126}
-                            cy={110}
+                            cx={centre.x}
+                            cy={centre.y}
                             r={20}
                             fill="none"
                             stroke="rgba(94,234,212,0.7)"
@@ -371,11 +418,11 @@ export const ConstellationPuzzle = () => {
                             initial={{ scale: 0.4, opacity: 0.9 }}
                             animate={{ scale: 5, opacity: 0 }}
                             transition={{ duration: 1.4, ease: "easeOut" }}
-                            style={{ transformOrigin: "126px 110px" }}
+                            style={{ transformOrigin: `${centre.x}px ${centre.y}px` }}
                         />
                         {/* Glow sweep retracing the whole letter */}
                         <motion.path
-                            d={M_PATH}
+                            d={FIGURE_PATH}
                             fill="none"
                             stroke="#99f6e4"
                             strokeWidth={2.5}
@@ -386,8 +433,8 @@ export const ConstellationPuzzle = () => {
                             transition={{ duration: 1.2, ease: "easeInOut", times: [0, 0.8, 1] }}
                             style={{ filter: "drop-shadow(0 0 6px rgba(94,234,212,0.9))" }}
                         />
-                        {/* Staggered rings on the five M stars */}
-                        {[0, 1, 2, 3, 4].map((i) => (
+                        {/* Staggered rings on the figure's stars */}
+                        {figure.stars.map((_, i) => (
                             <motion.circle
                                 key={`ring-${i}`}
                                 cx={STARS[i].x}
@@ -411,9 +458,9 @@ export const ConstellationPuzzle = () => {
                 {solved ? (
                     <span className="text-teal-400/90">
                         {justSolved ? (
-                            <CipherText text={'constellation "MIIT-1" charted ✶'} />
+                            <CipherText text={`constellation "${figure.name}" charted ✶`} />
                         ) : (
-                            <>constellation &ldquo;MIIT-1&rdquo; charted &#10038;</>
+                            <>constellation &ldquo;{figure.name}&rdquo; charted &#10038;</>
                         )}
                     </span>
                 ) : quip ? (
@@ -423,7 +470,7 @@ export const ConstellationPuzzle = () => {
                         charting &middot; {drawn.size} / {EDGES.length} links
                     </>
                 ) : (
-                    <>uncharted sky &middot; trace what you see</>
+                    <>{figure.noun} is hidden in these stars &middot; trace it</>
                 )}
             </p>
             {solved && callsign && (
@@ -436,6 +483,17 @@ export const ConstellationPuzzle = () => {
                     charted by {callsign}
                 </motion.p>
             )}
+            {solved && (reward || tally) && (
+                <motion.p
+                    className="text-center font-mono text-[9px] uppercase tracking-[0.25em] text-neutral-500"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5, delay: justSolved ? 1.8 : 0 }}
+                >
+                    {[reward, tally].filter(Boolean).join(" · ")}
+                </motion.p>
+            )}
+            {gift.node}
         </div>
     );
 };

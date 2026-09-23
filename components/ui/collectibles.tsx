@@ -220,3 +220,50 @@ export function CollectibleHUD({ isImploding = false, onCosmicReset }: { isImplo
         </>
     );
 }
+
+// Hand the visitor one of the fragments they have not found yet, flying it
+// from a point on screen to the fragment counter. Returns false when there is
+// nothing left to give. Render `node` somewhere in the tree.
+export function useFragmentGift() {
+    const { found, collect } = useCollectibles();
+    const [flight, setFlight] = useState<{ from: { x: number; y: number }; to: { x: number; y: number }; key: number } | null>(null);
+
+    const give = useCallback(
+        (from: { x: number; y: number }) => {
+            const id = FRAGMENT_IDS.find((f) => !found.has(f));
+            if (!id) return false;
+            setFlight({ from, to: { x: 48, y: window.innerHeight - 44 }, key: Date.now() });
+            window.setTimeout(() => {
+                playPickup();
+                collect(id);
+                setFlight(null);
+            }, 950);
+            return true;
+        },
+        [found, collect],
+    );
+
+    const node = (
+        <AnimatePresence>
+            {flight && (
+                <motion.span
+                    key={flight.key}
+                    aria-hidden
+                    className="pointer-events-none fixed left-0 top-0 z-[5001] block h-3.5 w-3.5 rounded-[3px] bg-gradient-to-br from-teal-100 to-teal-500 shadow-[0_0_14px_rgba(45,212,191,0.9)]"
+                    initial={{ x: flight.from.x, y: flight.from.y, scale: 0.4, opacity: 0, rotate: 45 }}
+                    animate={{
+                        x: [flight.from.x, (flight.from.x + flight.to.x) / 2, flight.to.x],
+                        y: [flight.from.y, Math.min(flight.from.y, flight.to.y) - 160, flight.to.y],
+                        scale: [0.4, 1.5, 0.8],
+                        opacity: [0, 1, 1],
+                        rotate: [45, 225, 405],
+                    }}
+                    exit={{ scale: 2.2, opacity: 0, transition: { duration: 0.25 } }}
+                    transition={{ duration: 0.95, ease: "easeInOut" }}
+                />
+            )}
+        </AnimatePresence>
+    );
+
+    return { give, node };
+}
