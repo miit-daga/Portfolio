@@ -286,6 +286,11 @@ export const IdleAlien = () => {
                 queue.push({ text: "You found my floppy! Don't tell the mothership." });
                 localStorage.setItem("alien-floppy-thanked", "1");
             }
+            // ...or plugged in his USB drive on the terminal's desk (public/terminal.html)
+            if (localStorage.getItem("alien-usb-read") === "1" && !localStorage.getItem("alien-usb-thanked")) {
+                queue.push({ text: "You plugged in my drive! Very modern of you." });
+                localStorage.setItem("alien-usb-thanked", "1");
+            }
         } catch {
             /* ignore */
         }

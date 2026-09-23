@@ -1,6 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+        // On a large screen the terminal sits on a desk: /terminal (app/terminal)
+        // shows this page inside its display, with ?screen=1. ?bare=1 skips it.
+        (function () {
+            try {
+                var q = new URLSearchParams(location.search);
+                if (window.top === window && !q.has('screen') && !q.has('bare') &&
+                    matchMedia('(min-width: 1024px) and (min-height: 620px) and (pointer: fine)').matches) {
+                    location.replace('/terminal' + location.search);
+                }
+            } catch (e) {}
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Miit Daga - Terminal</title>
@@ -167,6 +180,17 @@
     </div>
 
     <script type="module">
+        // --- THE DESK -------------------------------------------------------
+        // Inside the desk's display (/terminal, app/terminal/desk.tsx) the page
+        // tells the desk what is happening, so its props can react: busy,
+        // game, download, notify, eject, fullscreen. The desk plugs in USB
+        // drives through window.deskMount.
+        const DESK = window.parent !== window && new URLSearchParams(location.search).get('screen') === '1';
+        function deskSay(type, detail = {}) {
+            if (!DESK) return;
+            try { window.parent.postMessage({ source: 'mdos', type, ...detail }, location.origin); } catch (e) {}
+        }
+
         // --- SOUND ENGINE ---
         const SoundFX = {
             ctx: null,
@@ -3059,6 +3083,7 @@
                 return;
             }
             SoundFX.successChime();
+            deskSay('notify', { app: 'Guestbook', text: `${data.entry.name}: ${data.entry.message}` });
             await typeLine('Signed. Thanks for stopping by. ✨', 12);
             await typeRaw(
                 `<span class="highlight-name">${escapeHtml(data.entry.name)}</span> ` +
@@ -3305,7 +3330,7 @@
         }
 
         // Commands that exist but are deliberately absent from the public list.
-        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias']);
+        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen']);
         function isKnownCommand(text) {
             const base = (text || '').trim().split(/\s+/)[0].toLowerCase();
             if (!base) return false;
@@ -3991,6 +4016,7 @@
         // names the file itself) but matters if the PDF ever moves onto this
         // origin.
         function triggerDownload(url, filename) {
+            deskSay('download', { filename });
             const a = document.createElement('a');
             a.href = url;
             a.download = filename;
@@ -4831,6 +4857,7 @@
             command = command.trim();
             if (isTyping) return;
             isTyping = true;
+            deskSay('busy', { on: true, command });
 
             if (command) {
                 commandHistory.push(command);
@@ -4889,6 +4916,7 @@
                 // runPipeline already calls endTurn(). This guarantees a thrown
                 // error can never leave the prompt dead.
                 endTurn();
+                deskSay('busy', { on: false });
             }
         }
 
@@ -4919,6 +4947,12 @@
                     ` or <span class="nav-link" onclick="runCommandFromClick('man ${bareStage}')">man ${bareStage}</span>.`
                 );
                 endTurn();
+                return;
+            }
+
+            // --- The desk's USB drives, and its full screen ----------------
+            if (cmd === 'fullscreen' || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
+                await deskCommand(command);
                 return;
             }
 
@@ -5647,7 +5681,7 @@
                     // Force-close trick (terminal opens in a new tab)
                     window.opener = null;
                     window.open('', '_self');
-                    window.close();
+                    (DESK ? window.top : window).close();
 
                     await typeLine("If the tab didn't close, just switch back to your portfolio tab. ✨", 5);
                     break;
@@ -5721,7 +5755,7 @@
                     // Force Close Trick
                     window.opener = null;
                     window.open('', '_self');
-                    window.close();
+                    (DESK ? window.top : window).close();
                     
                     await typeLine("Session terminated. (You can close this tab)", 5);
                     break;
@@ -5740,6 +5774,107 @@
         }
 
         window.runCommandFromClick = (command) => runCommand(command);
+
+        // --- THE DESK's USB drives ------------------------------------------
+        // What each stick holds, and the command that opens it
+        const VOLUMES = {
+            PROJECTS: { files: ['projects.app', 'README.txt'], open: 'projects' },
+            PAPERS: { files: ['publications.app', 'cite.bib'], open: 'publications' },
+            CONTACT: { files: ['contact.vcf'], open: 'contact' },
+            GAMES: { files: ['arcade.app', 'highscores.dat'], open: 'play' },
+            SIGNME: { files: ['SIGN_ME.txt'], open: null },
+            ALIEN: { files: ['.mothership'], open: null },
+        };
+        let mounted = null; // label of the stick in the tower, if any
+
+        async function deskCommand(command) {
+            const cmd = command.toLowerCase().trim();
+            if (!DESK) {
+                SoundFX.error();
+                await typeRaw('<span class="highlight-dim">No desk here. Open the terminal on a bigger screen and you will find one, with USB drives.</span>');
+                endTurn();
+                return;
+            }
+            if (cmd === 'fullscreen') {
+                deskSay('fullscreen');
+                await typeRaw('<span class="highlight-dim">Toggling full screen. Run fullscreen again, or press the button in the corner, to go back.</span>');
+                endTurn();
+                return;
+            }
+            if (cmd.startsWith('eject')) {
+                if (!mounted) await typeRaw('<span class="highlight-dim">eject: nothing is mounted. Plug in a drive from the tray on the desk.</span>');
+                else {
+                    await typeRaw(`<span class="highlight-dim">"${escapeHtml(mounted)}" can now be safely removed.</span>`);
+                    mounted = null;
+                    deskSay('eject');
+                }
+                endTurn();
+                return;
+            }
+            if (/^(ls|cd)\s+\/volumes\/?$/.test(cmd)) {
+                await typeRaw(mounted ? `<span style="color:var(--term-accent);font-weight:700">${escapeHtml(mounted)}</span>` : '<span class="highlight-dim">/Volumes is empty. Plug in a drive from the tray on the desk.</span>');
+                endTurn();
+                return;
+            }
+            // mount LABEL, or ls/cd /Volumes/LABEL
+            const label = command.replace(/^(mount|ls|cd)\s*(\/volumes\/)?/i, '').trim().toUpperCase();
+            const vol = VOLUMES[label];
+            if (!vol) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml(label || 'mount')}: no such volume.</span>`);
+                endTurn();
+                return;
+            }
+            SoundFX.dataBurst();
+            mounted = label;
+            await typeRaw(`<span class="highlight-dim">USB drive mounted at</span> <span class="highlight-value">/Volumes/${escapeHtml(label)}</span>`);
+            await typeRaw(vol.files.map((f) => `  ${escapeHtml(f)}`).join('\n'));
+            if (label === 'SIGNME') {
+                await typeRaw('This drive is for you. Sign the guestbook with <span class="highlight-value">sign &lt;your name&gt;: &lt;message&gt;</span>, and it joins the radar on the main page.');
+                endTurn();
+                inputLine.value = 'sign ';
+                return;
+            }
+            if (label === 'ALIEN') {
+                SoundFX.compute();
+                try { localStorage.setItem('alien-usb-read', '1'); } catch (e) {}
+                const clues = [
+                    'ONE SHARD HIDES IN WORK EXPERIENCE, UP IN THE TOP RIGHT.',
+                    'ONE SHARD HIDES IN EDUCATION, UP IN THE TOP LEFT.',
+                    'ONE SHARD HIDES IN SKILLS, DOWN IN THE BOTTOM RIGHT.',
+                    'ONE SHARD HIDES IN PROJECTS, UP IN THE TOP LEFT.',
+                    'ONE SHARD HIDES IN PUBLICATIONS, DOWN IN THE BOTTOM RIGHT.',
+                ];
+                await typeRaw('<span style="color:#86efac">cat .mothership</span>');
+                for (const line of [
+                    'HELLO, EARTHLING. YOU PLUGGED IN MY DRIVE.',
+                    'FIVE SHARDS OF A BROKEN STAR HIDE ON THE MAIN PAGE.',
+                    clues[Math.floor(Math.random() * clues.length)],
+                    'FIND ALL FIVE, THEN TRY ↑ ↑ ↓ ↓ ← → ← → B A.',
+                    'DO NOT TELL THE MOTHERSHIP.',
+                ]) await typeLine(line, 18);
+                endTurn();
+                return;
+            }
+            await executeCommand(vol.open);
+        }
+
+        // Called by the desk when a stick goes into the tower, and when it is pulled out
+        const whenIdle = (fn) => (isTyping ? window.setTimeout(() => whenIdle(fn), 250) : fn());
+        window.deskMount = (label) => whenIdle(() => runCommand(`mount ${label}`));
+        window.deskEject = () => { if (mounted) whenIdle(() => runCommand('eject')); };
+
+        // Games draw in a fixed overlay of their own; tell the desk while one is up
+        if (DESK) {
+            let gameOn = false;
+            new MutationObserver(() => {
+                const on = [...document.body.children].some((el) => el.style && el.style.zIndex === '9000');
+                if (on !== gameOn) {
+                    gameOn = on;
+                    deskSay('game', { on });
+                }
+            }).observe(document.body, { childList: true });
+        }
 
 
         // --- readline keybindings ------------------------------------------
