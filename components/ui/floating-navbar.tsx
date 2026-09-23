@@ -5,8 +5,10 @@ import {
   motion,
   AnimatePresence,
   useScroll,
+  useMotionTemplate,
   useMotionValue,
   useMotionValueEvent,
+  useSpring,
 } from "framer-motion";
 import { cn } from "@/utils/cn";
 import Link from "next/link";
@@ -81,6 +83,13 @@ export const FloatingNav = ({
   const [hovered, setHovered] = useState(false);
   const hoverTimer = useRef<number | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  // The bar and the collapsed pill are one shape: its edges spring between
+  // the two sizes, clipping the bar's contents as they close in
+  const compactRef = useRef<HTMLButtonElement>(null);
+  const [sizes, setSizes] = useState({ fullW: 0, fullH: 0, compactW: 0, compactH: 0 });
+  const insetX = useSpring(0, { stiffness: 260, damping: 32 });
+  const insetY = useSpring(0, { stiffness: 260, damping: 32 });
+  const contentClip = useMotionTemplate`inset(${insetY}px ${insetX}px -400px ${insetX}px)`;
   // Comet trail left by a long jump of the active pill
   const barRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
@@ -304,6 +313,30 @@ export const FloatingNav = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
 
+  // Both sizes, kept current as labels and the active section change
+  useEffect(() => {
+    const measure = () => {
+      const full = barRef.current;
+      const compact = compactRef.current;
+      if (!full || !compact) return;
+      setSizes((s) => {
+        const next = { fullW: full.offsetWidth, fullH: full.offsetHeight, compactW: compact.offsetWidth, compactH: compact.offsetHeight };
+        return next.fullW === s.fullW && next.fullH === s.fullH && next.compactW === s.compactW && next.compactH === s.compactH ? s : next;
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (barRef.current) ro.observe(barRef.current);
+    if (compactRef.current) ro.observe(compactRef.current);
+    return () => ro.disconnect();
+  }, [mounted]);
+
+  useEffect(() => {
+    const collapsed = !expanded && showCompact;
+    insetX.set(collapsed ? Math.max(0, (sizes.fullW - sizes.compactW) / 2) : 0);
+    insetY.set(collapsed ? Math.max(0, (sizes.fullH - sizes.compactH) / 2) : 0);
+  }, [expanded, showCompact, sizes, insetX, insetY]);
+
   const openBar = () => {
     if (hoverTimer.current) clearTimeout(hoverTimer.current);
     setHovered(true);
@@ -405,51 +438,72 @@ export const FloatingNav = ({
 
   const navContent = (
     <>
-      {/* Collapsed: where you are, opening into the full bar on hover */}
-      <motion.button
-        type="button"
-        aria-label={`Navigation: ${activeItem?.name ?? "top of the page"}. Open the menu`}
-        className={cn(
-          "fixed inset-x-0 top-10 z-[5000] mx-auto hidden w-max items-center gap-2.5 rounded-full border border-white/20 bg-black/85 py-2 pl-4 pr-3 text-sm font-bold text-white backdrop-blur-md lg:flex",
-          showCompact ? "pointer-events-auto" : "pointer-events-none"
-        )}
-        initial={false}
-        animate={showCompact ? { y: 0, opacity: 1, scale: 1 } : { y: -12, opacity: 0, scale: 0.9 }}
-        transition={{ duration: 0.2, ease: "easeOut" }}
-        onMouseEnter={openBar}
-        onMouseLeave={closeBarSoon}
-        onFocus={openBar}
-        onClick={openBar}
-        tabIndex={showCompact ? 0 : -1}
-      >
-        <span className="h-2 w-2 rounded-full" style={{ background: activeAccent.light, boxShadow: `0 0 8px ${rgba(activeAccent.rgb, 0.9)}` }} />
-        <span style={{ color: activeItem ? activeAccent.light : undefined }}>{activeItem?.name ?? "Launch pad"}</span>
-        {activeIdx >= 0 && (
-          <span className="font-mono text-[10px] font-medium tracking-wider text-neutral-500">
-            {activeIdx + 1}/{sectionItems.length}
-          </span>
-        )}
-        {/* the same reading progress, as a thin line under it */}
-        <span className="absolute inset-x-4 bottom-1 h-px overflow-hidden rounded-full bg-white/5">
-          <motion.span className="block h-full w-full origin-left" style={{ scaleX: sectionProgress, background: activeAccent.light }} />
-        </span>
-      </motion.button>
-
+      {/* The bar, desktop. One shape: expanded it holds every section; scrolled
+          down it closes in to a small pill saying where you are, and opens
+          back out on hover */}
       <motion.div
         key="desktop-nav"
-        ref={barRef}
+        className="pointer-events-none fixed inset-x-0 top-10 z-[5000] mx-auto hidden w-max lg:block"
         initial={{ y: -100, opacity: 0 }}
-        animate={expanded ? { y: 0, opacity: 1, scale: 1 } : showCompact ? { y: -10, opacity: 0, scale: 0.96 } : { y: -100, opacity: 0, scale: 1 }}
-        transition={{ duration: 0.2, ease: "easeInOut" }}
+        animate={expanded || showCompact ? { y: 0, opacity: 1 } : { y: -100, opacity: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+      >
+        {/* The shape itself: its edges spring between the two sizes */}
+        <motion.div
+          aria-hidden
+          className={cn(
+            "absolute rounded-full shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1),0px_1px_0px_0px_rgba(25,28,33,0.02),0px_0px_0px_1px_rgba(25,28,33,0.08)]",
+            "transition-colors duration-300 ease-in-out",
+            // At the top it is glass over the hero's nebula, dark enough that
+            // the labels keep their contrast on its brightest parts
+            isAtVeryTop && visible
+              ? "bg-slate-950/55 backdrop-blur-xl backdrop-saturate-150 border border-white/20"
+              : "bg-black/90 backdrop-blur-md border border-white/[0.25]"
+          )}
+          style={{ left: insetX, right: insetX, top: insetY, bottom: insetY }}
+        />
+
+        {/* Collapsed: where you are */}
+        <motion.button
+          ref={compactRef}
+          type="button"
+          aria-label={`Navigation: ${activeItem?.name ?? "top of the page"}. Open the menu`}
+          className={cn(
+            "absolute left-1/2 top-1/2 flex w-max -translate-x-1/2 -translate-y-1/2 items-center gap-2.5 rounded-full py-2 pl-4 pr-3 text-sm font-bold text-white",
+            showCompact && !expanded ? "pointer-events-auto" : "pointer-events-none"
+          )}
+          initial={false}
+          animate={{ opacity: showCompact && !expanded ? 1 : 0 }}
+          transition={showCompact && !expanded ? { duration: 0.2, delay: 0.18 } : { duration: 0.1 }}
+          onMouseEnter={openBar}
+          onMouseLeave={closeBarSoon}
+          onFocus={openBar}
+          onClick={openBar}
+          tabIndex={showCompact && !expanded ? 0 : -1}
+        >
+          <span className="h-2 w-2 rounded-full" style={{ background: activeAccent.light, boxShadow: `0 0 8px ${rgba(activeAccent.rgb, 0.9)}` }} />
+          <span style={{ color: activeItem ? activeAccent.light : undefined }}>{activeItem?.name ?? "Launch pad"}</span>
+          {activeIdx >= 0 && (
+            <span className="font-mono text-[10px] font-medium tracking-wider text-neutral-500">
+              {activeIdx + 1}/{sectionItems.length}
+            </span>
+          )}
+          {/* the same reading progress, as a thin line under it */}
+          <span className="absolute inset-x-4 bottom-1 h-px overflow-hidden rounded-full bg-white/5">
+            <motion.span className="block h-full w-full origin-left" style={{ scaleX: sectionProgress, background: activeAccent.light }} />
+          </span>
+        </motion.button>
+
+      {/* Expanded: every section, clipped by the shape's edges as it closes */}
+      <motion.div
+        ref={barRef}
+        initial={false}
+        animate={{ opacity: expanded ? 1 : 0 }}
+        transition={expanded ? { duration: 0.22, delay: 0.06 } : { duration: 0.18 }}
+        style={{ clipPath: contentClip }}
         className={cn(
-          "hidden lg:flex max-w-fit fixed top-10 inset-x-0 mx-auto rounded-full text-white shadow-[0px_2px_3px_-1px_rgba(0,0,0,0.1),0px_1px_0px_0px_rgba(25,28,33,0.02),0px_0px_0px_1px_rgba(25,28,33,0.08)] z-[5000] pr-2 pl-6 py-2 items-center justify-center space-x-2",
-          "transition-colors transition-backdrop-filter duration-300 ease-in-out",
+          "relative flex items-center justify-center space-x-2 rounded-full py-2 pl-6 pr-2 text-white",
           expanded ? "pointer-events-auto" : "pointer-events-none",
-          // At the top it is glass over the hero's nebula, dark enough that
-          // the labels keep their contrast on its brightest parts
-          isAtVeryTop && visible
-            ? "bg-slate-950/55 backdrop-blur-xl backdrop-saturate-150 border border-white/20"
-            : "bg-black border border-white/[0.3]",
           className
         )}
         // Pause auto-hide on hover
@@ -535,6 +589,7 @@ export const FloatingNav = ({
           </Link>
         </MagneticWrapper>
 
+      </motion.div>
       </motion.div>
 
       <div className="lg:hidden">
