@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { CloseButton } from "./close-button";
 import { RESUME_DOWNLOAD_URL, RESUME_DRIVE_URL, RESUME_PREVIEW_URL } from "@/lib/resume";
 
 export const metadata: Metadata = {
@@ -43,12 +43,7 @@ export default function ResumePage() {
                     >
                         Open in Drive ↗
                     </a>
-                    <Link
-                        href="/"
-                        className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white"
-                    >
-                        ← Portfolio
-                    </Link>
+                    <CloseButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
                 </nav>
             </header>
 
