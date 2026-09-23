@@ -7,6 +7,7 @@ import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
 import { AstronautBuddy } from "./ui/astronaut"
+import { RocketDock } from "./ui/rocket-dock"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
 import { kolkataNow } from "@/lib/kolkata"
@@ -211,6 +212,8 @@ const Hero = () => {
         <HeroNebula />
         <ShootingStar disabled={!!shouldReduceMotion} />
         <AstronautBuddy className="left-[6%] top-24 lg:left-[8%] lg:top-auto lg:bottom-[22%]" />
+        {/* Where the back-to-top rocket parks while you are up here */}
+        <RocketDock className="bottom-[13%] left-4 lg:bottom-[8%] lg:left-[3%]" />
         <div className="absolute z-50 inset-0 flex flex-col lg:flex-row items-center justify-center text-white font-bold px-4 pt-16 pb-24 lg:py-0 pointer-events-none w-full h-full gap-6 sm:gap-10 lg:gap-24">
 
           {/* --- LEFT SIDE: TEXT CONTENT --- */}
