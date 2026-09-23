@@ -1097,7 +1097,8 @@ function IsroView() {
 // playlist. (Looking them up from the server does not work: YouTube turns
 // data centres away.) If a feed errors, the player moves on to the next.
 type Feed = "sen" | "nasa" | "afar" | "dream" | "spacewalk";
-const FEEDS: Record<Feed, { label: string; embed: string | null; link: string; live: boolean; note: string }> = {
+// `badge` heads the player for the recorded ones
+const FEEDS: Record<Feed, { label: string; embed: string | null; link: string; live: boolean; note: string; badge?: string }> = {
     sen: {
         label: "Sen 4K",
         embed: "live_stream?channel=UCkvW_7kp9LJrztmgA4q4bJQ",
@@ -1126,14 +1127,18 @@ const FEEDS: Record<Feed, { label: string; embed: string | null; link: string; l
         // Its owner has turned off playing it on other sites
         embed: null,
         link: "https://www.youtube.com/watch?v=0FBiyFpV__g",
-        live: true,
-        note: "Dream Trips' 24/7 Earth view. It only plays on YouTube.",
+        // Billed as live, but it stays in daylight while the station is on the
+        // night side (checked against the real feeds): recorded footage, looped
+        live: false,
+        badge: "recorded",
+        note: "Dream Trips' Earth view: recorded footage played around the clock, not live. It only plays on YouTube.",
     },
     spacewalk: {
         label: "spacewalk",
         embed: "3F0XlKxaqbk",
         link: "https://www.youtube.com/watch?v=3F0XlKxaqbk",
         live: false,
+        badge: "recorded · 2015",
         note: "Terry Virts' spacewalk, filmed on a GoPro in 2015 and replayed with music.",
     },
 };
@@ -1143,6 +1148,12 @@ const NEXT_FEED: Partial<Record<Feed, Feed>> = { sen: "nasa", nasa: "afar", afar
 
 function IssLive({ onClose }: { onClose: () => void }) {
     const [feed, setFeed] = useState<Feed>("sen");
+    // Chosen for the visitor (not by a tap): free to swap for the night
+    const [auto, setAuto] = useState(true);
+    const choose = (f: Feed) => {
+        setAuto(false);
+        setFeed(f);
+    };
     const frameRef = useRef<HTMLIFrameElement>(null);
     // Whether the station is in Earth's shadow, and for how much longer
     const [night, setNight] = useState<{ dark: boolean; minutes: number | null } | null>(null);
@@ -1199,6 +1210,16 @@ function IssLive({ onClose }: { onClose: () => void }) {
         };
     }, []);
 
+    // Every live camera goes dark over the night side (they are all on the
+    // same station), so until sunrise it shows the recorded spacewalk, and
+    // goes back to live by itself when the station is in daylight again
+    useEffect(() => {
+        if (!auto || !night) return;
+        if (night.dark && FEEDS[feed].live) setFeed("spacewalk");
+        if (!night.dark && feed === "spacewalk") setFeed("sen");
+    }, [night, auto, feed]);
+    const nightSwap = auto && !!night?.dark && feed === "spacewalk";
+
     const f = FEEDS[feed];
 
     return (
@@ -1219,7 +1240,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
                 <div className="mb-1.5 flex items-center justify-between px-0.5">
                     <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-neutral-300">
                         <span className={cn("h-1.5 w-1.5 rounded-full", f.live ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" : "bg-neutral-500")} />
-                        {f.live ? "live from the iss" : "recorded · 2015"}
+                        {f.live ? "live from the iss" : f.badge}
                     </p>
                     <button type="button" onClick={onClose} aria-label="Close the live view" className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white">
                         <IconX className="h-3.5 w-3.5" />
@@ -1256,7 +1277,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
                         <button
                             key={k}
                             type="button"
-                            onClick={() => setFeed(k)}
+                            onClick={() => choose(k)}
                             className={cn(
                                 "rounded-full border px-2 py-0.5 text-[9px] tracking-wide transition-colors",
                                 feed === k ? "border-amber-200/40 bg-amber-200/10 text-amber-100" : "border-white/10 text-neutral-400 hover:text-neutral-200",
@@ -1268,9 +1289,19 @@ function IssLive({ onClose }: { onClose: () => void }) {
                     ))}
                 </div>
                 <p className="mt-1.5 px-0.5 text-[9px] leading-snug text-neutral-500">
-                    {f.live && night?.dark
-                        ? `The station is on the night side of Earth, so the view is dark${night.minutes ? `: daylight again in about ${night.minutes} min` : ""}.`
-                        : f.note}{" "}
+                    {nightSwap ? (
+                        <>
+                            It is night over the station, and every live camera is dark, so here is a recorded spacewalk. Live returns
+                            {night?.minutes ? ` in about ${night.minutes} min` : " at sunrise"}.{" "}
+                            <button type="button" onClick={() => choose("sen")} className="text-neutral-300 underline decoration-dotted underline-offset-2 hover:text-white">
+                                watch live anyway
+                            </button>
+                        </>
+                    ) : f.live && night?.dark ? (
+                        `The station is on the night side of Earth, so the view is dark${night.minutes ? `: daylight again in about ${night.minutes} min` : ""}.`
+                    ) : (
+                        f.note
+                    )}{" "}
                     {f.embed && (
                         <a href={f.link} target="_blank" rel="noopener noreferrer" className="text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-neutral-200">
                             YouTube ↗
