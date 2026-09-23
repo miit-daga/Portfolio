@@ -168,7 +168,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
             ? [
                   { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
                   { n: "2", label: "Print", key: "F2", run: downloadPdf },
-                  { n: "3", label: "Phosphor", key: "F3", run: nextPhosphor },
+                  { n: "3", label: "Phosphor", short: "Phos", key: "F3", run: nextPhosphor },
                   { n: "4", label: "Tube", key: "F4", run: nextTube },
                   // F5 is the browser's reload, so Jump is on 5 only
                   { n: "5", label: "Jump", key: "", run: openJump },
@@ -177,10 +177,10 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
             : [
                   { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
                   { n: "2", label: "Print", key: "F2", run: downloadPdf },
-                  { n: "3", label: "Phosphor", key: "F3", run: nextPhosphor },
+                  { n: "3", label: "Phosphor", short: "Phos", key: "F3", run: nextPhosphor },
                   { n: "4", label: "Tube", key: "F4", run: nextTube },
                   { n: "5", label: "Jump", key: "", run: openJump },
-                  { n: "10", label: "Resume", key: "F10", run: () => setMode("resume") },
+                  { n: "10", label: "Resume", short: "Back", key: "F10", run: () => setMode("resume") },
               ];
 
     // The function keys on the visitor's own keyboard (F5 and F11 are left to
@@ -438,7 +438,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                         }}
                     />
                     {/* the mission sticker */}
-                    <div className="flex shrink-0 items-center gap-2 rounded-md bg-[#1b2440] px-2 py-1 shadow-sm sm:px-2.5 sm:py-1.5" style={{ boxShadow: "0 1px 0 rgba(255,255,255,0.4), inset 0 0 0 1px rgba(255,255,255,0.08)" }}>
+                    <div className="hidden shrink-0 items-center gap-2 rounded-md bg-[#1b2440] px-2 py-1 shadow-sm sm:flex sm:px-2.5 sm:py-1.5" style={{ boxShadow: "0 1px 0 rgba(255,255,255,0.4), inset 0 0 0 1px rgba(255,255,255,0.08)" }}>
                         <svg viewBox="0 0 24 24" className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden>
                             <circle cx="12" cy="12" r="10" fill="#0b1226" stroke="#fbbf24" strokeWidth="1.2" />
                             <ellipse cx="12" cy="12" rx="10" ry="3.5" fill="none" stroke="#7dd3fc" strokeWidth="0.9" transform="rotate(-20 12 12)" />
@@ -448,7 +448,8 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                             miit-1<span className="block text-[7px] font-medium text-sky-300/80 sm:text-[8px]">crew terminal</span>
                         </span>
                     </div>
-                    <div className="ml-auto flex items-center gap-3 sm:ml-0 sm:gap-5">
+                    {/* On a phone the controls share the whole width; the sticker and grille make room */}
+                    <div className="flex w-full items-center justify-between gap-1 sm:ml-0 sm:w-auto sm:justify-start sm:gap-5">
                         <Dial label="tube" value={tube} angle={ANGLE[tubeIdx]} onTurn={() => setTube(TUBES[(tubeIdx + 1) % 3])} />
                         <Dial label="phosphor" value={phosphor} angle={ANGLE[phIdx]} onTurn={() => setPhosphor(PHOSPHORS[(phIdx + 1) % 3])} />
                         {/* degauss: a small grey push-button, as on the real thing */}

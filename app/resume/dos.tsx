@@ -99,12 +99,13 @@ export function DosBoot({ phosphor, onDone, onDisk }: { phosphor: Phosphor; onDo
 
 // ---- Function-key bar ----------------------------------------------------
 
-export type FKey = { n: string; label: string; key: string; run: () => void };
+/** `short` stands in for the label on a phone's narrow bar */
+export type FKey = { n: string; label: string; short?: string; key: string; run: () => void };
 
 export function FKeyBar({ keys, phosphor }: { keys: FKey[]; phosphor: Phosphor }) {
     const c = dosColours(phosphor);
     return (
-        <div className="absolute inset-x-0 bottom-0 z-20 flex h-[26px] items-stretch gap-[3px] px-1 font-mono text-[10px] sm:text-[11px]" style={{ background: c.bg }}>
+        <div className="absolute inset-x-0 bottom-0 z-20 flex h-[26px] items-stretch gap-[2px] px-0.5 font-mono text-[9.5px] sm:gap-[3px] sm:px-1 sm:text-[11px]" style={{ background: c.bg }}>
             {keys.map((k) => (
                 <button
                     key={k.n}
@@ -113,11 +114,13 @@ export function FKeyBar({ keys, phosphor }: { keys: FKey[]; phosphor: Phosphor }
                     title={`${k.label} (${k.key})`}
                     className="flex min-w-0 flex-1 items-center overflow-hidden whitespace-nowrap text-left transition-opacity hover:opacity-85 focus-visible:outline-none focus-visible:ring-1"
                 >
-                    <span className="px-1 font-bold" style={{ color: c.text }}>
+                    {/* The numbers are keys to press, so phones, with none to press, go without */}
+                    <span className="hidden px-1 font-bold sm:inline" style={{ color: c.text }}>
                         {k.n}
                     </span>
-                    <span className="flex-1 truncate px-1 py-1" style={{ background: c.bar, color: c.barText }}>
-                        {k.label}
+                    <span className="flex-1 truncate px-0 py-1 text-center sm:px-1 sm:text-left" style={{ background: c.bar, color: c.barText }}>
+                        <span className="sm:hidden">{k.short ?? k.label}</span>
+                        <span className="hidden sm:inline">{k.label}</span>
                     </span>
                 </button>
             ))}
@@ -129,6 +132,9 @@ export function FKeyBar({ keys, phosphor }: { keys: FKey[]; phosphor: Phosphor }
 
 export function HelpBox({ phosphor, onClose, atPrompt }: { phosphor: Phosphor; onClose: () => void; atPrompt: boolean }) {
     const c = dosColours(phosphor);
+    // A phone has no number or function keys to press
+    const [touch, setTouch] = useState(false);
+    useEffect(() => setTouch(window.matchMedia("(hover: none) and (pointer: coarse)").matches), []);
     const rows = [
         ["1", "this help"],
         ["2", "print it, then download the PDF"],
@@ -158,18 +164,22 @@ export function HelpBox({ phosphor, onClose, atPrompt }: { phosphor: Phosphor; o
                             HELP
                         </span>
                     </p>
-                    {rows.map(([k, d]) => (
+                    {(touch ? rows.filter(([k]) => k !== "+ -") : rows).map(([k, d]) => (
                         <p key={k} className="flex gap-3">
-                            <span className="w-9 shrink-0" style={{ color: phosphor === "paper" ? "#ffff55" : c.text }}>
-                                {k}
+                            <span className={`${touch ? "w-12" : "w-9"} shrink-0`} style={{ color: phosphor === "paper" ? "#ffff55" : c.text }}>
+                                {touch ? ({ "1": "Help", "2": "Print", "3": "Phos", "4": "Tube", "5": "Jump", "0": atPrompt ? "Back" : "Quit" } as Record<string, string>)[k] ?? k : k}
                             </span>
                             <span>{d}</span>
                         </p>
                     ))}
                     <p className="mt-2" style={{ color: phosphor === "paper" ? "#aaaaaa" : c.dim }}>
-                        {atPrompt
-                            ? "At the prompt the number keys type, so click the bar, or use F1 to F10 (on a Mac, hold fn). RESUME goes back too."
-                            : "Press the number keys, click the bar, or use F1 to F10 (on a Mac, hold fn). The dials and the yellow button on the monitor work too."}
+                        {touch
+                            ? atPrompt
+                                ? "Tap the keys on the bar at the bottom, or type RESUME to go back. Tap the screen to bring up the keyboard."
+                                : "Tap the keys on the bar at the bottom. Zoom with the - + in the corner; the dials, degauss and the yellow button work too."
+                            : atPrompt
+                              ? "At the prompt the number keys type, so click the bar, or use F1 to F10 (on a Mac, hold fn). RESUME goes back too."
+                              : "Press the number keys, click the bar, or use F1 to F10 (on a Mac, hold fn). The dials and the yellow button on the monitor work too."}
                     </p>
                     <p className="mt-3 text-center">
                         <button type="button" onClick={onClose} className="px-3" style={{ background: phosphor === "paper" ? "#aaaaaa" : c.text, color: phosphor === "paper" ? "#000" : c.bg }}>
