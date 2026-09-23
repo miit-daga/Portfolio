@@ -13,8 +13,9 @@ import {
 import { cn } from "@/utils/cn";
 import Link from "next/link";
 import { RESUME_PAGE } from "@/lib/resume";
-import { IconMenu2, IconX } from "@tabler/icons-react";
+import { IconMenu2, IconX, IconBrandGithub, IconBrandLinkedin, IconMail } from "@tabler/icons-react";
 import { IconFileText } from "@tabler/icons-react";
+import { kolkataNow } from "@/lib/kolkata";
 import { scrollToSection } from "@/lib/scroll-to-section";
 import { MagneticWrapper } from "./magnetic-wrapper";
 import { getSection, type SectionId } from "@/constants/sections";
@@ -636,54 +637,123 @@ export const FloatingNav = ({
                 onClick={toggleMenu}
                 className="fixed inset-0 bg-black/60 z-[4999]"
               />
+              {/* The drawer: each section in its own colour, the one you are in
+                  marked with how far through it you are. Swipe it left to close */}
               <motion.div
                 initial={{ x: "-100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "-100%" }}
-                transition={{ duration: 0.3, ease: "easeInOut" }}
-                className="fixed top-0 left-0 bottom-0 w-3/4 max-w-xs bg-black/90 backdrop-blur-lg z-[5000] p-8"
+                transition={{ type: "spring", stiffness: 320, damping: 34 }}
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={{ left: 0.5, right: 0 }}
+                onDragEnd={(_, info) => {
+                  if (info.offset.x < -70 || info.velocity.x < -400) setIsMenuOpen(false);
+                }}
+                className="fixed bottom-0 left-0 top-0 z-[5000] flex w-[84%] max-w-[340px] flex-col overflow-y-auto overscroll-contain border-r border-white/10 bg-[#05070d]/95 backdrop-blur-xl"
+                style={{
+                  backgroundImage: `radial-gradient(120% 45% at 0% 0%, ${rgba(activeAccent.rgb, 0.16)}, transparent 70%), radial-gradient(90% 30% at 100% 100%, rgba(129,140,248,0.08), transparent 70%)`,
+                }}
               >
-                <div className="flex flex-col items-start space-y-6 pt-16">
+                {/* Who, and the hour at home */}
+                <div className="pl-[4.5rem] pr-5 pt-5">
+                  <p className="font-display text-base font-bold text-white">Miit Daga</p>
+                  <MenuClock />
+                </div>
+
+                <nav className="mt-6 flex flex-col gap-1.5 px-3">
                   {navItems.map((item, idx) => {
+                    if ((item as any).isDesktopOnly) return null;
                     const isActive = activeSection === item.link;
+                    const acc = accentOf(item.link);
+                    const meta = "eyebrow" in acc ? acc : null;
                     return (
-                      (item as any).isDesktopOnly ? null : (
+                      <motion.div
+                        key={`link=${idx}`}
+                        initial={{ opacity: 0, x: -18 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.06 + idx * 0.04, type: "spring", stiffness: 380, damping: 30 }}
+                      >
                         <Link
-                          key={`link=${idx}`}
                           href={item.link}
                           target={item.name === "Terminal" ? "_blank" : undefined}
                           rel={item.name === "Terminal" ? "noopener noreferrer" : undefined}
                           onClick={(e) => { handleNavClick(e, item.link); toggleMenu(); }}
-                          className={cn(
-                            "flex items-center space-x-4 text-lg font-semibold transition-colors",
-                            isActive ? "" : "text-white hover:text-neutral-300"
-                          )}
-                          style={isActive ? { color: accentOf(item.link).light } : undefined}
+                          className="relative flex items-center gap-3.5 overflow-hidden rounded-2xl border px-3.5 py-2.5 transition-colors active:bg-white/5"
+                          style={{
+                            borderColor: isActive ? rgba(acc.rgb, 0.4) : "transparent",
+                            background: isActive ? rgba(acc.rgb, 0.1) : undefined,
+                          }}
                         >
-                          <span className="w-6 flex items-center justify-center">
-                            {React.cloneElement(item.icon as any, {
-                              className: cn("h-5 w-5", isActive ? "" : "text-white"),
-                              style: isActive ? { color: accentOf(item.link).light } : undefined,
-                            })}
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                            style={{ background: rgba(acc.rgb, isActive ? 0.18 : 0.08), boxShadow: isActive ? `0 0 14px ${rgba(acc.rgb, 0.3)}` : undefined }}
+                          >
+                            {React.cloneElement(item.icon as any, { className: "h-[18px] w-[18px]", style: { color: acc.light } })}
                           </span>
-                          <span>{item.name}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-mono text-[9px] uppercase tracking-[0.22em]" style={{ color: rgba(acc.rgb, isActive ? 0.95 : 0.6) }}>
+                              {meta?.index ? `${String(meta.index).padStart(2, "0")} · ` : ""}
+                              {meta?.eyebrow ?? "about"}
+                            </span>
+                            <span className="block truncate text-[15px] font-semibold leading-snug" style={{ color: isActive ? acc.light : "#f5f5f5" }}>
+                              {item.name}
+                            </span>
+                          </span>
+                          {isActive && (
+                            <span className="shrink-0 font-mono text-[8.5px] uppercase tracking-[0.18em]" style={{ color: acc.light }}>
+                              here
+                            </span>
+                          )}
+                          {/* How far through this section you are */}
+                          {isActive && (
+                            <span className="absolute inset-x-3.5 bottom-1 h-[2px] overflow-hidden rounded-full bg-white/5">
+                              <motion.span className="block h-full w-full origin-left" style={{ scaleX: sectionProgress, background: acc.light }} />
+                            </span>
+                          )}
                         </Link>
-                      )
+                      </motion.div>
                     );
                   })}
+                </nav>
+
+                {/* The resume, and the other ways to reach out */}
+                <motion.div
+                  className="mt-auto space-y-3 px-4 pb-6 pt-6"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35 }}
+                >
                   <Link
                     href={resumeLink!}
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={toggleMenu}
-                    className="flex items-center space-x-4 text-white text-lg font-semibold hover:text-neutral-300 transition-colors"
+                    className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-200 via-amber-300 to-amber-400 py-3 text-sm font-bold text-neutral-950 shadow-[0_0_24px_rgba(251,191,36,0.25)]"
                   >
-                    <span className="w-6 flex items-center justify-center">
-                      <IconFileText className="h-5 w-5 text-white" />
-                    </span>
-                    <span>Resume</span>
+                    <IconFileText className="h-4 w-4" />
+                    Resume
                   </Link>
-                </div>
+                  <div className="flex items-center justify-center gap-3">
+                    {[
+                      { href: "https://github.com/miit-daga", label: "GitHub", Icon: IconBrandGithub },
+                      { href: "https://www.linkedin.com/in/miit-daga", label: "LinkedIn", Icon: IconBrandLinkedin },
+                      { href: "mailto:miitcodes27@gmail.com", label: "Email", Icon: IconMail },
+                    ].map(({ href, label, Icon }) => (
+                      <a
+                        key={label}
+                        href={href}
+                        target={href.startsWith("http") ? "_blank" : undefined}
+                        rel="noopener noreferrer"
+                        aria-label={label}
+                        className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-neutral-300 active:bg-white/10"
+                      >
+                        <Icon className="h-5 w-5" />
+                      </a>
+                    ))}
+                  </div>
+                  <p className="text-center font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-600">swipe left to close</p>
+                </motion.div>
               </motion.div>
             </>
           )}
@@ -697,3 +767,21 @@ export const FloatingNav = ({
 
   return createPortal(navContent, document.body);
 };
+
+// Kolkata's hour, for the phone menu's header
+function MenuClock() {
+  const [now, setNow] = useState<ReturnType<typeof kolkataNow> | null>(null);
+  useEffect(() => {
+    const tick = () => setNow(kolkataNow());
+    tick();
+    const id = window.setInterval(tick, 30000);
+    return () => window.clearInterval(id);
+  }, []);
+  if (!now) return null;
+  return (
+    <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-neutral-400">
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: now.mood.color, boxShadow: `0 0 6px ${now.mood.color}` }} />
+      Kolkata {now.time} · {now.mood.label}
+    </p>
+  );
+}
