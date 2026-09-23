@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useInView, useReducedMotion } from "framer-motion";
 import { IconX } from "@tabler/icons-react";
 import { kolkataNow } from "@/lib/kolkata";
+import { cn } from "@/lib/utils";
 import { describeLocation } from "@/lib/locate";
 import { LAND_COLS, LAND_MASK, LAND_ROWS, LAND_STEP } from "@/constants/land-mask";
 
@@ -23,8 +24,10 @@ import { LAND_COLS, LAND_MASK, LAND_ROWS, LAND_STEP } from "@/constants/land-mas
 //   Ping        click: a pulse runs to Kolkata and back while the browser
 //               times a real round trip to this site's nearest server
 //   ISS         hover it for live altitude and speed; click to follow it
-//   Home        double-click to zoom in on Kolkata: today's satellite view
-//               from NASA, the weather there, the time and the reply line
+//   Home        double-click to zoom in on Kolkata: the last three hours from
+//               a weather satellite, looping (live, every 15 minutes), or
+//               today's sharper view from NASA; the weather there, the time
+//               and the reply line
 const BASE = { lat: 22.57, lon: 88.36 }; // Kolkata
 const LIGHTSPEED_KM_S = 299792;
 
@@ -878,7 +881,20 @@ export const SignalGlobe = () => {
                             </span>
                         )}
                     </p>
-                    {following && issRef.current && <p className="text-amber-200/80">tracking the iss &middot; click it to let go</p>}
+                    {following && issRef.current && (
+                        <p className="text-amber-200/80">
+                            tracking the iss &middot; click it to let go &middot;{" "}
+                            <a
+                                href="https://www.nasa.gov/live/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="NASA's live page: Space Station Views is the ISS's own camera, looking down at Earth"
+                                className="underline decoration-dotted underline-offset-2 hover:text-amber-100"
+                            >
+                                its live camera ↗
+                            </a>
+                        </p>
+                    )}
                     {clock && !following && (
                         <p>
                             kolkata {kolkataNow(clock).time} &middot;{" "}
@@ -913,6 +929,117 @@ const VIEW = 360; // px of the tile mosaic shown, around Kolkata
 const IMG = 176; // its size on screen, so the card fits over the globe
 
 const passDate = () => new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+
+// Live: Meteosat's Indian Ocean satellite photographs the region every 15
+// minutes, and EUMETSAT publishes each frame about half an hour later.
+// Coarser than NASA's daily view, but the clouds actually move
+const EUM = "https://view.eumetsat.int/geoserver";
+const LIVE_FRAMES = 12; // three hours
+const LIVE_PX = 352;
+const LIVE_BBOX = (() => {
+    const x = (BASE.lon * 20037508.34) / 180;
+    const y = ((Math.log(Math.tan(((90 + BASE.lat) * Math.PI) / 360)) / (Math.PI / 180)) * 20037508.34) / 180;
+    const h = 330000; // metres either side of the city
+    return `${x - h},${y - h},${x + h},${y + h}`;
+})();
+// Daylight over Kolkata at that moment: the natural-colour view; after dark, infrared
+const sunUpAt = (d: Date) => {
+    const s = sunVector(d);
+    const k = toVec(BASE.lat, BASE.lon);
+    return s[0] * k[0] + s[1] * k[1] + s[2] * k[2] > 0.1;
+};
+const frameUrl = (t: Date) =>
+    `${EUM}/ows?service=WMS&version=1.3.0&request=GetMap&layers=msg_iodc:${sunUpAt(t) ? "rgb_naturalenhncd" : "ir108"},backgrounds:ne_10m_coastline,backgrounds:ne_boundary_lines_land&styles=&crs=EPSG:3857&bbox=${LIVE_BBOX}&width=${LIVE_PX}&height=${LIVE_PX}&format=image/jpeg&time=${t.toISOString().slice(0, 19)}Z`;
+const kolkataClock = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }).format(d);
+
+// The newest frame published, from the layer's own capabilities; a guess if that fails
+async function latestFrame(): Promise<Date> {
+    try {
+        const xml = await fetch(`${EUM}/msg_iodc/ir108/ows?service=WMS&request=GetCapabilities`).then((r) => r.text());
+        const m = xml.match(/<Dimension name="time"[^>]*default="([^"]+)"/);
+        if (m) return new Date(m[1]);
+    } catch {
+        /* fall through */
+    }
+    const q = 15 * 60 * 1000;
+    return new Date(Math.floor((Date.now() - 35 * 60 * 1000) / q) * q);
+}
+
+function LiveLoop({ reduce }: { reduce: boolean | null }) {
+    const [frames, setFrames] = useState<{ t: Date; url: string; ok: boolean | null }[]>([]);
+    const [idx, setIdx] = useState(0);
+
+    // Build the last three hours and preload them, so the loop never waits
+    useEffect(() => {
+        let alive = true;
+        latestFrame().then((latest) => {
+            if (!alive) return;
+            const list = Array.from({ length: LIVE_FRAMES }, (_, k) => {
+                const t = new Date(latest.getTime() - (LIVE_FRAMES - 1 - k) * 15 * 60 * 1000);
+                return { t, url: frameUrl(t), ok: null as boolean | null };
+            });
+            setFrames(list);
+            setIdx(list.length - 1);
+            list.forEach((f, k) => {
+                const img = new Image();
+                img.onload = () => alive && setFrames((fs) => fs.map((x, j) => (j === k ? { ...x, ok: true } : x)));
+                img.onerror = () => alive && setFrames((fs) => fs.map((x, j) => (j === k ? { ...x, ok: false } : x)));
+                img.src = f.url;
+            });
+        });
+        return () => {
+            alive = false;
+        };
+    }, []);
+
+    const ready = frames.filter((f) => f.ok);
+    const allIn = frames.length > 0 && frames.every((f) => f.ok !== null);
+
+    // Play once everything is in: through the three hours, pausing on the newest
+    useEffect(() => {
+        if (reduce || !allIn || ready.length < 2) return;
+        let tick = 0;
+        const id = window.setInterval(() => {
+            tick = (tick + 1) % (ready.length + 5);
+            setIdx(Math.min(tick, ready.length - 1));
+        }, 380);
+        return () => window.clearInterval(id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reduce, allIn, ready.length]);
+
+    const shown = allIn ? ready[Math.min(idx, ready.length - 1)] : null;
+    const newest = ready[ready.length - 1];
+
+    return (
+        <>
+            {/* Every frame stacked, the current one on top: no flash between them */}
+            {ready.map((f) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                    key={f.url}
+                    src={f.url}
+                    alt=""
+                    className="absolute inset-0 h-full w-full max-w-none object-cover"
+                    style={{ opacity: f === shown ? 1 : 0 }}
+                />
+            ))}
+            {!allIn && <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">fetching the last 3 hours…</p>}
+            {allIn && !ready.length && <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">the satellite is quiet</p>}
+            {shown && (
+                <>
+                    <span className="absolute bottom-1.5 left-2 flex items-center gap-1 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
+                        <span className={cn("h-1.5 w-1.5 rounded-full", shown === newest ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" : "bg-neutral-500")} />
+                        {shown === newest ? `live · ${kolkataClock(shown.t)} · Meteosat` : kolkataClock(shown.t)}
+                    </span>
+                    {/* Where in the three hours this frame is */}
+                    <span className="absolute inset-x-2 bottom-0.5 h-px bg-white/10">
+                        <span className="block h-full bg-rose-300/80" style={{ width: `${((ready.indexOf(shown) + 1) / ready.length) * 100}%` }} />
+                    </span>
+                </>
+            )}
+        </>
+    );
+}
 const tileXY = (lat: number, lon: number, z: number) => {
     const n = 2 ** z;
     const la = lat * DEG;
@@ -930,6 +1057,8 @@ function HomeCard({
 }) {
     const [date, setDate] = useState(passDate);
     const [failed, setFailed] = useState(false);
+    const [tab, setTab] = useState<"live" | "today">("live");
+    const reduce = useReducedMotion();
     const c = tileXY(BASE.lat, BASE.lon, TILE_Z);
     const left = c.x - VIEW / 2;
     const top = c.y - VIEW / 2;
@@ -964,9 +1093,10 @@ function HomeCard({
                     </button>
                 </div>
 
-                {/* Today's view from orbit, centred on the city */}
+                {/* The view from orbit, centred on the city: live and moving, or today's sharp one */}
                 <div className="relative overflow-hidden rounded-lg bg-slate-900" style={{ width: IMG, height: IMG }}>
-                    {!failed && (
+                    {tab === "live" && <LiveLoop reduce={reduce} />}
+                    {tab === "today" && !failed && (
                         <div className="absolute left-0 top-0 origin-top-left" style={{ width: VIEW, height: VIEW, transform: `scale(${scale})` }}>
                             {tiles.map((t) => (
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -989,12 +1119,27 @@ function HomeCard({
                             ))}
                         </div>
                     )}
-                    {failed && <p className="absolute inset-0 flex items-center justify-center text-[10px] text-neutral-500">no clear pass lately</p>}
+                    {tab === "today" && failed && <p className="absolute inset-0 flex items-center justify-center text-[10px] text-neutral-500">no clear pass lately</p>}
                     {/* Kolkata */}
                     <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,1)]" />
                     <span className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-amber-300/70 motion-reduce:animate-none" />
-                    <span className="absolute bottom-1.5 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
-                        from orbit · NASA · {pretty}
+                    {tab === "today" && (
+                        <span className="absolute bottom-1.5 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
+                            from orbit · NASA · {pretty}
+                        </span>
+                    )}
+                    {/* live, or today's sharper pass */}
+                    <span className="absolute right-1.5 top-1.5 flex rounded-full bg-black/60 p-0.5 text-[8.5px] tracking-wide">
+                        {(["live", "today"] as const).map((k) => (
+                            <button
+                                key={k}
+                                type="button"
+                                onClick={() => setTab(k)}
+                                className={cn("rounded-full px-1.5 py-0.5 transition-colors", tab === k ? "bg-white/15 text-neutral-100" : "text-neutral-400 hover:text-neutral-200")}
+                            >
+                                {k}
+                            </button>
+                        ))}
                     </span>
                 </div>
 
