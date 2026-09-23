@@ -70,6 +70,10 @@ const MUG = { x: 352, y: 692 };
 const GLASS = { x: 326, y: 618 };
 const PLANT = { x: 1282, y: 616 };
 const POUR = { x: 1262, y: 636 };
+// Downloads the terminal asks to name, as they are actually saved: the resume
+// comes from Google Drive, which names the file itself, so the browser
+// ignores the name asked for. The phone shows what lands in Downloads
+const SAVED_AS: Record<string, string> = { "miit-daga-resume.pdf": "Resume-Miit_Daga.pdf" };
 const PLANT_KEY = "desk-plant";
 const CHAI_KEY = "desk-chai";
 const FRAGMENT_KEY = "desk-fragment";
@@ -267,7 +271,7 @@ export function Desk() {
             const d = e.data as { type: string; on?: boolean; filename?: string; app?: string; text?: string };
             if (d.type === "busy") setBusy(!!d.on);
             else if (d.type === "game") setGame(!!d.on);
-            else if (d.type === "download") airDrop(d.filename || "Resume-Miit_Daga.pdf");
+            else if (d.type === "download") airDrop(SAVED_AS[d.filename || ""] || d.filename || "Resume-Miit_Daga.pdf");
             else if (d.type === "notify") pushNote(d.app || "Terminal", d.text || "", "✍️");
             else if (d.type === "fullscreen") setFull((f) => !f);
             else if (d.type === "quack") {
