@@ -119,11 +119,18 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                   { n: "10", label: "Resume", key: "F10", run: () => setMode("resume") },
               ];
 
-    // The function keys on the visitor's own keyboard (F5 and F11 are left to the browser)
+    // The function keys on the visitor's own keyboard (F5 and F11 are left to
+    // the browser). A Mac's F-keys are brightness and volume unless fn is held,
+    // so on the resume the plain number keys shown on the bar work too: 1 to 4,
+    // and 0 for 10. At the prompt the numbers are for typing
     useEffect(() => {
         if (!power || !booted) return;
         const onKey = (e: KeyboardEvent) => {
-            const hit = fkeys.find((k) => k.key === e.key);
+            if (e.metaKey || e.ctrlKey || e.altKey) return;
+            const t = e.target as HTMLElement | null;
+            const typing = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+            const digit = !typing && mode === "resume" && /^[0-4]$/.test(e.key) ? (e.key === "0" ? "10" : e.key) : null;
+            const hit = fkeys.find((k) => k.key === e.key || (digit !== null && k.n === digit));
             if (hit) {
                 e.preventDefault();
                 hit.run();
@@ -173,7 +180,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                                 </div>
                             )}
                             {power && booted && <FKeyBar keys={fkeys} phosphor={phosphor} />}
-                            <AnimatePresence>{power && booted && help && <HelpBox phosphor={phosphor} onClose={() => setHelp(false)} />}</AnimatePresence>
+                            <AnimatePresence>{power && booted && help && <HelpBox phosphor={phosphor} atPrompt={mode === "prompt"} onClose={() => setHelp(false)} />}</AnimatePresence>
 
                             {/* ---- the tube's effects ---- */}
                             <AnimatePresence>

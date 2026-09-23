@@ -127,14 +127,14 @@ export function FKeyBar({ keys, phosphor }: { keys: FKey[]; phosphor: Phosphor }
 
 // ---- F1 help --------------------------------------------------------------
 
-export function HelpBox({ phosphor, onClose }: { phosphor: Phosphor; onClose: () => void }) {
+export function HelpBox({ phosphor, onClose, atPrompt }: { phosphor: Phosphor; onClose: () => void; atPrompt: boolean }) {
     const c = dosColours(phosphor);
     const rows = [
-        ["F1", "this help"],
-        ["F2", "download the resume (PDF)"],
-        ["F3", "phosphor: paper, green, amber"],
-        ["F4", "tube: off, soft, full"],
-        ["F10", "quit to the C:\\> prompt"],
+        ["1", "this help"],
+        ["2", "download the resume (PDF)"],
+        ["3", "phosphor: paper, green, amber"],
+        ["4", "tube: off, soft, full"],
+        ["0", atPrompt ? "back to the resume" : "quit to the C:\\> prompt"],
     ];
     return (
         <motion.div
@@ -165,7 +165,9 @@ export function HelpBox({ phosphor, onClose }: { phosphor: Phosphor; onClose: ()
                         </p>
                     ))}
                     <p className="mt-2" style={{ color: phosphor === "paper" ? "#aaaaaa" : c.dim }}>
-                        Click the keys on the bar, or press them. The dials and the yellow button on the monitor work too.
+                        {atPrompt
+                            ? "At the prompt the number keys type, so click the bar, or use F1 to F10 (on a Mac, hold fn). RESUME goes back too."
+                            : "Press the number keys, click the bar, or use F1 to F10 (on a Mac, hold fn). The dials and the yellow button on the monitor work too."}
                     </p>
                     <p className="mt-3 text-center">
                         <button type="button" onClick={onClose} className="px-3" style={{ background: phosphor === "paper" ? "#aaaaaa" : c.text, color: phosphor === "paper" ? "#000" : c.bg }}>
