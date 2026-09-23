@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
-import { Display, Keyboard, Mug, Phone, Plant, SCREEN, StickArt, StickyNote, Tower, Trackpad, type Note, type Stick } from "./props";
+import { Display, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, type Note, type Stick } from "./props";
 import { playAirDrop, playNotify, playPowerButton, playUsbIn, playUsbOut, setFan } from "./desk-sound";
 
 // The terminal on a desk in orbit, for large screens (terminal.html sends them
@@ -17,8 +17,7 @@ import { playAirDrop, playNotify, playPowerButton, playUsbIn, playUsbOut, setFan
 //                       it): it mounts in the terminal at /Volumes
 //   AirDrop             a download flies off the screen to the phone
 //   Phone               notifications as things happen; tap it for a QR code
-//   Keyboard, trackpad  mirror the visitor's typing and pointer
-//   Sticky notes        commands to try; tap one to run it
+//   Keyboard, mouse     mirror the visitor's typing, pointer, clicks and scrolling
 //   Chai and a plant    chai steams at chai-time in Kolkata
 //
 // The scene is drawn at 1440 x 900 and scaled to fit. The terminal is not
@@ -40,14 +39,6 @@ const STICKS: (Stick & { term: string })[] = [
     { id: "alien", label: "", color: "#27272a", alien: true, term: "ALIEN" },
 ];
 
-const NOTES = [
-    { text: "help", x: 232, y: 330, rot: -5, color: "#fde68a" },
-    { text: "tour", x: 228, y: 424, rot: 4, color: "#fbcfe8" },
-    { text: "play snake", x: 1126, y: 72, rot: 5, color: "#bfdbfe" },
-    { text: "neofetch", x: 1130, y: 330, rot: -4, color: "#bbf7d0" },
-    { text: "sudo hire miit", x: 410, y: 546, rot: 3, color: "#fed7aa" },
-    { text: "scp resume.pdf .", x: 912, y: 546, rot: -3, color: "#ddd6fe" },
-];
 
 // Stars behind, the same on the server and in the browser
 const STARS = (() => {
@@ -56,7 +47,7 @@ const STARS = (() => {
     return Array.from({ length: 140 }, () => ({ x: r() * 100, y: r() * 100, s: r() < 0.1 ? 2 : 1, o: 0.2 + r() * 0.6 }));
 })();
 
-export function Desk({ noteFont }: { noteFont: string }) {
+export function Desk() {
     const [big, setBig] = useState<boolean | null>(null);
     const [src, setSrc] = useState<string | null>(null);
     const [view, setView] = useState({ s: 1, ox: 0, oy: 0, vw: 0, vh: 0 });
@@ -78,8 +69,12 @@ export function Desk({ noteFont }: { noteFont: string }) {
     const [pressed, setPressed] = useState<Set<string>>(new Set());
     const [tint, setTint] = useState("#2dd4bf");
     const [dot, setDot] = useState<{ x: number; y: number } | null>(null);
-    const [tap, setTap] = useState(0);
+    const [button, setButton] = useState<"left" | "right" | null>(null);
+    const [wheel, setWheel] = useState(0);
     const [full, setFull] = useState(false);
+    // Read by the listeners inside the display, which outlive renders
+    const fullRef = useRef(false);
+    fullRef.current = full;
     const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
     const noteId = useRef(0);
 
@@ -208,6 +203,13 @@ export function Desk({ noteFont }: { noteFont: string }) {
         const w = frameRef.current?.contentWindow;
         const d = doc();
         if (!w || !d) return;
+        // The games are laid out for a whole window; in the display, their
+        // board is capped so the title, score and controls fit the screen too.
+        // Styling only, added from here: terminal.html itself is unchanged
+        const fit = d.createElement("style");
+        fit.textContent = `body > div[style*="9000"] { gap: 6px !important; padding: 10px 0 !important; box-sizing: border-box !important; overflow: hidden !important; }
+body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; max-width: 94vw !important; }`;
+        d.head.appendChild(fit);
         const readTint = () => {
             const v = getComputedStyle(d.documentElement).getPropertyValue("--term-primary").trim();
             if (v) setTint(v);
@@ -215,6 +217,13 @@ export function Desk({ noteFont }: { noteFont: string }) {
         readTint();
         w.addEventListener("keydown", (e) => {
             setPressed((s) => new Set(s).add(e.code));
+            // Esc leaves full screen, unless the terminal wants it itself: a
+            // game, or a command still running (a prompt, the tour)
+            if (e.key === "Escape" && fullRef.current) {
+                const gameUp = [...d.body.children].some((el) => (el as HTMLElement).style?.zIndex === "9000");
+                const i = d.getElementById("input-line") as HTMLInputElement | null;
+                if (!gameUp && i && !i.disabled) setFull(false);
+            }
             if (e.key === "Enter") window.setTimeout(readTint, 300);
         });
         w.addEventListener("keyup", (e) =>
@@ -231,7 +240,11 @@ export function Desk({ noteFont }: { noteFont: string }) {
             window.clearTimeout(leave);
             leave = window.setTimeout(() => setDot(null), 2500);
         });
-        w.addEventListener("mousedown", () => setTap((t) => t + 1));
+        w.addEventListener("mousedown", (e) => {
+            setButton(e.button === 2 ? "right" : "left");
+        });
+        w.addEventListener("mouseup", () => setButton(null));
+        w.addEventListener("wheel", () => setWheel((n) => n + 1), { passive: true });
         const overlay = d.getElementById("start-overlay");
         if (overlay) {
             const check = () => setOn(overlay.style.display === "none");
@@ -323,11 +336,6 @@ export function Desk({ noteFont }: { noteFont: string }) {
         window.addEventListener("pointerup", up);
     };
 
-    const runNote = (cmd: string) =>
-        whenReady(() => {
-            term()?.runCommandFromClick?.(cmd);
-            refocus();
-        });
 
     // ---- small screens: the terminal on its own -------------------------------
     if (big === false) {
@@ -383,7 +391,7 @@ export function Desk({ noteFont }: { noteFont: string }) {
                 <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} onPower={power} onPull={pull} />
                 <Phone ref={phoneRef} notes={notes} qr={qr} onTap={() => setQr((q) => !q)} airdrop={airdrop} />
                 <Keyboard pressed={pressed} tint={tint} />
-                <Trackpad dot={dot} tap={tap} />
+                <Mouse dot={dot} button={button} wheel={wheel} tint={tint} />
                 <Mug />
                 <Plant />
 
@@ -415,10 +423,6 @@ export function Desk({ noteFont }: { noteFont: string }) {
                     </div>
                 </div>
 
-                {/* sticky notes on the display's edges */}
-                {NOTES.map((n) => (
-                    <StickyNote key={n.text} {...n} font={noteFont} onClick={() => runNote(n.text)} />
-                ))}
             </div>
 
             {/* the terminal, over the screen at its real size */}

@@ -45,6 +45,9 @@ export function Display({ asleep, glow }: { asleep: boolean; glow: string }) {
 // ---- Tower -----------------------------------------------------------------
 
 export const TOWER = { x: 1212, y: 236, w: 176, h: 424 };
+// The left port's centre, in the tower's own box (its top edge is 34 above the body):
+// strip at inset 12, padding 8, two 16px ports 6 apart, ending at the strip's right
+const PORT = { x: TOWER.w - 12 - 8 - 16 - 6 - 8, y: 34 + 10 + 10 };
 
 export type Stick = { id: string; label: string; color: string; alien?: boolean };
 
@@ -72,7 +75,8 @@ export const Tower = forwardRef<HTMLDivElement, {
                         aria-label={`Pull out the ${plugged.label} drive`}
                         title="Pull it out (or type eject)"
                         className="absolute z-10 cursor-pointer"
-                        style={{ left: 104, top: -8 }}
+                        // Seated in the left port: the body's foot on the slot, the plug inside
+                        style={{ left: PORT.x - 12, top: PORT.y + 3 - 56 }}
                         initial={{ y: -40, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: -60, opacity: 0, transition: { duration: 0.25 } }}
@@ -98,7 +102,7 @@ export const Tower = forwardRef<HTMLDivElement, {
                     </button>
                     <div className="flex-1" />
                     {/* the ports: a stick dropped here goes in */}
-                    <div ref={portRef} className="flex gap-1.5" title="USB-C: drop a drive here">
+                    <div ref={portRef} className="flex gap-[6px]" title="USB-C: drop a drive here">
                         {[0, 1].map((i) => (
                             <span key={i} className="block h-1.5 w-4 rounded-full bg-black" style={{ boxShadow: "0 0 0 1px #4b5058" }} />
                         ))}
@@ -136,10 +140,14 @@ export const Tower = forwardRef<HTMLDivElement, {
 export function StickArt({ stick, upright = false }: { stick: Stick; upright?: boolean }) {
     // Drawn standing; lying in the tray it is turned on its side
     return (
-        <svg viewBox="0 0 30 78" width={upright ? 24 : 30} height={upright ? 62 : 78} aria-hidden className="block drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)]">
-            {/* the plug */}
-            <rect x="9" y="66" width="12" height="11" rx="3" fill="#c7cbd1" />
-            <rect x="11" y="68" width="8" height="3" rx="1.5" fill="#6b7280" />
+        <svg viewBox={upright ? "0 0 30 70" : "0 0 30 78"} width={upright ? 24 : 30} height={upright ? 56 : 78} aria-hidden className="block drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)]">
+            {/* the plug, which is inside the port when it is plugged in */}
+            {!upright && (
+                <>
+                    <rect x="9" y="66" width="12" height="11" rx="3" fill="#c7cbd1" />
+                    <rect x="11" y="68" width="8" height="3" rx="1.5" fill="#6b7280" />
+                </>
+            )}
             {/* the body, aluminium */}
             <rect x="3" y="4" width="24" height="64" rx="6" fill="url(#stickAlu)" />
             <defs>
@@ -224,25 +232,37 @@ export function Keyboard({ pressed, tint }: { pressed: Set<string>; tint: string
     );
 }
 
-export function Trackpad({ dot, tap }: { dot: { x: number; y: number } | null; tap: number }) {
+// A mouse on its pad: it glides as the pointer moves over the screen, its
+// buttons light when clicked, and its wheel turns when the terminal scrolls
+export function Mouse({ dot, button, wheel, tint }: { dot: { x: number; y: number } | null; button: "left" | "right" | null; wheel: number; tint: string }) {
+    const x = dot ? (dot.x - 0.5) * 56 : 0;
+    const y = dot ? (dot.y - 0.5) * 40 : 0;
     return (
-        <div
-            className="absolute overflow-hidden rounded-[12px]"
-            style={{ left: 992, top: 696, width: 170, height: 150, background: "linear-gradient(160deg, #f4f5f7, #d9dce1)", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.9)" }}
-        >
-            {dot && (
-                <>
-                    <span className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-400/30" style={{ left: `${dot.x * 100}%`, top: `${dot.y * 100}%` }} />
-                    <motion.span
-                        key={tap}
-                        className="absolute h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border border-neutral-500/50"
-                        style={{ left: `${dot.x * 100}%`, top: `${dot.y * 100}%` }}
-                        initial={{ scale: 1, opacity: tap ? 0.9 : 0 }}
-                        animate={{ scale: 2.6, opacity: 0 }}
-                        transition={{ duration: 0.5 }}
-                    />
-                </>
-            )}
+        <div className="absolute rounded-[16px]" style={{ left: 994, top: 694, width: 176, height: 160, background: "linear-gradient(160deg, #26292f, #17191d)", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+            <motion.div className="absolute left-1/2 top-1/2" style={{ marginLeft: -31, marginTop: -52 }} animate={{ x, y, rotate: x * 0.12 }} transition={{ type: "spring", stiffness: 180, damping: 22 }}>
+                <svg width="62" height="104" viewBox="0 0 62 104" aria-hidden className="block drop-shadow-[0_8px_8px_rgba(0,0,0,0.55)]">
+                    <defs>
+                        <linearGradient id="mouseBody" x1="0" x2="1">
+                            <stop offset="0" stopColor="#d7dade" />
+                            <stop offset="0.45" stopColor="#fbfbfc" />
+                            <stop offset="1" stopColor="#c9cdd3" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M31 2 C50 2 60 18 60 42 V72 C60 92 48 102 31 102 C14 102 2 92 2 72 V42 C2 18 12 2 31 2 Z" fill="url(#mouseBody)" />
+                    {/* the two buttons */}
+                    <path d="M31 3 C14 3 3.5 18 3.5 40 H31 Z" fill={button === "left" ? tint : "transparent"} opacity="0.55" />
+                    <path d="M31 3 C48 3 58.5 18 58.5 40 H31 Z" fill={button === "right" ? tint : "transparent"} opacity="0.55" />
+                    <line x1="31" y1="3" x2="31" y2="40" stroke="#b8bcc3" strokeWidth="1" />
+                    <path d="M4 41 Q31 44 58 41" stroke="#c4c8ce" strokeWidth="1" fill="none" />
+                    {/* the wheel, its ridges turning as the terminal scrolls */}
+                    <rect x="27" y="12" width="8" height="18" rx="4" fill="#3f434a" />
+                    <g key={wheel}>
+                        {[0, 1, 2, 3].map((i) => (
+                            <motion.rect key={i} x="28.5" width="5" height="1.4" rx="0.7" fill="#9aa0a8" initial={{ y: 13 + i * 4.4 }} animate={{ y: 17.4 + i * 4.4 }} transition={{ duration: 0.18 }} />
+                        ))}
+                    </g>
+                </svg>
+            </motion.div>
         </div>
     );
 }
@@ -329,27 +349,6 @@ export const Phone = forwardRef<HTMLButtonElement, { notes: Note[]; qr: boolean;
         </>
     );
 });
-
-// ---- Sticky notes ---------------------------------------------------------
-
-export function StickyNote({ x, y, rot, color, text, onClick, font }: { x: number; y: number; rot: number; color: string; text: string; onClick: () => void; font: string }) {
-    return (
-        <motion.button
-            type="button"
-            onClick={onClick}
-            title={`Run: ${text}`}
-            aria-label={`Run ${text} in the terminal`}
-            className={`absolute z-20 flex items-center justify-center px-1.5 text-center leading-tight ${font}`}
-            style={{ left: x, top: y, width: 80, height: 70, background: color, boxShadow: "0 6px 10px -4px rgba(0,0,0,0.55)", rotate: rot, color: "#1f2937", fontSize: 17 }}
-            whileHover={{ rotate: 0, scale: 1.08, y: -3 }}
-            whileTap={{ scale: 0.95 }}
-        >
-            {/* the strip of tape */}
-            <span className="absolute -top-2 left-1/2 h-4 w-10 -translate-x-1/2 rotate-2 bg-white/50" />
-            {text}
-        </motion.button>
-    );
-}
 
 // ---- Desk touches -----------------------------------------------------------
 

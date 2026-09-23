@@ -27,7 +27,7 @@ import type { Section } from "./pdf-screen";
 //
 // Also: a dot-matrix printer that prints the resume before it downloads, a
 // jump menu of its sections (5), zoom (+ and -, or the pill on the screen), a
-// degauss button, and a starfield screensaver after a minute idle.
+// degauss button, and a starfield screensaver after 30 seconds idle.
 
 const TUBES: Tube[] = ["off", "soft", "full"];
 const PHOSPHORS: Phosphor[] = ["paper", "green", "amber"];
@@ -178,7 +178,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
         setDegauss((n) => n + 1);
     };
 
-    // The screensaver: a minute with no sign of the visitor, and the stars come out
+    // The screensaver: 30 seconds with no sign of the visitor, and the stars come out
     const lastActive = useRef(Date.now());
     const saverGrace = useRef(0);
     useEffect(() => {
@@ -191,7 +191,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
         const events = ["pointermove", "pointerdown", "keydown", "wheel", "touchstart"] as const;
         events.forEach((e) => window.addEventListener(e, wake, { passive: true }));
         const id = window.setInterval(() => {
-            if (Date.now() - lastActive.current > 60000) setSaver(true);
+            if (Date.now() - lastActive.current > 30000) setSaver(true);
         }, 3000);
         return () => {
             events.forEach((e) => window.removeEventListener(e, wake));
