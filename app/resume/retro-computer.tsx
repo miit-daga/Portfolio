@@ -5,6 +5,9 @@ import { PdfScreen, type Phosphor, type Tube } from "./pdf-screen";
 import { DosBoot, DosPrompt, FKeyBar, HelpBox, dosColours, type FKey } from "./dos";
 import { playDegauss, playDiskTick, playPowerOff, playPowerOn, playPrinter } from "./crt-sound";
 import { JumpMenu, Printer, Starfield } from "./extras";
+import { DISKS, DiskShelf, Drive, LABEL_KEY, type DiskId } from "./floppy";
+import { DiskProgram } from "./disks";
+import { playFloppyEject, playFloppyInsert, playFloppyRead } from "./crt-sound";
 import type { Section } from "./pdf-screen";
 
 // The resume on a beige 1980s CRT monitor, floating in zero-g: a speaker
@@ -63,7 +66,22 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
     const [booted, setBooted] = useState(false);
     const [ready, setReady] = useState(false);
     // The resume, or quit to the C:\> prompt
-    const [mode, setMode] = useState<"resume" | "prompt">("resume");
+    const [mode, setMode] = useState<"resume" | "prompt" | "disk">("resume");
+    // Drive A: the disk in it, a key to replay its slide-in, its light, and
+    // the name a visitor wrote on the blank disk
+    const [floppy, setFloppy] = useState<DiskId | null>(null);
+    const [insertKey, setInsertKey] = useState(0);
+    const [floppyBusy, setFloppyBusy] = useState(false);
+    const [floppyLabel, setFloppyLabel] = useState<string | null>(null);
+    const driveRef = useRef<HTMLDivElement>(null);
+    const driveRefSmall = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        try {
+            setFloppyLabel(localStorage.getItem(LABEL_KEY));
+        } catch {
+            /* ignore */
+        }
+    }, []);
     const [help, setHelp] = useState(false);
     // The drive light, busy while the machine reads from its disk
     const [disk, setDisk] = useState(false);
@@ -117,6 +135,28 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
     // Downloads print first, on screens wide enough to show the printer
     const PRINT_SECONDS = 2.6;
     const printStart = useRef(0);
+
+    // A disk goes in: the latch, the drive reading, then its program on screen
+    const insertDisk = (id: DiskId) => {
+        playFloppyInsert();
+        setFloppy(id);
+        setInsertKey((k) => k + 1);
+        setHelp(false);
+        setJumpOpen(false);
+        window.setTimeout(() => {
+            playFloppyRead(1.3);
+            setFloppyBusy(true);
+        }, 250);
+        window.setTimeout(() => setFloppyBusy(false), 1600);
+        if (power && booted) setMode("disk");
+    };
+    const ejectDisk = () => {
+        if (!floppy) return;
+        playFloppyEject();
+        setFloppy(null);
+        setFloppyBusy(false);
+        setMode((m) => (m === "disk" ? "resume" : m));
+    };
     const downloadPdf = () => {
         const withPrinter = window.matchMedia("(min-width: 640px)").matches && !reduce;
         if (!withPrinter) {
@@ -164,7 +204,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
     };
 
     const fkeys: FKey[] =
-        mode === "resume"
+        mode === "resume" || mode === "disk"
             ? [
                   { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
                   { n: "2", label: "Print", key: "F2", run: downloadPdf },
@@ -172,7 +212,9 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                   { n: "4", label: "Tube", key: "F4", run: nextTube },
                   // F5 is the browser's reload, so Jump is on 5 only
                   { n: "5", label: "Jump", key: "", run: openJump },
-                  { n: "10", label: "Quit", key: "F10", run: () => setMode("prompt") },
+                  mode === "disk"
+                      ? { n: "10", label: "Resume", short: "Back", key: "F10", run: () => setMode("resume") }
+                      : { n: "10", label: "Quit", key: "F10", run: () => setMode("prompt") },
               ]
             : [
                   { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
@@ -182,6 +224,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                   { n: "5", label: "Jump", key: "", run: openJump },
                   { n: "10", label: "Resume", short: "Back", key: "F10", run: () => setMode("resume") },
               ];
+    // With a disk's program up, 10 goes back to the resume; the disk stays in
 
     // The function keys on the visitor's own keyboard (F5 and F11 are left to
     // the browser). A Mac's F-keys are brightness and volume unless fn is held,
@@ -194,7 +237,7 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
             const t = e.target as HTMLElement | null;
             const typing = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
             if (jumpOpen || saver) return;
-            const digit = !typing && mode === "resume" && /^[0-5]$/.test(e.key) ? (e.key === "0" ? "10" : e.key) : null;
+            const digit = !typing && mode !== "prompt" && /^[0-5]$/.test(e.key) ? (e.key === "0" ? "10" : e.key) : null;
             const hit = fkeys.find((k) => (k.key && k.key === e.key) || (digit !== null && k.n === digit));
             if (!typing && mode === "resume" && (e.key === "+" || e.key === "=" || e.key === "-")) {
                 e.preventDefault();
@@ -288,7 +331,16 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                                         onDegauss={doDegauss}
                                         onStarfield={startSaver}
                                         onJump={openJump}
+                                        floppy={floppy}
+                                        onEject={ejectDisk}
+                                        onOpenDisk={() => floppy && setMode("disk")}
                                     />
+                                </div>
+                            )}
+                            {/* The disk in drive A:, running */}
+                            {power && booted && mode === "disk" && floppy && (
+                                <div className="absolute inset-x-0 top-0 bottom-[26px]">
+                                    <DiskProgram key={`${floppy}-${insertKey}`} disk={floppy} phosphor={phosphor} onDisk={setFloppyBusy} onLabel={setFloppyLabel} />
                                 </div>
                             )}
                             {power && booted && <FKeyBar keys={fkeys} phosphor={phosphor} />}
@@ -427,6 +479,10 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
 
                 {/* ---- the chin: grille, sticker, dials, power light ---- */}
                 <div className="mt-2.5 flex items-center gap-3 sm:mt-4 sm:gap-5">
+                    {/* Wide screens: drive A:, built into the front */}
+                    <div className="hidden lg:block">
+                        <Drive inserted={DISKS.find((d) => d.id === floppy) ?? null} insertKey={insertKey} busy={floppyBusy} onEject={ejectDisk} driveRef={driveRef} embedded />
+                    </div>
                     <div
                         aria-hidden
                         className="hidden h-12 flex-1 rounded-md sm:block"
@@ -521,6 +577,16 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                         }}
                     />
                 </div>
+                {/* Wide screens: the floppy drive and its disks on the other side */}
+                <div className="absolute bottom-[-6px] right-[1%] z-10 hidden items-end lg:flex">
+                    <DiskShelf inserted={floppy} name={floppyLabel} onInsert={insertDisk} driveRef={driveRef} layout="fan" />
+                </div>
+            </div>
+
+            {/* Narrower screens: the drive and a row of disks under the monitor */}
+            <div className="mt-3 flex w-full items-end gap-3 lg:hidden">
+                <Drive inserted={DISKS.find((d) => d.id === floppy) ?? null} insertKey={insertKey} busy={floppyBusy} onEject={ejectDisk} driveRef={driveRefSmall} compact />
+                <DiskShelf inserted={floppy} name={floppyLabel} onInsert={insertDisk} driveRef={driveRefSmall} layout="row" />
             </div>
 
 

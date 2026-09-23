@@ -100,7 +100,7 @@ export function Printer({ printing, seconds, onDone }: { printing: number; secon
     return (
         <div aria-hidden className="relative h-[58px] w-[190px]">
             {/* the sheet, rising out of the slot */}
-            <div className="absolute bottom-[40px] left-1/2 h-[190px] w-[132px] -translate-x-1/2 overflow-hidden">
+            <div className="pointer-events-none absolute bottom-[40px] left-1/2 h-[190px] w-[132px] -translate-x-1/2 overflow-hidden">
                 <AnimatePresence>
                     {active && (
                         <motion.div

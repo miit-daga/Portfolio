@@ -262,3 +262,103 @@ export function playModem() {
     hiss.start(t);
     hiss.stop(t + 1.1);
 }
+
+/** A disk pushed into the drive: a plastic slide and the latch catching. */
+export function playFloppyInsert() {
+    const a = audio();
+    if (!a) return;
+    const t = a.currentTime + 0.02;
+    const slide = noise(a, 0.18);
+    const lp = a.createBiquadFilter();
+    lp.type = "bandpass";
+    lp.frequency.value = 1200;
+    const g = a.createGain();
+    env(a, g, t, 0.12, 0.02, 0.08, 0.06);
+    slide.connect(lp).connect(g).connect(a.destination);
+    slide.start(t);
+    slide.stop(t + 0.2);
+    click(a, t + 0.17, 0.55);
+    // the latch's thunk
+    const thunk = a.createOscillator();
+    thunk.frequency.setValueAtTime(180, t + 0.17);
+    thunk.frequency.exponentialRampToValueAtTime(70, t + 0.25);
+    const tg = a.createGain();
+    env(a, tg, t + 0.17, 0.3, 0.003, 0.02, 0.07);
+    thunk.connect(tg).connect(a.destination);
+    thunk.start(t + 0.17);
+    thunk.stop(t + 0.3);
+}
+
+/** The drive reading: its motor spinning up and the head stepping across the disk. */
+export function playFloppyRead(seconds = 1.4) {
+    const a = audio();
+    if (!a) return;
+    const t = a.currentTime + 0.02;
+    // the spindle motor
+    const motor = a.createOscillator();
+    motor.type = "sawtooth";
+    motor.frequency.setValueAtTime(60, t);
+    motor.frequency.linearRampToValueAtTime(100, t + 0.3);
+    const mlp = a.createBiquadFilter();
+    mlp.type = "lowpass";
+    mlp.frequency.value = 260;
+    const mg = a.createGain();
+    env(a, mg, t, 0.07, 0.15, seconds - 0.3, 0.15);
+    motor.connect(mlp).connect(mg).connect(a.destination);
+    motor.start(t);
+    motor.stop(t + seconds + 0.05);
+    // the head stepping: buzzy ticks in runs
+    let s = t + 0.25;
+    while (s < t + seconds - 0.1) {
+        const run = 3 + Math.floor(Math.random() * 6);
+        for (let i = 0; i < run; i++) {
+            const o = a.createOscillator();
+            o.type = "square";
+            o.frequency.value = 420 + Math.random() * 160;
+            const g = a.createGain();
+            env(a, g, s, 0.05, 0.002, 0.012, 0.02);
+            o.connect(g).connect(a.destination);
+            o.start(s);
+            o.stop(s + 0.04);
+            s += 0.035;
+        }
+        s += 0.08 + Math.random() * 0.12;
+    }
+}
+
+/** The eject button: the spring kicking the disk out. */
+export function playFloppyEject() {
+    const a = audio();
+    if (!a) return;
+    const t = a.currentTime + 0.02;
+    click(a, t, 0.5);
+    const boing = a.createOscillator();
+    boing.type = "triangle";
+    boing.frequency.setValueAtTime(260, t + 0.03);
+    boing.frequency.exponentialRampToValueAtTime(120, t + 0.18);
+    const g = a.createGain();
+    env(a, g, t + 0.03, 0.18, 0.004, 0.03, 0.12);
+    boing.connect(g).connect(a.destination);
+    boing.start(t + 0.03);
+    boing.stop(t + 0.22);
+}
+
+/** The alien's voice: a run of quick, rising and falling chirps. */
+export function playAlienChirps(count = 6) {
+    const a = audio();
+    if (!a) return;
+    let t = a.currentTime + 0.02;
+    for (let i = 0; i < count; i++) {
+        const o = a.createOscillator();
+        o.type = "sine";
+        const f = 700 + Math.random() * 900;
+        o.frequency.setValueAtTime(f, t);
+        o.frequency.exponentialRampToValueAtTime(f * (Math.random() > 0.5 ? 1.8 : 0.55), t + 0.09);
+        const g = a.createGain();
+        env(a, g, t, 0.07, 0.005, 0.05, 0.04);
+        o.connect(g).connect(a.destination);
+        o.start(t);
+        o.stop(t + 0.12);
+        t += 0.1 + Math.random() * 0.06;
+    }
+}

@@ -4,7 +4,7 @@ import { HoverEffectPublications } from "@/components/ui/card-hover-effect-publi
 import Heading from "@/components/Heading";
 import { accentVars, getSection } from "@/constants/sections";
 
-const Publications = [
+export const Publications = [
     {
         type: "journal" as const,
         venue: "Array · Elsevier",

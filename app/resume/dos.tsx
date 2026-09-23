@@ -234,6 +234,9 @@ export function DosPrompt({
     onDegauss,
     onStarfield,
     onJump,
+    floppy,
+    onEject,
+    onOpenDisk,
 }: {
     phosphor: Phosphor;
     onResume: () => void;
@@ -242,6 +245,10 @@ export function DosPrompt({
     onDegauss: () => void;
     onStarfield: () => void;
     onJump: () => void;
+    /** The disk in drive A:, if any (floppy.tsx) */
+    floppy: string | null;
+    onEject: () => void;
+    onOpenDisk: () => void;
 }) {
     const c = dosColours(phosphor);
     const [lines, setLines] = useState<Line[]>([{ text: "MIIT-DOS Version 3.30" }, { text: "Type HELP for a list of commands." }, { text: "" }]);
@@ -304,6 +311,8 @@ export function DosPrompt({
                 "DIR               list the files",
                 "TYPE <file>       show a file, e.g. TYPE CONTACT.TXT",
                 "TREE, MEM         the drive's folders, the memory",
+                "DIR A:, A:        what is on the floppy, and run it",
+                "EJECT             eject the floppy",
                 "RESUME            back to the resume",
                 "JUMP              back to the resume, at a section",
                 "PRINT             print the resume, then download it",
@@ -315,6 +324,32 @@ export function DosPrompt({
                 "VER, DATE, TIME   the usual",
                 "CLS               clear the screen",
             );
+        } else if ((cmd === "dir" || cmd === "ls") && /^A:?$/.test(arg)) {
+            if (!floppy) out.push({ text: "Not ready reading drive A", kind: "err" }, { text: "(Drag a disk from the box into the drive.)" });
+            else {
+                disk();
+                const files: Record<string, string[]> = {
+                    projects: ["PROJECTS EXE      41,216", "REPOS    DAT       8,192"],
+                    papers: ["PAPERS   EXE      36,864", "CITE     BIB       4,096"],
+                    contact: ["CONTACT  EXE      12,288", "MIIT     VCF       1,024"],
+                    games: ["SNAKE    EXE      24,576", "HISCORE  DAT         512"],
+                    blank: ["SIGN     EXE       9,216"],
+                    alien: ["?????    EXE      66,666", "MOTHERSH IP  [ACCESS DENIED]"],
+                };
+                say(` Volume in drive A is ${floppy === "alien" ? "UNKNOWN" : floppy === "blank" ? "SIGN ME" : floppy.toUpperCase()}`, " Directory of A:\\", "", ...(files[floppy] ?? []), "", "Type A: to run it.");
+            }
+        } else if (cmd === "a:") {
+            if (!floppy) out.push({ text: "Not ready reading drive A", kind: "err" }, { text: "(Drag a disk from the box into the drive.)" });
+            else {
+                onOpenDisk();
+                return;
+            }
+        } else if (cmd === "eject") {
+            if (!floppy) say("No disk in drive A");
+            else {
+                onEject();
+                say("Disk ejected.");
+            }
         } else if (cmd === "dir" || cmd === "ls") {
             disk();
             say(
@@ -382,7 +417,9 @@ export function DosPrompt({
             // The machine has one hard disk, C:, and an empty floppy drive, A:
             const drive = arg.replace(/:$/, "");
             if (!arg) out.push({ text: "Required parameter missing", kind: "err" });
-            else if (drive === "A") out.push({ text: "Not ready reading drive A", kind: "err" }, { text: "(There is no disk in the floppy drive.)" });
+            else if (drive === "A" && !floppy) out.push({ text: "Not ready reading drive A", kind: "err" }, { text: "(There is no disk in the floppy drive.)" });
+            else if (drive === "A" && floppy === "blank") say("That disk is for signing, not formatting. Type A: to sign it.");
+            else if (drive === "A") out.push({ text: "Write protect error writing drive A", kind: "err" }, { text: "(Miit slid the tab across. Wise.)" });
             else if (drive !== "C") out.push({ text: "Invalid drive specification", kind: "err" });
             else {
                 say("WARNING, ALL DATA ON NON-REMOVABLE DISK", "DRIVE C: WILL BE LOST!");

@@ -280,6 +280,15 @@ export const IdleAlien = () => {
                 /* ignore */
             }
         }
+        // Someone read his floppy on the resume page (app/resume/disks.tsx)
+        try {
+            if (localStorage.getItem("alien-floppy-read") === "1" && !localStorage.getItem("alien-floppy-thanked")) {
+                queue.push({ text: "You found my floppy! Don't tell the mothership." });
+                localStorage.setItem("alien-floppy-thanked", "1");
+            }
+        } catch {
+            /* ignore */
+        }
         if (!greetedAstronaut.current && currentSection() === "hero" && document.querySelector("[aria-label*='astronaut on a tether']")) {
             queue.push({ text: "Hey, little buddy!", hello: true });
             greetedAstronaut.current = true;
