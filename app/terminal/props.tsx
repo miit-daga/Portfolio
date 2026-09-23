@@ -57,11 +57,15 @@ export const Tower = forwardRef<HTMLDivElement, {
     on: boolean;
     asleep: boolean;
     plugged: { stick: Stick; port: 0 | 1 }[];
+    /** Terminal labels of drives unmounted but still plugged in */
+    unmounted: Set<string>;
     onPower: () => void;
     onPull: (stick: Stick) => void;
     hdd: boolean;
-}>(function Tower({ level, tint, on, asleep, plugged, onPower, onPull, hdd }, portRef) {
+}>(function Tower({ level, tint, on, asleep, plugged, unmounted, onPower, onPull, hdd }, portRef) {
     const reduce = useReducedMotion();
+    // The sticks' terminal labels are their ids upper-cased, bar the two named otherwise
+    const isIdle = (stick: Stick) => unmounted.has(stick.alien ? "ALIEN" : stick.id === "sign" ? "SIGNME" : stick.id.toUpperCase());
     return (
         <div className="absolute" style={{ left: TOWER.x, top: TOWER.y - 34, width: TOWER.w, height: TOWER.h + 34 }}>
             {/* the handle frame, rising above the body: a polished steel tube */}
@@ -86,12 +90,12 @@ export const Tower = forwardRef<HTMLDivElement, {
                         type="button"
                         onClick={() => onPull(stick)}
                         aria-label={`Pull out the ${stick.label || "unlabelled"} drive`}
-                        title="Pull it out (or type eject)"
+                        title={isIdle(stick) ? "Unmounted: pull it out, or type mount to use it again" : "Pull it out (eject only unmounts it)"}
                         className="absolute z-10 cursor-pointer"
                         // Seated in its port: the body's foot on the slot, the plug inside
                         style={{ left: PORT.x + port * 22 - 12, top: PORT.y + 3 - 56 }}
                         initial={{ y: -40, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
+                        animate={{ y: 0, opacity: isIdle(stick) ? 0.55 : 1 }}
                         exit={{ y: -60, opacity: 0, transition: { duration: 0.25 } }}
                         transition={{ type: "spring", stiffness: 420, damping: 22 }}
                     >
@@ -332,14 +336,14 @@ export function Mouse({ x, y, button, wheel, tint }: { x: MotionValue<number>; y
 
 // A 2 TB drive on its side, cabled to the tower. A click connects or disconnects
 // it; its light breathes while connected and flickers while the terminal works
-export function HardDrive({ on, busy, onClick }: { on: boolean; busy: boolean; onClick: () => void }) {
+export function HardDrive({ on, idle, busy, onClick }: { on: boolean; idle: boolean; busy: boolean; onClick: () => void }) {
     const reduce = useReducedMotion();
     return (
         <button
             type="button"
             onClick={onClick}
             aria-label={on ? "Disconnect the Time Capsule drive" : "Connect the Time Capsule drive"}
-            title={on ? "Time Capsule · connected (click to disconnect)" : "Time Capsule · 2 TB (click to connect)"}
+            title={on ? (idle ? "Time Capsule · unmounted (click to disconnect, or type mount timecapsule)" : "Time Capsule · connected (click to disconnect)") : "Time Capsule · 2 TB (click to connect)"}
             className="absolute rounded-[10px] text-left"
             style={{ left: 1186, top: 752, width: 88, height: 112, background: "linear-gradient(160deg, #3a3e45, #1d2025)", boxShadow: "0 16px 28px -12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.05)" }}
         >
@@ -353,8 +357,9 @@ export function HardDrive({ on, busy, onClick }: { on: boolean; busy: boolean; o
             <span className="absolute bottom-[12px] left-[12px] font-mono text-[6px] tracking-[0.2em] text-neutral-500">2 TB · USB-C</span>
             <motion.span
                 className="absolute bottom-[13px] right-[12px] h-[5px] w-[5px] rounded-full"
-                style={{ background: on ? "#38bdf8" : "#3f3f46", boxShadow: on ? "0 0 8px #38bdf8" : "none" }}
-                animate={on && !reduce ? (busy ? { opacity: [1, 0.2, 1, 0.4, 1] } : { opacity: [1, 0.35, 1] }) : { opacity: 1 }}
+                // Unmounted but connected: a steady amber, as drives show when idle
+                style={{ background: on ? (idle ? "#f59e0b" : "#38bdf8") : "#3f3f46", boxShadow: on ? `0 0 8px ${idle ? "#f59e0b" : "#38bdf8"}` : "none" }}
+                animate={on && !idle && !reduce ? (busy ? { opacity: [1, 0.2, 1, 0.4, 1] } : { opacity: [1, 0.35, 1] }) : { opacity: 1 }}
                 transition={on ? (busy ? { duration: 0.35, repeat: Infinity } : { duration: 2.4, repeat: Infinity }) : undefined}
             />
         </button>

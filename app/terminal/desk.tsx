@@ -64,6 +64,8 @@ export function Desk() {
     const pluggedRef = useRef(plugged);
     pluggedRef.current = plugged;
     const [hdd, setHdd] = useState(false);
+    // Connected but unmounted by a typed eject: still in its port, just idle
+    const [unmounted, setUnmounted] = useState<Set<string>>(new Set());
     const [notes, setNotes] = useState<Note[]>([]);
     const [qr, setQr] = useState(false);
     const [flight, setFlight] = useState<{ n: number; from: { x: number; y: number }; to: { x: number; y: number }; name: string } | null>(null);
@@ -180,8 +182,22 @@ export function Desk() {
             else if (d.type === "download") airDrop(d.filename || "Resume-Miit_Daga.pdf");
             else if (d.type === "notify") pushNote(d.app || "Terminal", d.text || "", "✍️");
             else if (d.type === "fullscreen") setFull((f) => !f);
-            else if (d.type === "eject") {
+            else if (d.type === "unmount" || d.type === "mounted") {
+                const label = (d as { label?: string }).label || "";
+                setUnmounted((u) => {
+                    const n = new Set(u);
+                    if (d.type === "unmount") n.add(label);
+                    else n.delete(label);
+                    return n;
+                });
+                if (d.type === "unmount") pushNote(label === "TIMECAPSULE" ? "Time Capsule" : "USB drive", `${label === "ALIEN" ? "?????" : label} unmounted · safe to remove`, "⏏️");
+            } else if (d.type === "eject") {
                 const label = (d as { label?: string }).label;
+                setUnmounted((u) => {
+                    const n = new Set(u);
+                    n.delete(label || "");
+                    return n;
+                });
                 playUsbOut();
                 if (label === "TIMECAPSULE") {
                     setHdd(false);
@@ -444,11 +460,11 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                 <div aria-hidden className="absolute left-[30px] top-[640px] h-[2px] w-[1380px] bg-gradient-to-r from-transparent via-teal-300/20 to-transparent" />
 
                 <Display asleep={asleep} glow={glow} />
-                <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} onPower={power} onPull={pull} hdd={hdd} />
+                <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} unmounted={unmounted} onPower={power} onPull={pull} hdd={hdd} />
                 <Phone ref={phoneRef} notes={notes} qr={qr} onTap={() => setQr((q) => !q)} airdrop={airdrop} />
                 <Keyboard pressed={pressed} tint={tint} />
                 <Mouse x={mouseX} y={mouseY} button={button} wheel={wheel} tint={tint} />
-                <HardDrive on={hdd} busy={hdd && busy} onClick={toggleHdd} />
+                <HardDrive on={hdd} idle={unmounted.has("TIMECAPSULE")} busy={hdd && busy && !unmounted.has("TIMECAPSULE")} onClick={toggleHdd} />
                 <Mug />
                 <Plant />
 

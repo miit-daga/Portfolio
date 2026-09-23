@@ -5792,6 +5792,12 @@
             TIMECAPSULE: { files: ['journey.log', 'coffee.log'], open: null },
         };
         const mounted = new Set(); // labels of the drives in the tower (two ports, and the hard drive)
+        // What is physically connected on the desk: only the desk adds to this, so a
+        // typed mount cannot conjure a drive that is not there
+        const connected = new Set();
+        // Drives being pulled out on the desk: their eject disconnects them too.
+        // A typed eject only unmounts; the drive stays in its port
+        const pulling = new Set();
         const JOURNEY = [
             ['2008', "St. Helen's School · ICSE Class X, 91.6%"],
             ['2020', 'Swami Vivekananda Vidyamandir · CBSE Class XII, 92%'],
@@ -5830,9 +5836,16 @@
                 else if (!which.length) await typeRaw(`<span class="error-text">eject: ${escapeHtml(want)} is not mounted.</span>`);
                 else {
                     for (const l of which) {
-                        await typeRaw(`<span class="highlight-dim">"${escapeHtml(l)}" can now be safely removed.</span>`);
                         mounted.delete(l);
-                        deskSay('eject', { label: l });
+                        if (pulling.has(l)) {
+                            pulling.delete(l);
+                            connected.delete(l);
+                            await typeRaw(`<span class="highlight-dim">"${escapeHtml(l)}" unmounted and disconnected.</span>`);
+                            deskSay('eject', { label: l });
+                        } else {
+                            await typeRaw(`<span class="highlight-dim">"${escapeHtml(l)}" unmounted. It can now be safely removed, or mounted again with</span> <span class="highlight-value">mount ${escapeHtml(l.toLowerCase())}</span>`);
+                            deskSay('unmount', { label: l });
+                        }
                     }
                 }
                 endTurn();
@@ -5846,14 +5859,38 @@
             // mount LABEL, or ls/cd /Volumes/LABEL
             const label = command.replace(/^(mount|ls|cd)\s*(\/volumes\/)?/i, '').trim().toUpperCase();
             const vol = VOLUMES[label];
-            if (!vol) {
+            const verb = cmd.split(/\s+/)[0];
+            // ls / cd only look at a drive that is mounted; they never mount one
+            if (verb !== 'mount') {
+                if (vol && mounted.has(label)) await typeRaw(vol.files.map((f) => `  ${escapeHtml(f)}`).join('\n'));
+                else {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">${verb}: /Volumes/${escapeHtml(label)}: No such file or directory</span>`);
+                }
+                endTurn();
+                return;
+            }
+            if (!label) {
                 SoundFX.error();
-                await typeRaw(`<span class="error-text">${escapeHtml(label || 'mount')}: no such volume.</span>`);
+                await typeRaw('<span class="error-text">mount: which drive?</span> Usage: mount &lt;drive&gt;, once it is plugged in on the desk.');
+                endTurn();
+                return;
+            }
+            if (!vol || !connected.has(label)) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">mount: no drive named ${escapeHtml(label)} is plugged in.</span>`);
+                await typeRaw('<span class="highlight-dim">Plug one in from the tray on the desk (or connect the Time Capsule), and it mounts itself.</span>');
+                endTurn();
+                return;
+            }
+            if (mounted.has(label)) {
+                await typeRaw(`<span class="highlight-dim">${escapeHtml(label)} is already mounted at /Volumes/${escapeHtml(label)}.</span>`);
                 endTurn();
                 return;
             }
             SoundFX.dataBurst();
             mounted.add(label);
+            deskSay('mounted', { label });
             await typeRaw(`<span class="highlight-dim">USB drive mounted at</span> <span class="highlight-value">/Volumes/${escapeHtml(label)}</span>`);
             await typeRaw(vol.files.map((f) => `  ${escapeHtml(f)}`).join('\n'));
             if (label === 'SIGNME') {
@@ -5902,12 +5939,25 @@
         if (DESK) {
             MOCK_DATA.commands.push('mount', 'eject', 'fullscreen');
             ARG_TARGETS.eject = () => [...mounted].map((l) => l.toLowerCase());
+            ARG_TARGETS.mount = () => [...connected].filter((l) => !mounted.has(l)).map((l) => l.toLowerCase());
         }
 
         // Called by the desk when a stick goes into the tower, and when it is pulled out
         const whenIdle = (fn) => (isTyping ? window.setTimeout(() => whenIdle(fn), 250) : fn());
-        window.deskMount = (label) => whenIdle(() => runCommand(`mount ${label}`));
-        window.deskEject = (label) => { if (mounted.has(label)) whenIdle(() => runCommand(`eject ${label}`)); };
+        window.deskMount = (label) => {
+            connected.add(label);
+            whenIdle(() => runCommand(`mount ${label}`));
+        };
+        window.deskEject = (label) => {
+            if (mounted.has(label)) {
+                pulling.add(label);
+                whenIdle(() => runCommand(`eject ${label}`));
+            } else {
+                // pulled out while not mounted (ejected by command already, or still waiting)
+                connected.delete(label);
+                deskSay('eject', { label });
+            }
+        };
 
         // Games draw in a fixed overlay of their own; tell the desk while one is up
         if (DESK) {
