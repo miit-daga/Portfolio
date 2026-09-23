@@ -18,11 +18,23 @@ const HOURS: ({ until: number } & KolkataMood)[] = [
   { until: 24, label: "late-night commits", color: "#a78bfa", reply: "expect a reply by morning" },
 ];
 
+/** ?kolkata=<0-23> previews an hour in Kolkata (the sleeping astronaut, the alien's torch). */
+function previewHour(): number | null {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("kolkata");
+  const h = raw === null || raw === "" ? NaN : Number(raw);
+  return Number.isInteger(h) && h >= 0 && h <= 23 ? h : null;
+}
+
 export function kolkataNow(date: Date = new Date()): { hour: number; time: string; mood: KolkataMood } {
-  const hour = Number(
+  const preview = previewHour();
+  const hour = preview ?? Number(
     new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", hourCycle: "h23" }).format(date),
   );
-  const time = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }).format(date);
+  const time =
+    preview !== null
+      ? `${preview % 12 || 12}:00 ${preview < 12 ? "AM" : "PM"}`
+      : new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }).format(date);
   const mood = HOURS.find((h) => hour < h.until) ?? HOURS[0];
   return { hour, time, mood };
 }
