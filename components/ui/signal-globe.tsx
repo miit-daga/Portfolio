@@ -18,7 +18,8 @@ import { LAND_COLS, LAND_MASK, LAND_ROWS, LAND_STEP } from "@/constants/land-mas
 //               back to facing the signal arc
 //   Continents  dot-matrix land, with city lights on the night side
 //   Explore     hover anywhere for the nearest city, its local time, and how
-//               far it is from Kolkata at lightspeed (GeoNames, CC BY 4.0)
+//               far it is from Kolkata at lightspeed (Natural Earth's
+//               populated places, public domain, in public/data/cities.json)
 //   Ping        click: a pulse runs to Kolkata and back while the browser
 //               times a real round trip to this site's nearest server
 //   ISS         hover it for live altitude and speed; click to follow it
@@ -930,7 +931,8 @@ function HomeCard({
         for (let ty = Math.floor(top / 256); ty <= Math.floor((top + VIEW) / 256); ty++) tiles.push({ x: tx, y: ty });
     const scale = IMG / VIEW;
     const now = clock ? kolkataNow(clock) : null;
-    const pretty = new Date(`${date}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const [, mm, dd] = date.split("-").map(Number);
+    const pretty = `${dd} ${"Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ")[mm - 1]}`;
 
     return (
         <motion.div
@@ -985,7 +987,7 @@ function HomeCard({
                     <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,1)]" />
                     <span className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-amber-300/70 motion-reduce:animate-none" />
                     <span className="absolute bottom-1.5 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
-                        NASA Terra · MODIS · {pretty}
+                        from orbit · NASA · {pretty}
                     </span>
                 </div>
 
