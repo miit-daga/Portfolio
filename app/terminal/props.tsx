@@ -751,7 +751,8 @@ function MusicApp({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 // ---- Desk touches -----------------------------------------------------------
 
-const CHAI_TIME = ["morning coffee", "evening chai", "waking up slowly", "lunch break", "late-night commits"];
+// Morning and evening in Kolkata (lib/kolkata.ts): 6 to 10 am, and 5 to 6 pm
+const CHAI_TIME = ["waking up slowly", "morning coffee", "evening chai"];
 export const isChaiTime = () => CHAI_TIME.includes(kolkataNow().mood.label);
 /** Is it chai-time in Kolkata? Checked every minute. */
 export function useChaiTime() {
