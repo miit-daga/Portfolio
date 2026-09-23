@@ -5,7 +5,7 @@ import {
   motion,
   AnimatePresence,
   useScroll,
-  useMotionTemplate,
+  useTransform,
   useMotionValue,
   useMotionValueEvent,
   useSpring,
@@ -90,7 +90,11 @@ export const FloatingNav = ({
   const [sizes, setSizes] = useState({ fullW: 0, fullH: 0, compactW: 0, compactH: 0 });
   const insetX = useSpring(0, { stiffness: 260, damping: 32 });
   const insetY = useSpring(0, { stiffness: 260, damping: 32 });
-  const contentClip = useMotionTemplate`inset(${insetY}px ${insetX}px -400px ${insetX}px)`;
+  // Clipped only while it closes in or opens out; fully open it clips nothing,
+  // so hover cards reaching past the bar's ends are not sliced off
+  const contentClip = useTransform([insetX, insetY], ([x, y]: number[]) =>
+    x < 0.5 && y < 0.5 ? "none" : `inset(${y}px ${x}px -400px ${x}px)`
+  );
   // Comet trail left by a long jump of the active pill
   const barRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
@@ -576,7 +580,8 @@ export const FloatingNav = ({
             <AnimatePresence>
               {preview === "resume" && (
                 <motion.span
-                  className="pointer-events-none absolute left-1/2 top-full z-20 mt-3 block w-max -translate-x-1/2 rounded-xl border border-teal-400/35 bg-slate-950/95 px-3 py-2 text-left backdrop-blur-md"
+                  // Right-aligned: Resume is the bar's last item, so a centred card would hang off its end
+                  className="pointer-events-none absolute right-0 top-full z-20 mt-3 block w-max rounded-xl border border-teal-400/35 bg-slate-950/95 px-3 py-2 text-left backdrop-blur-md"
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
