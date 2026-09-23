@@ -297,6 +297,9 @@ const TiltCard = ({
             the card itself lets clicks fall through to it; only the abstract
             toggle opts back in. */}
         <Card className={cn("w-full h-full", hasValidLink && "pointer-events-none")} isHovered={hoveredIndex === idx} variant="log">
+          {/* For the command palette's search (command-menu.tsx): the full
+              abstract and summary, whichever is on screen */}
+          <span hidden data-search={`${item.venue ?? ""} ${item.description} ${item.tldr ?? ""} ${isPatent ? "patent filed" : "peer reviewed scopus indexed journal paper research"}`} />
           {/* Log index + type badge + venue */}
           <div className="flex flex-wrap items-center gap-2 pr-14">
             <span className="font-mono text-[10px] tracking-[0.25em] text-violet-300/60">

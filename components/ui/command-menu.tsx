@@ -61,7 +61,16 @@ type Hit = { id: string; label: string; section: string; hint?: string; keywords
 // on screen (projects arrive from GitHub after load)
 function indexPage(): Hit[] {
     const hits: Hit[] = [];
-    const text = (el: Element | null | undefined) => (el?.textContent || "").replace(/\s+/g, " ").trim();
+    // Each piece of text on its own, joined by spaces: textContent runs
+    // neighbouring labels together ("JournalScientific"), and a search that
+    // matches at the start of words then never finds them
+    const text = (el: Element | null | undefined) => {
+        if (!el) return "";
+        const parts: string[] = [];
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) parts.push(n.nodeValue || "");
+        return parts.join(" ").replace(/\s+/g, " ").trim();
+    };
     const add = (h: Omit<Hit, "id">) => hits.push({ ...h, id: `${h.section}:${h.label}:${hits.length}` });
 
     document.querySelectorAll("#workex [role=button]").forEach((card) => {
@@ -90,7 +99,9 @@ function indexPage(): Hit[] {
     });
     document.querySelectorAll("#publications h4").forEach((h) => {
         const card = h.closest(".group") ?? h;
-        add({ label: text(h), section: "Publications", keywords: [text(card).slice(0, 600)], el: card });
+        // The whole abstract too, which is not on screen while the plain-English version shows
+        const extra = card.querySelector("[data-search]")?.getAttribute("data-search") ?? "";
+        add({ label: text(h), section: "Publications", keywords: [`${text(card)} ${extra}`.slice(0, 4000)], el: card });
     });
     return hits;
 }
