@@ -1103,21 +1103,23 @@ const FEEDS: Record<Feed, { label: string; embed: string | null; link: string; l
         embed: "live_stream?channel=UCkvW_7kp9LJrztmgA4q4bJQ",
         link: "https://www.youtube.com/@Sen/live",
         live: true,
-        note: "Sen's 4K cameras on the station, live around the clock.",
+        // When the station's link drops (several times an orbit) it replays
+        // recent footage, badged REPLAY, rather than going blank
+        note: "Sen's 4K cameras on the station, live. When the station loses its link to the ground, it replays recent footage, marked REPLAY.",
     },
     nasa: {
         label: "NASA",
         embed: "videoseries?list=PL2aBZuCeDwlQMf6xMgQAUAY_nbHAgW5jz",
         link: "https://www.youtube.com/playlist?list=PL2aBZuCeDwlQMf6xMgQAUAY_nbHAgW5jz",
         live: true,
-        note: "NASA's own HD cameras on the station, live.",
+        note: "NASA's own HD cameras on the station, live. It pauses with a notice whenever the station loses its link to the ground.",
     },
     afar: {
         label: "overview",
         embed: "OKQEMp2555A",
         link: "https://www.youtube.com/watch?v=OKQEMp2555A",
         live: true,
-        note: "afarTV's overview camera, with the straight-down view inset. Archived video fills in when the live feed drops.",
+        note: "afarTV's overview camera, with the straight-down view inset. Archived video, marked OFFLINE, fills in when the link drops.",
     },
     dream: {
         label: "Dream Trips",
