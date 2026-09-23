@@ -9,6 +9,7 @@ import {
     useMotionValue,
     useSpring,
     useTransform,
+    type LegacyAnimationControls as AnimationControls,
     type MotionValue,
 } from "framer-motion";
 import { IconVolume } from "@tabler/icons-react";
@@ -24,8 +25,8 @@ import { cn } from "@/lib/utils";
 //               snap back with a burst
 //   Say it      hover the name a moment (long-press on a phone) for how to
 //               say it, with a button that says it aloud
-//   Neighbours  the letters shudder when the rocket takes off or lands
-//               nearby, and lean away from the idle alien as he walks past
+//   Neighbours  the letters shudder when the rocket lands on its pad nearby,
+//               and lean away from the idle alien as he walks past
 //   "miit"      type it while the hero is on screen and the letters wave
 
 const NAME = "Miit Daga";
@@ -75,9 +76,16 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
     const [speaking, setSpeaking] = useState(false);
     const sayTimer = useRef<number | null>(null);
     const suppressKnock = useRef(false);
-    // Neighbours and the wave, as keys the letters react to
-    const [shake, setShake] = useState(0);
-    const [wave, setWave] = useState(0);
+    // The shudder and the wave play straight on each letter's controls, so
+    // they never re-render the name (the rocket is mid-flight when it lands)
+    const fxControls = useRef(new Map<number, AnimationControls>());
+    const registerFx = (i: number, c: AnimationControls | null) => {
+        if (c) fxControls.current.set(i, c);
+        else fxControls.current.delete(i);
+    };
+    const playFx = (make: (i: number) => Parameters<AnimationControls["start"]>[0]) => {
+        fxControls.current.forEach((c, i) => c.start(make(i)));
+    };
     // How far each letter leans away from the alien, in degrees
     const leans = useMemo(() => Array.from(NAME, () => motionValue(0)), []);
 
@@ -189,18 +197,25 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
         sayTimer.current = null;
     };
 
-    // The rocket's pad sits in the hero: its takeoffs and landings shake the letters
+    // The rocket's pad sits in the hero: a landing shakes the letters. (It
+    // takes off only once the name has scrolled away, so that one is not felt.)
     useEffect(() => {
         if (reduce) return;
         const jolt = () => {
-            if (window.scrollY < window.innerHeight * 0.8) setShake(Date.now());
+            if (window.scrollY > window.innerHeight * 0.8) return;
+            // Just as it touches down, not as it starts descending
+            window.setTimeout(
+                () =>
+                    playFx((i) => ({
+                        x: [0, -2.5, 2.5, -2, 1.5, -1, 0],
+                        y: [0, 1, -1, 1, 0, 0, 0],
+                        transition: { duration: 0.6, delay: i * 0.025 },
+                    })),
+                1100,
+            );
         };
-        window.addEventListener("rocket-depart", jolt);
         window.addEventListener("rocket-arrive", jolt);
-        return () => {
-            window.removeEventListener("rocket-depart", jolt);
-            window.removeEventListener("rocket-arrive", jolt);
-        };
+        return () => window.removeEventListener("rocket-arrive", jolt);
     }, [reduce]);
 
     // Typing "miit" while the hero is up waves the letters
@@ -214,7 +229,7 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
             typed = (typed + e.key.toLowerCase()).slice(-4);
             if (typed === "miit" && window.scrollY < window.innerHeight * 0.7) {
                 typed = "";
-                setWave(Date.now());
+                playFx((i) => ({ y: [0, -24, 0], transition: { duration: 0.55, delay: i * 0.07, ease: "easeOut" } }));
             }
         };
         window.addEventListener("keydown", onKey);
@@ -224,12 +239,20 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
     // The idle alien walking past: letters near him lean away
     useEffect(() => {
         if (reduce || !boxes.length) return;
+        let leaning = false;
         const id = window.setInterval(() => {
+            // Cheap checks first: no layout reads unless he is here and so is the name
+            const el = window.scrollY < window.innerHeight ? document.querySelector("[data-idle-alien]") : null;
+            if (!el) {
+                if (leaning) leans.forEach((l) => l.set(0));
+                leaning = false;
+                return;
+            }
+            leaning = true;
             const h = ref.current?.getBoundingClientRect();
-            const alien = document.querySelector("[data-idle-alien]")?.getBoundingClientRect();
-            const onScreen = h && h.bottom > 0 && h.top < window.innerHeight;
+            const alien = el.getBoundingClientRect();
             boxes.forEach((b, i) => {
-                if (!alien || !h || !onScreen || !b.width) return leans[i].set(0);
+                if (!h || !b.width) return leans[i].set(0);
                 const dx = h.left + b.left + b.width / 2 - (alien.left + alien.width / 2);
                 const near = Math.max(0, 1 - Math.abs(dx) / 380);
                 leans[i].set(Math.sign(dx) * 11 * near);
@@ -349,8 +372,7 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
                     starlines={hover}
                     reduce={reduce}
                     champion={champion}
-                    shake={shake}
-                    wave={wave}
+                    registerFx={registerFx}
                     lean={leans[i]}
                     onDriftStart={onDriftStart}
                     onDriftEnd={onDriftEnd}
@@ -374,8 +396,7 @@ function Letter({
     starlines,
     reduce,
     champion,
-    shake,
-    wave,
+    registerFx,
     lean,
     onDriftStart,
     onDriftEnd,
@@ -393,8 +414,7 @@ function Letter({
     starlines: boolean;
     reduce: boolean | null;
     champion: number;
-    shake: number;
-    wave: number;
+    registerFx: (i: number, c: AnimationControls | null) => void;
     lean: MotionValue<number>;
     onDriftStart: () => void;
     onDriftEnd: () => void;
@@ -451,18 +471,22 @@ function Letter({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [champion]);
 
-    // The rocket's jolt, and the "miit" wave
+    // The rocket's jolt and the "miit" wave, played by the name on these controls
     const fx = useAnimationControls();
     useEffect(() => {
-        if (!shake || space) return;
-        fx.start({ x: [0, -2.5, 2.5, -2, 1.5, -1, 0], y: [0, 1, -1, 1, 0, 0, 0], transition: { duration: 0.6, delay: index * 0.025 } });
+        if (space) return;
+        registerFx(index, fx);
+        return () => registerFx(index, null);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [shake]);
+    }, []);
+
+    // The dust has settled once it has gathered: drop it, so it costs nothing later
+    const [dustDone, setDustDone] = useState(!!reduce);
     useEffect(() => {
-        if (!wave || space) return;
-        fx.start({ y: [0, -24, 0], transition: { duration: 0.55, delay: index * 0.07, ease: "easeOut" } });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [wave]);
+        if (reduce) return;
+        const id = window.setTimeout(() => setDustDone(true), (0.55 + index * 0.06 + 1.4) * 1000);
+        return () => window.clearTimeout(id);
+    }, [reduce, index]);
 
     // Stardust: where this letter's dust starts and settles
     const dust = useMemo(
@@ -531,7 +555,7 @@ function Letter({
                 </motion.span>
 
                 {/* Stardust gathering into it */}
-                {!reduce &&
+                {!dustDone &&
                     dust.map((d, k) => (
                         <motion.span
                             key={k}

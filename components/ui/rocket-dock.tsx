@@ -70,13 +70,16 @@ export const RocketDock = ({ className }: { className?: string }) => {
         reduce || state === "parked"
             ? { y: 0, opacity: 1 }
             : state === "landing"
-                ? { y: [-460, -60, 0], opacity: [0, 1, 1] }
+                ? { y: [-460, 0], opacity: [0, 1] }
                 : state === "takeoff"
                     ? { y: [0, 4, -520], opacity: [1, 1, 0] }
                     : { y: -520, opacity: 0 };
     const rocketTransition =
         state === "landing"
-            ? { duration: 1.35, times: [0, 0.7, 1], ease: ["easeIn", "easeOut"] as ("easeIn" | "easeOut")[] }
+            // One braking curve, fast in and easing down to touchdown. It used to
+            // switch from easeIn to easeOut 60px up, and the sudden drop in
+            // speed read as the rocket stalling in mid-air
+            ? { y: { duration: 1.35, ease: [0.25, 0.6, 0.3, 1] as [number, number, number, number] }, opacity: { duration: 0.3 } }
             : state === "takeoff"
                 ? { duration: 0.9, times: [0, 0.15, 1], ease: "easeIn" as const }
                 : { duration: 0 };
