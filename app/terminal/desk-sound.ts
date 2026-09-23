@@ -208,12 +208,32 @@ export function playDrawer(open: boolean) {
     tone(a, open ? 120 : 90, t + 0.3, 0.08, 0.08);
 }
 
-/** The webcam's shutter. */
+/** The webcam's shutter: a crisp two-part click, as a camera's mirror flips and returns. */
 export function playShutter() {
     whenAudio((a) => {
         const t = a.currentTime + 0.01;
-        whoosh(a, t, 0.06, 3000, 5000, 0.1, 0.8);
-        whoosh(a, t + 0.09, 0.06, 5000, 2600, 0.08, 0.8);
+        const click = (at: number, level: number, from: number) => {
+            const n = noise(a, 0.05);
+            const hp = a.createBiquadFilter();
+            hp.type = "highpass";
+            hp.frequency.value = from;
+            const g = a.createGain();
+            g.gain.setValueAtTime(level, at);
+            g.gain.exponentialRampToValueAtTime(0.0001, at + 0.04);
+            n.connect(hp).connect(g).connect(a.destination);
+            n.start(at);
+            n.stop(at + 0.05);
+            tone(a, 160, at, 0.05, level * 0.5);
+        };
+        click(t, 0.4, 1800);
+        click(t + 0.11, 0.28, 2600);
+    });
+}
+
+/** The selfie's countdown: a beep for each number, and a higher one for the picture. */
+export function playCountBeep(last: boolean) {
+    whenAudio((a) => {
+        tone(a, last ? 1760 : 880, a.currentTime + 0.01, last ? 0.2 : 0.12, 0.09);
     });
 }
 

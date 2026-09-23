@@ -6017,6 +6017,7 @@
             });
         }
         async function rubberDuck() {
+            deskSay('quack');
             await typeRaw('<span style="color:#facc15">🦆 The duck is listening.</span> <span class="highlight-dim">Explain your bug. Empty line or Esc to stop.</span>');
             for (let turn = 0; turn < 12; turn++) {
                 const said = await duckAsk();
@@ -6054,11 +6055,13 @@
                 return;
             }
             const id = `cheese-${Date.now()}`;
+            deskSay('selfie-count', { last: false });
             await typeRaw(`<span class="highlight-value" id="${id}">Say cheese! 3…</span>`);
             for (const n of ['2…', '1…', '📸']) {
                 await pause(800);
                 const el = document.getElementById(id);
                 if (el) el.textContent += ` ${n}`;
+                if (n !== '📸') deskSay('selfie-count', { last: false });
             }
             const shot = await askDesk('selfie-snap', 10000);
             deskReply = null;

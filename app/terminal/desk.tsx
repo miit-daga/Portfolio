@@ -6,6 +6,7 @@ import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickAr
 import { Drawer, Duck, Life, Webcam, asciiFrame, closeCamera, openCamera, type Camera } from "./desk-extras";
 import {
     playAirDrop,
+    playCountBeep,
     playDrawer,
     playHum,
     playMusic,
@@ -314,6 +315,7 @@ export function Desk() {
                 setFreshUntil(Date.now() + 20 * 60000);
                 pushNote("Chai", "Fresh cup poured from the terminal. Careful, it is hot", "☕");
             }
+            else if (d.type === "selfie-count") playCountBeep(false);
             else if (d.type === "quack") {
                 playQuack();
                 setQuack((q) => q + 1);
@@ -781,8 +783,8 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         }
         pushNote("Cosmic fragment", "Pocketed. It counts toward the hunt on the main page", "✦");
     };
+    // the duck bobs at once; the terminal's duck command quacks
     const askDuck = () => {
-        playQuack();
         setQuack((q) => q + 1);
         whenReady(() => {
             term()?.runCommandFromClick?.("duck");
