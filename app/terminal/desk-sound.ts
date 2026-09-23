@@ -307,7 +307,7 @@ export function stopMusic() {
     music = null;
 }
 
-/** The voice memo AirDropped from the phone: four seconds of someone humming. */
+/** The voice memo AirDropped from the phone: a four-second hummed tune, synthesised here, no one's recording. */
 export function playHum() {
     const a = audio();
     if (!a) return;

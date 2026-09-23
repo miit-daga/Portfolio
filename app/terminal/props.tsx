@@ -685,7 +685,7 @@ const SENDABLE: (SendItem & { what: string })[] = [
     { id: "postcard", name: "howrah-bridge.txt", icon: "🌉", what: "A postcard from Kolkata" },
     { id: "wallpaper", name: "wallpaper.theme", icon: "🎨", what: "A new colour for the terminal" },
     { id: "note", name: "note-to-self.txt", icon: "🐮", what: "A reminder, read out by a cow" },
-    { id: "memo", name: "voice-memo.m4a", icon: "🎙️", what: "Four seconds of humming" },
+    { id: "memo", name: "voice-memo.m4a", icon: "🎙️", what: "A hummed tune, made by the browser" },
     { id: "snake", name: "snake.app", icon: "🐍", what: "A game, to play on the big screen" },
 ];
 
