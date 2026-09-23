@@ -29,6 +29,7 @@ import { RESUME_PAGE, RESUME_DOWNLOAD_URL } from "@/lib/resume";
 import { SECTIONS } from "@/constants/sections";
 import { SKILL_USAGE, FALLBACK_USAGE } from "@/constants/skill-usage";
 import { saveContact } from "@/components/ui/contact-actions";
+import { glideTo } from "@/lib/glide";
 
 // The Cmd/Ctrl+K palette.
 //
@@ -108,34 +109,6 @@ function paletteFilter(value: string, search: string, keywords?: string[]): numb
     if (!words.every((w) => starts(body, w))) return 0;
     const head = (keywords?.[0] ?? "").toLowerCase();
     return words.every((w) => starts(head, w) || starts(label, w)) ? 1 : 0.4;
-}
-
-function glideTo(el: Element, then?: () => void) {
-    const r = el.getBoundingClientRect();
-    const top = window.scrollY + r.top - window.innerHeight / 2 + r.height / 2;
-    window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-    window.setTimeout(() => {
-        const h = el as HTMLElement;
-        const prev = { outline: h.style.outline, offset: h.style.outlineOffset, radius: h.style.borderRadius };
-        h.style.outline = "2px solid rgba(45,212,191,0)";
-        h.style.outlineOffset = "6px";
-        if (!prev.radius) h.style.borderRadius = "12px";
-        const anim = h.animate(
-            [
-                { outlineColor: "rgba(45,212,191,0)" },
-                { outlineColor: "rgba(45,212,191,0.95)", offset: 0.15 },
-                { outlineColor: "rgba(45,212,191,0.95)", offset: 0.75 },
-                { outlineColor: "rgba(45,212,191,0)" },
-            ],
-            { duration: 1900, easing: "ease-in-out" },
-        );
-        anim.onfinish = () => {
-            h.style.outline = prev.outline;
-            h.style.outlineOffset = prev.offset;
-            h.style.borderRadius = prev.radius;
-        };
-        then?.();
-    }, 750);
 }
 
 export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) {

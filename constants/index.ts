@@ -46,4 +46,4 @@ export const socials: {
 ]
 
 
-export const aboutme = "As a recent B.Tech graduate in Information Technology from Vellore Institute of Technology, I have a deep passion for backend development and a strong interest in AI and ML. Currently diving into Deep Learning, I eagerly explore new ideas and expand my expertise. Fluent in English, Hindi, Gujarati, and Bengali, engaging with diverse communities and embracing challenges comes naturally. A quick learner and team player, contributing, collaborating, and growing alongside peers is always a priority. Actively seeking opportunities to work on projects that enhance my skills and create a meaningful impact."
+export const aboutme = "I’m a software development engineer who loves backend development, with a B.Tech in Information Technology from VIT. I’m deep into AI and ML, currently Deep Learning, and happiest turning ideas into systems people use. I speak English, Hindi, Gujarati and Bengali, and I learn fast and work best alongside a team."
