@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion, use
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroNebula } from "./ui/hero-nebula"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
+import { HeroName } from "./ui/hero-name"
 import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
 import { AstronautBuddy } from "./ui/astronaut"
@@ -218,21 +219,19 @@ const Hero = () => {
 
           {/* --- LEFT SIDE: TEXT CONTENT --- */}
           <div className="flex flex-col items-center lg:items-end text-center lg:text-right z-10 order-2 lg:order-1 lg:w-1/2">
-            <h1 className={cn("font-display bg-clip-text text-transparent text-6xl md:text-8xl lg:text-9xl drop-shadow-2xl text-white tracking-tight font-bold", isGlitching && "text-glitch")}>
-              Miit Daga
-            </h1>
+            <HeroName glitching={isGlitching} reduce={shouldReduceMotion} />
 
             <div className="mt-2 lg:mt-6 flex justify-center lg:justify-end w-full">
               <HeroTypewriterEffect
                 words={[
-                  { text: "Code", className: "text-teal-400" },
+                  { text: "Code", className: "text-amber-300" },
                   { text: "That", className: "text-neutral-300" },
                   { text: "Powers", className: "text-neutral-300" },
                   { text: "the", className: "text-neutral-300" },
-                  { text: "Unseen.", className: "text-teal-400" },
+                  { text: "Unseen.", className: "text-amber-300" },
                 ]}
                 className="text-xl md:text-2xl lg:text-4xl font-light"
-                cursorClassName="bg-teal-400"
+                cursorClassName="bg-amber-300"
                 repeatDelay={5000}
                 isGlitching={isGlitching}
               />

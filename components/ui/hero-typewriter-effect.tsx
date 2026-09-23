@@ -128,7 +128,9 @@ export const HeroTypewriterEffect = ({
                                         opacity: 0,
                                     }}
                                     key={`char-${index}-${animationCycle}`}
-                                    className={cn("dark:text-white text-black", word.className)}
+                                    // A word's own colour replaces the default (dark:text-white
+                                    // would otherwise win over it)
+                                    className={cn(!word.className && "dark:text-white text-black", word.className)}
                                 >
                                     {char}
                                 </motion.span>
