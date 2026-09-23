@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useCollectibles, FRAGMENT_IDS, playPickup } from "./collectibles";
 import { kolkataNow } from "@/lib/kolkata";
-import { Ufo } from "./signal-rings";
+import { Ufo } from "./ufo";
 
 // After 10s of inactivity an alien walks in from the right edge (in profile,
 // legs actually stepping), strolls to the centre of the screen, turns to face

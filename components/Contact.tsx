@@ -8,6 +8,7 @@ import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabl
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
+import { useMailCourier } from "./ui/mail-courier";
 
 // The scenes at the foot of the page (UFO, crew card with its QR library,
 // globe, pass printer) load in their own chunks after first paint. The
@@ -31,7 +32,11 @@ type ContactType = "email" | "phone" | null;
 
 const CONTACT = getSection("contact");
 
+const MAILTO = "mailto:miitcodes27@gmail.com?subject=Hello%20from%20miitdaga.dev";
+
 export function Contact() {
+    // "Send a message" is delivered by the scene's saucer (mail-courier.tsx)
+    const courier = useMailCourier(MAILTO);
     const [emailCopied, setEmailCopied] = useState(false);
     const [phoneCopied, setPhoneCopied] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -109,7 +114,8 @@ export function Contact() {
 
                     {/* The one call to action, above the rows and the scenery */}
                     <a
-                        href="mailto:miitcodes27@gmail.com?subject=Hello%20from%20miitdaga.dev"
+                        href={MAILTO}
+                        onClick={courier.launch}
                         className="group mt-8 inline-flex items-center gap-3 rounded-full px-7 py-3.5 text-base font-semibold text-neutral-950 shadow-[0_0_32px_rgba(251,191,36,0.35)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_44px_rgba(251,191,36,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                         style={{ background: `linear-gradient(135deg, ${CONTACT.pale}, ${CONTACT.light} 45%, ${CONTACT.hex})` }}
                     >
@@ -203,6 +209,8 @@ export function Contact() {
                     </div>
                 </div>
             </div>
+
+            {courier.node}
 
             {/* PORTAL for Mobile Modals */}
             {mounted && createPortal(
