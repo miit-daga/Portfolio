@@ -29,7 +29,7 @@ const VCARD = [
     "END:VCARD",
 ].join("\r\n");
 
-function saveContact() {
+export function saveContact() {
     const url = URL.createObjectURL(new Blob([VCARD], { type: "text/vcard" }));
     const a = document.createElement("a");
     a.href = url;
@@ -377,6 +377,13 @@ export const ContactActions = () => {
 
     // Never leave the camera on
     useEffect(() => () => camera?.getTracks().forEach((t) => t.stop()), [camera]);
+
+    // The command palette asks for the pass by event (command-menu.tsx)
+    useEffect(() => {
+        const onOpen = () => issuePass();
+        window.addEventListener("open-visitor-pass", onOpen);
+        return () => window.removeEventListener("open-visitor-pass", onOpen);
+    }, [issuePass]);
 
     useEffect(() => {
         if (!pass) return;

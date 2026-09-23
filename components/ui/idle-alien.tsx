@@ -26,6 +26,8 @@ import { Ufo } from "./ufo";
 const IDLE_MS = 10000;
 // Browsing untouched this long, and his ride comes
 const BEAM_AFTER_MS = 40000;
+// Summoned from the command palette: he stays this long, ignoring the mouse
+const SUMMONED_STAY_MS = 20000;
 const SIGHTINGS_KEY = "alien-sightings";
 const CAUGHT_KEY = "alien-caught";
 
@@ -38,7 +40,7 @@ const ALIEN_LINES = [
     "I was told there would be snacks.",
     "Interesting species. Writes TypeScript.",
     "Earth UI has gotten better, honestly.",
-    "Should I sign the guestbook?",
+    "I hear the terminal has a guestbook. Should I sign it?",
     "Our pilots could learn from this one.",
     "No bugs spotted. Suspicious.",
     "I could abduct this website. Hypothetically.",
@@ -60,10 +62,24 @@ const SECTION_LINES: Record<string, string[]> = {
     "about-me": ["Four human languages. Show-off.", "A quick learner, it says. We'll see."],
     workex: ["Five missions already. Does he sleep?", "Tata Power. Could they spare some for my ship?", "Remote work. Like us. From very remote."],
     education: ["9.22 out of 10. We grade in light-years.", "Twelve years at one school. Commitment."],
-    "skills-achievements": ["Two second places. Where's first, Earthling?", "He knows Git. Respect.", "FastAPI. Fast? We have warp."],
+    "skills-achievements": [
+        "Two second places. Where's first, Earthling?",
+        "He knows Git. Respect.",
+        "FastAPI. Fast? We have warp.",
+        "Medals! We give ours for surviving hyperspace.",
+        "Hover a skill. It tells you where he used it. Fancy.",
+        "Nine languages. I speak forty, but still.",
+    ],
     projects: ["A seeding tool. We seed whole planets.", "These little terminals type by themselves. Spooky.", "flowsquire sorts files. Mine are in a black hole."],
     publications: ["Quantum kernels? Show-off.", "Peer reviewed. My peers review by probing.", "Caught 27 of 28. I'd have been the 28th."],
-    contact: ["Ooh, a visitor pass. Do they let aliens aboard?", "That UFO down there is my cousin's.", "A guestbook! What do I sign as?"],
+    contact: [
+        "Ooh, a visitor pass. Do they let aliens aboard?",
+        "That UFO down there is my cousin's.",
+        "Send a message. The saucer does deliveries now.",
+        "The globe knows where I'm from. Rude.",
+        "That crew card is shinier than mine.",
+        "Kolkata station, reachable at light speed. Handy.",
+    ],
 };
 
 // Kolkata's night: he creeps
@@ -110,6 +126,9 @@ export const IdleAlien = () => {
     const phaseRef = useRef<Phase>("hidden");
     phaseRef.current = phase;
     const lastActivity = useRef(Date.now());
+    // Called in from the command palette: he knows you are there, so moving
+    // does not startle him, and he leaves on his ride after a short visit
+    const summoned = useRef(false);
     const idleSince = useRef(0);
     const containerRef = useRef<HTMLDivElement>(null);
     // Where he goes after turning away: sprinting (startled) or strolling (caught)
@@ -135,6 +154,7 @@ export const IdleAlien = () => {
         if (reduce) return;
         const onActivity = () => {
             lastActivity.current = Date.now();
+            if (summoned.current) return;
             if (phaseRef.current === "walkin" || phaseRef.current === "turnF" || phaseRef.current === "idle") {
                 afterTurn.current = "flee";
                 setPhase("startled");
@@ -143,24 +163,37 @@ export const IdleAlien = () => {
         const events: (keyof WindowEventMap)[] = ["pointermove", "pointerdown", "keydown", "scroll", "touchstart"];
         events.forEach((ev) => window.addEventListener(ev, onActivity, { passive: true }));
 
+        const beginVisit = () => {
+            setNight(kolkataNow().mood.label === "probably asleep");
+            caughtThisVisit.current = false;
+            greetedAstronaut.current = false;
+            bumpCount(SIGHTINGS_KEY);
+            // A little left of centre: dead centre put him on the hero's
+            // scroll cue
+            setCenterX(-(window.innerWidth * 0.58));
+            setPhase("walkin");
+        };
+
         const interval = window.setInterval(() => {
             const p = phaseRef.current;
+            if (p === "hidden") summoned.current = false;
             if (p === "hidden" && Date.now() - lastActivity.current >= IDLE_MS && !document.hidden) {
-                setNight(kolkataNow().mood.label === "probably asleep");
-                caughtThisVisit.current = false;
-                greetedAstronaut.current = false;
-                bumpCount(SIGHTINGS_KEY);
-                // A little left of centre: dead centre put him on the hero's
-                // scroll cue
-                setCenterX(-(window.innerWidth * 0.58));
-                setPhase("walkin");
-            } else if (p === "idle" && Date.now() - idleSince.current >= BEAM_AFTER_MS) {
+                beginVisit();
+            } else if (p === "idle" && Date.now() - idleSince.current >= (summoned.current ? SUMMONED_STAY_MS : BEAM_AFTER_MS)) {
                 setPhase("beam");
             }
         }, 1000);
 
+        const onSummon = () => {
+            if (phaseRef.current !== "hidden") return;
+            summoned.current = true;
+            beginVisit();
+        };
+        window.addEventListener("alien-summon", onSummon);
+
         return () => {
             events.forEach((ev) => window.removeEventListener(ev, onActivity));
+            window.removeEventListener("alien-summon", onSummon);
             clearInterval(interval);
         };
     }, [reduce]);
