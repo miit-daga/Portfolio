@@ -3,6 +3,7 @@ import { motion, useReducedMotion, useInView, type Transition } from "framer-mot
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Ufo } from "./ufo";
 import { Alien } from "./tiny-alien";
+import { RadarBlips, RadarSweep } from "./radar-guestbook";
 
 // Deterministic PRNG so the server and client render identical star positions
 // (avoids hydration mismatch from Math.random during render).
@@ -32,6 +33,11 @@ function projectOrbit(theta: number) {
         y: R_ORBIT * Math.sin(theta) * Math.cos(PHI) * f,
         scale: f,
     };
+}
+// Any point on the ground plane, for the guestbook's blips (radar-guestbook.tsx)
+function projectPoint(r: number, theta: number) {
+    const f = PERSP / (PERSP - r * Math.sin(theta) * Math.sin(PHI));
+    return { x: r * Math.cos(theta) * f, y: r * Math.sin(theta) * Math.cos(PHI) * f, scale: f };
 }
 const APEX = projectOrbit(-Math.PI / 2); // hover point directly above the pad (far/top of orbit)
 
@@ -94,6 +100,8 @@ export const SignalRings = () => {
     const [specialLine, setSpecialLine] = useState<string | null>(null);
     const greetedRef = useRef(false);
     const pokedRef = useRef(false);
+    // Who just signed the guestbook, thanked in the next speech
+    const signedRef = useRef<string | null>(null);
     const [poke, setPoke] = useState(0);
     const [alert, setAlert] = useState(false);
     const [pokeLanding, setPokeLanding] = useState(false);
@@ -150,6 +158,11 @@ export const SignalRings = () => {
             setSpecialLine("Who poked the ship?");
             return;
         }
+        if (signedRef.current) {
+            setSpecialLine(`Signal received, ${signedRef.current}. Command will read it.`);
+            signedRef.current = null;
+            return;
+        }
         let city: string | null = null;
         try {
             city = sessionStorage.getItem("visitor-origin");
@@ -184,8 +197,15 @@ export const SignalRings = () => {
 
     useEffect(() => {
         const onCourier = (e: Event) => setAway(!!(e as CustomEvent<{ active: boolean }>).detail?.active);
+        const onSigned = (e: Event) => {
+            signedRef.current = (e as CustomEvent<{ name: string }>).detail?.name || "Earthling";
+        };
         window.addEventListener("ufo-courier", onCourier);
-        return () => window.removeEventListener("ufo-courier", onCourier);
+        window.addEventListener("guestbook-signed", onSigned);
+        return () => {
+            window.removeEventListener("ufo-courier", onCourier);
+            window.removeEventListener("guestbook-signed", onSigned);
+        };
     }, []);
 
     // Poke: a wobble and a red alert. Mid-orbit, it breaks off and lands to
@@ -326,6 +346,9 @@ export const SignalRings = () => {
                         />
                     </div>
 
+                    {/* The guestbook's sweep, lighting each blip as it passes */}
+                    <RadarSweep reduce={reduce} size={RING_DIAMETERS[2]} />
+
                     {/* Signal ripples spreading from the base */}
                     {!reduce &&
                         [0, 1, 2, 3].map((i) => (
@@ -380,6 +403,9 @@ export const SignalRings = () => {
                     />
                 ))}
             </div>
+
+            {/* Guestbook signatures */}
+            <RadarBlips project={projectPoint} sceneScale={sceneScale} reduce={reduce} />
 
             {/* Aliens */}
             {ALIEN_ROAM.map((roam, i) => {

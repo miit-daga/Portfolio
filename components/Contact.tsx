@@ -26,6 +26,7 @@ const ContactActions = dynamic(() => import("./ui/contact-actions").then((m) => 
     ssr: false,
     loading: () => <div className="h-[38px]" />,
 });
+const GuestbookSignal = dynamic(() => import("./ui/radar-guestbook").then((m) => m.GuestbookSignal), { ssr: false });
 import { accentVars, getSection } from "@/constants/sections";
 
 type ContactType = "email" | "phone" | null;
@@ -172,6 +173,10 @@ export function Contact() {
                 <div className="relative h-[360px] lg:h-[440px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-blue-500/5 blur-3xl opacity-20 rounded-full" />
                     <SignalRings />
+                    {/* The radar's guestbook: sign it here, read it on the blips */}
+                    <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center px-2">
+                        <GuestbookSignal />
+                    </div>
                 </div>
             </div>
 

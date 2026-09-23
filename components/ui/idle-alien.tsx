@@ -40,7 +40,7 @@ const ALIEN_LINES = [
     "I was told there would be snacks.",
     "Interesting species. Writes TypeScript.",
     "Earth UI has gotten better, honestly.",
-    "I hear the terminal has a guestbook. Should I sign it?",
+    "The radar down there is a guestbook. Should I sign it?",
     "Our pilots could learn from this one.",
     "No bugs spotted. Suspicious.",
     "I could abduct this website. Hypothetically.",
@@ -78,6 +78,8 @@ const SECTION_LINES: Record<string, string[]> = {
         "Send a message. The saucer does deliveries now.",
         "The globe knows where I'm from. Rude.",
         "That crew card is shinier than mine.",
+        "Every blip on that radar is a visitor. Hover one.",
+        "Leave a signal. I left three. They filtered two.",
         "Kolkata station, reachable at light speed. Handy.",
     ],
 };
