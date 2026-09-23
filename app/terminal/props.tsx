@@ -442,9 +442,13 @@ export const Phone = forwardRef<
                                 Kolkata · {now?.mood.label ?? ""}
                                 {music ? " · ♫" : ""}
                             </p>
-                            <div className="mt-2 space-y-1 px-1.5">
+                            {/* the notifications, between the clock and the dock: scroll for older ones */}
+                            <div
+                                className="absolute inset-x-0 bottom-[40px] top-[84px] space-y-1 overflow-y-auto overflow-x-hidden overscroll-contain px-1.5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                style={{ maskImage: "linear-gradient(180deg, transparent, #000 6%, #000 84%, transparent)", WebkitMaskImage: "linear-gradient(180deg, transparent, #000 6%, #000 84%, transparent)" }}
+                            >
                                 <AnimatePresence initial={false}>
-                                    {notes.slice(0, 3).map((n) => (
+                                    {notes.map((n) => (
                                         <NoteCard key={n.id} note={n} onDismiss={onDismiss} />
                                     ))}
                                 </AnimatePresence>
@@ -529,7 +533,7 @@ function NoteCard({ note, onDismiss }: { note: Note; onDismiss: (id: number) => 
             }}
             onAnimationComplete={() => gone && onDismiss(note.id)}
             title="Swipe to clear"
-            className="cursor-grab touch-none rounded-[8px] bg-white/15 px-1.5 py-1 backdrop-blur-md active:cursor-grabbing"
+            className="cursor-grab touch-pan-y rounded-[8px] bg-white/15 px-1.5 py-1 backdrop-blur-md active:cursor-grabbing"
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={gone ? { x: gone * 140, opacity: 0 } : { opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}

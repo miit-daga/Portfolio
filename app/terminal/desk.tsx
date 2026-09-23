@@ -224,7 +224,8 @@ export function Desk() {
     const pushNote = useCallback((app: string, text: string, icon: string) => {
         noteId.current += 1;
         const id = noteId.current;
-        setNotes((n) => [{ id, app, text, icon }, ...n].slice(0, 3));
+        // the phone scrolls through these; the oldest go after a dozen
+        setNotes((n) => [{ id, app, text, icon }, ...n].slice(0, 12));
         playNotify();
     }, []);
 
