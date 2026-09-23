@@ -374,8 +374,8 @@ export function HardDrive({ on, idle, busy, onClick }: { on: boolean; idle: bool
 // ---- Phone ------------------------------------------------------------------
 
 export const PHONE = { x: 92, y: 410, w: 112, h: 226 };
-export type Note = { id: number; app: string; text: string; icon: string };
-type App = "messages" | "weather" | "music" | "airdrop" | "qr";
+export type Note = { id: number; app: string; text: string; icon: string; at?: number };
+type App = "messages" | "weather" | "music" | "airdrop" | "qr" | "note";
 
 const APPS: { id: App; icon: string; label: string; bg: string }[] = [
     { id: "messages", icon: "💬", label: "Messages", bg: "linear-gradient(160deg, #4ade80, #16a34a)" },
@@ -394,6 +394,12 @@ export const Phone = forwardRef<
 >(function Phone({ notes, airdrop, music, onMusic, onSigned, onDismiss, onSend }, ref) {
     const [now, setNow] = useState<ReturnType<typeof kolkataNow> | null>(null);
     const [app, setApp] = useState<App | null>(null);
+    // A notification opened: the phone picks up and shows it in full
+    const [openNote, setOpenNote] = useState<number | null>(null);
+    const opened = notes.find((n) => n.id === openNote) ?? null;
+    useEffect(() => {
+        if (app === "note" && !opened) setApp(null);
+    }, [app, opened]);
     useEffect(() => {
         const tick = () => setNow(kolkataNow());
         tick();
@@ -450,7 +456,15 @@ export const Phone = forwardRef<
                             >
                                 <AnimatePresence initial={false}>
                                     {notes.map((n) => (
-                                        <NoteCard key={n.id} note={n} onDismiss={onDismiss} />
+                                        <NoteCard
+                                            key={n.id}
+                                            note={n}
+                                            onDismiss={onDismiss}
+                                            onOpen={() => {
+                                                setOpenNote(n.id);
+                                                setApp("note");
+                                            }}
+                                        />
                                     ))}
                                 </AnimatePresence>
                             </div>
@@ -471,6 +485,17 @@ export const Phone = forwardRef<
                                 ))}
                             </div>
                         </>
+                    )}
+                    {app === "note" && opened && (
+                        <NoteView
+                            note={opened}
+                            date={date}
+                            time={now?.time ?? ""}
+                            onClear={() => {
+                                onDismiss(opened.id);
+                                setApp(null);
+                            }}
+                        />
                     )}
                     {app === "qr" && (
                         <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center">
@@ -528,9 +553,9 @@ export const Phone = forwardRef<
     );
 });
 
-// A notification on the lock screen: swipe it either way and it goes; a short
-// swipe springs back
-function NoteCard({ note, onDismiss }: { note: Note; onDismiss: (id: number) => void }) {
+// A notification on the lock screen: click it to open it, swipe it either way
+// and it goes; a short swipe springs back
+function NoteCard({ note, onDismiss, onOpen }: { note: Note; onDismiss: (id: number) => void; onOpen: () => void }) {
     const [gone, setGone] = useState<-1 | 1 | null>(null);
     return (
         <motion.div
@@ -542,8 +567,10 @@ function NoteCard({ note, onDismiss }: { note: Note; onDismiss: (id: number) => 
                 if (Math.abs(info.offset.x) > 36 || Math.abs(info.velocity.x) > 300) setGone(info.offset.x < 0 ? -1 : 1);
             }}
             onAnimationComplete={() => gone && onDismiss(note.id)}
-            title="Swipe to clear"
-            className="cursor-grab touch-pan-y rounded-[8px] bg-white/15 px-1.5 py-1 backdrop-blur-md active:cursor-grabbing"
+            // a tap, not a drag, opens it
+            onTap={() => !gone && onOpen()}
+            title="Click to open · swipe to clear"
+            className="cursor-pointer touch-pan-y rounded-[8px] bg-white/15 px-1.5 py-1 backdrop-blur-md active:cursor-grabbing"
             initial={{ opacity: 0, y: -10, scale: 0.95 }}
             animate={gone ? { x: gone * 140, opacity: 0 } : { opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
@@ -555,6 +582,33 @@ function NoteCard({ note, onDismiss }: { note: Note; onDismiss: (id: number) => 
             </p>
             <p className="line-clamp-2 text-[7.5px] leading-tight text-white">{note.text}</p>
         </motion.div>
+    );
+}
+
+// A notification, opened: the whole of it, and when it came
+const ago = (at?: number) => {
+    if (!at) return "";
+    const m = Math.floor((Date.now() - at) / 60000);
+    return m < 1 ? "now" : m < 60 ? `${m}m ago` : `${Math.floor(m / 60)}h ago`;
+};
+
+function NoteView({ note, date, time, onClear }: { note: Note; date: string; time: string; onClear: () => void }) {
+    return (
+        <div className="flex h-full flex-col px-2 pb-[16px] pt-[33px] text-white">
+            <p className="text-center text-[6.5px] text-neutral-400">{date}</p>
+            <p className="text-center text-[11px] font-semibold leading-tight text-white/85">{time.replace(/\s?[AP]M/, "")}</p>
+            <motion.div className="mt-2 rounded-[10px] bg-white/15 p-2 backdrop-blur-md" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 320, damping: 26 }}>
+                <p className="flex items-center gap-1 text-[6.5px] font-semibold uppercase tracking-wide text-neutral-300">
+                    <span className="text-[9px]">{note.icon}</span>
+                    {note.app}
+                    <span className="ml-auto font-normal normal-case tracking-normal text-neutral-400">{ago(note.at)}</span>
+                </p>
+                <p className="mt-1 break-words text-[8.5px] leading-snug">{note.text}</p>
+            </motion.div>
+            <button type="button" onClick={onClear} className="mx-auto mt-2 rounded-full bg-white/15 px-3 py-[3px] text-[7px] font-medium text-white transition-colors hover:bg-white/25">
+                Clear
+            </button>
+        </div>
     );
 }
 

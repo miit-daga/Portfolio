@@ -232,7 +232,7 @@ export function Desk() {
         noteId.current += 1;
         const id = noteId.current;
         // the phone scrolls through these; the oldest go after a dozen
-        setNotes((n) => [{ id, app, text, icon }, ...n].slice(0, 12));
+        setNotes((n) => [{ id, app, text, icon, at: Date.now() }, ...n].slice(0, 12));
         playNotify();
     }, []);
 
@@ -240,10 +240,11 @@ export function Desk() {
     useEffect(() => {
         const k = kolkataNow();
         noteId.current = 3;
+        const at = Date.now();
         setNotes([
-            { id: 3, app: "Desk", text: "Type desk in the terminal to see what this desk can do", icon: "🖥️" },
-            { id: 2, app: "Desk", text: "Plug a drive from the stand into the tower", icon: "🔌" },
-            { id: 1, app: "Kolkata station", text: `Miit is ${k.mood.label}. ${k.mood.reply[0].toUpperCase()}${k.mood.reply.slice(1)}.`, icon: "🛰️" },
+            { id: 3, app: "Desk", text: "Type desk in the terminal to see what this desk can do", icon: "🖥️", at },
+            { id: 2, app: "Desk", text: "Plug a drive from the stand into the tower", icon: "🔌", at },
+            { id: 1, app: "Kolkata station", text: `${k.mood.label[0].toUpperCase()}${k.mood.label.slice(1)}. ${k.mood.reply[0].toUpperCase()}${k.mood.reply.slice(1)}.`, icon: "🛰️", at },
         ]);
     }, []);
 
