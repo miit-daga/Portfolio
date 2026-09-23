@@ -23,6 +23,15 @@ import {
     IconKeyboard,
     IconSun,
     IconChevronRight,
+    IconDiamond,
+    IconHandGrab,
+    IconMoodHappy,
+    IconUfo,
+    IconSatellite,
+    IconMeteor,
+    IconDeviceGamepad2,
+    IconArrowBarToDown,
+    IconSignature,
 } from "@tabler/icons-react";
 import { warpForJump } from "@/components/ui/warp-overlay";
 import { RESUME_PAGE, RESUME_DOWNLOAD_URL } from "@/lib/resume";
@@ -30,6 +39,7 @@ import { SECTIONS } from "@/constants/sections";
 import { SKILL_USAGE, FALLBACK_USAGE } from "@/constants/skill-usage";
 import { saveContact } from "@/components/ui/contact-actions";
 import { glideTo } from "@/lib/glide";
+import { FRAGMENT_IDS, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
 
 // The Cmd/Ctrl+K palette.
 //
@@ -83,6 +93,26 @@ function indexPage(): Hit[] {
         add({ label: text(h), section: "Publications", keywords: [text(card).slice(0, 600)], el: card });
     });
     return hits;
+}
+
+// Where each cosmic fragment hides (app/page.tsx), for the hunt's hint
+const FRAGMENT_SECTION: Record<string, string> = {
+    workex: "workex",
+    education: "education",
+    skills: "skills-achievements",
+    projects: "projects",
+    publications: "publications",
+};
+
+// The fragment hunt's progress, read straight from storage: the palette sits
+// outside the page's CollectiblesProvider
+function fragmentsFound(): string[] {
+    try {
+        const raw = JSON.parse(sessionStorage.getItem(FRAGMENTS_STORAGE_KEY) || "[]");
+        return Array.isArray(raw) ? raw : [];
+    } catch {
+        return [];
+    }
 }
 
 // Which section the middle of the screen is in
@@ -160,6 +190,18 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
     const terminalCmd = q.startsWith(">") ? q.slice(1).trim() : null;
     const searching = terminalCmd === null && q.length >= 2;
     const skyParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("sky") : null;
+    // Read when the palette opens
+    const found = open ? fragmentsFound() : [];
+    const nextFragment = FRAGMENT_IDS.find((f) => !found.includes(f));
+
+    // Glide to something once the jump to its section has landed, then poke it
+    const jumpThen = (hash: string, selector: string, then?: (el: HTMLElement) => void) => {
+        navTo(hash);
+        window.setTimeout(() => {
+            const el = document.querySelector<HTMLElement>(selector);
+            if (el) glideTo(el, then ? () => then(el) : undefined);
+        }, 900);
+    };
 
     return (
         <>
@@ -309,6 +351,18 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 >
                                                     Get your visitor pass
                                                 </Item>
+                                                <Item
+                                                    value="sign the guestbook leave a signal message radar"
+                                                    icon={<IconSignature />}
+                                                    onSelect={() =>
+                                                        runCommand(() => {
+                                                            navTo("#contact");
+                                                            window.setTimeout(() => window.dispatchEvent(new CustomEvent("open-guestbook")), 900);
+                                                        })
+                                                    }
+                                                >
+                                                    Sign the guestbook
+                                                </Item>
                                             </Command.Group>
 
                                             <Command.Separator className="my-2 h-px bg-white/10" />
@@ -331,7 +385,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                             <Command.Separator className="my-2 h-px bg-white/10" />
 
                                             <Command.Group heading="Easter eggs">
-                                                <Item value="summon the alien visitor" icon={<IconAlien />} hint="he usually waits until you go idle" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("alien-summon")))}>
+                                                <Item value="summon the alien visitor" icon={<IconAlien />} hint="catch him and he pays you a shard" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("alien-summon")))}>
                                                     Summon the alien
                                                 </Item>
                                                 <Item
@@ -349,7 +403,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 </Item>
                                                 {skyParam === null ? (
                                                     <>
-                                                        <Item value="sky preview night 3 am" icon={<IconMoon />} hint="the sky follows your clock" onSelect={() => runCommand(() => (window.location.href = "/?sky=3"))}>
+                                                        <Item value="sky preview night 3 am" icon={<IconMoon />} hint="the sky follows your clock, and a comet passes" onSelect={() => runCommand(() => (window.location.href = "/?sky=3"))}>
                                                             See the site at 3 AM
                                                         </Item>
                                                         <Item value="sky preview dawn sunrise 6 am" icon={<IconSunrise />} onSelect={() => runCommand(() => (window.location.href = "/?sky=6"))}>
@@ -366,6 +420,53 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 </Item>
                                                 <Item value="defense mode asteroids game" icon={<IconTarget />} onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("defense-mode")))}>
                                                     Initiate Defense Mode
+                                                </Item>
+                                                <Item
+                                                    value="hunt cosmic fragments shards collectibles"
+                                                    icon={<IconDiamond />}
+                                                    tag={`${found.length}/${FRAGMENT_IDS.length}`}
+                                                    hint="five shards glow somewhere on the page"
+                                                    onSelect={() =>
+                                                        runCommand(() => {
+                                                            if (!nextFragment) return notify("You have them all. Now try the Konami code.");
+                                                            const id = FRAGMENT_SECTION[nextFragment];
+                                                            navTo(`#${id}`);
+                                                            notify(`Warmer. One glows somewhere in ${SECTIONS.find((sec) => sec.id === id)?.label ?? "this section"}.`);
+                                                        })
+                                                    }
+                                                >
+                                                    Hunt the cosmic fragments
+                                                </Item>
+                                                <Item
+                                                    value="throw the astronaut tether fling"
+                                                    icon={<IconHandGrab />}
+                                                    hint="grab him and fling him, hard"
+                                                    onSelect={() =>
+                                                        runCommand(() => {
+                                                            navTo("#");
+                                                            notify("Grab the astronaut and throw him. Harder than that.");
+                                                        })
+                                                    }
+                                                >
+                                                    Throw the astronaut
+                                                </Item>
+                                                <Item value="tickle the hologram avatar photo quotes" icon={<IconMoodHappy />} onSelect={() => runCommand(() => jumpThen("#", "[data-hologram]", (el) => el.click()))}>
+                                                    Tickle the hologram
+                                                </Item>
+                                                <Item value="poke the saucer ufo ship contact" icon={<IconUfo />} hint="the crew will not like it" onSelect={() => runCommand(() => jumpThen("#contact", "[data-signal-ufo]", (el) => el.click()))}>
+                                                    Poke the saucer
+                                                </Item>
+                                                <Item value="hail the iss space station satellite" icon={<IconSatellite />} hint="live from orbit" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("iss-hail")))}>
+                                                    Hail the ISS
+                                                </Item>
+                                                <Item value="fly to the edge of the page end bottom finale" icon={<IconArrowBarToDown />} hint="something happens at the very end" onSelect={() => runCommand(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" }))}>
+                                                    Fly to the edge of the page
+                                                </Item>
+                                                <Item value="get lost in space meteor dodge game 404" icon={<IconMeteor />} hint="the 404 page is a game" onSelect={() => runCommand(() => (window.location.href = "/lost-in-space"))}>
+                                                    Get lost in space
+                                                </Item>
+                                                <Item value="arcade games terminal snake invaders tetris" external icon={<IconDeviceGamepad2 />} hint="snake, invaders, tetris and more" onSelect={() => runCommand(() => window.open("/terminal.html?cmd=play", "_blank"))}>
+                                                    The terminal arcade
                                                 </Item>
                                             </Command.Group>
                                         </>

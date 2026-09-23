@@ -399,8 +399,21 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         }
       }
     }
+    // Hailed from the command palette: the same transmission, no aiming needed
+    const onHail = () => {
+      if (issPausedRef.current) return
+      issFactIdx.current = (issFactIdx.current + 1) % ISS_FACTS.length
+      issSarcasmIdx.current = (issSarcasmIdx.current + 1) % ISS_SARCASM.length
+      issPausedRef.current = true
+      setIssModal({ sarcasm: ISS_SARCASM[issSarcasmIdx.current], fact: ISS_FACTS[issFactIdx.current] })
+      setIssTelemetry(issTelemetryRef.current)
+    }
     window.addEventListener("click", onClick)
-    return () => window.removeEventListener("click", onClick)
+    window.addEventListener("iss-hail", onHail)
+    return () => {
+      window.removeEventListener("click", onClick)
+      window.removeEventListener("iss-hail", onHail)
+    }
   }, [])
 
   const closeIssModal = () => {

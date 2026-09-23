@@ -266,6 +266,16 @@ export const GuestbookSignal = () => {
     const [callsign, setCallsign] = useState("");
     const [status, setStatus] = useState<{ kind: "sending" | "error" | "sent"; text: string } | null>(null);
 
+    // Opened from the command palette's "Sign the guestbook"
+    useEffect(() => {
+        const onOpen = () => {
+            setEditing(true);
+            setStatus(null);
+        };
+        window.addEventListener("open-guestbook", onOpen);
+        return () => window.removeEventListener("open-guestbook", onOpen);
+    }, []);
+
     useEffect(() => {
         try {
             setCallsign(sessionStorage.getItem("visitor-callsign") ?? "");

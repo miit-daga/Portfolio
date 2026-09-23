@@ -253,6 +253,7 @@ const Hero = () => {
               // === PATH A: HOLOGRAM (Hover: Materialize) ===
               <motion.div
                 ref={hologramRef}
+                data-hologram
                 onMouseMove={handleHologramMouseMove}
                 onMouseLeave={handleHologramMouseLeave}
                 onClick={handleAvatarClick}
