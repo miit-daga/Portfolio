@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
-import { Display, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, type Note, type Stick } from "./props";
+import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, type Note, type Stick } from "./props";
 import { playAirDrop, playNotify, playPowerButton, playUsbIn, playUsbOut, setFan } from "./desk-sound";
 
 // The terminal on a desk in orbit, for large screens (terminal.html sends them
@@ -28,7 +28,7 @@ const W = 1440;
 const H = 900;
 const BIG = "(min-width: 1024px) and (min-height: 620px) and (pointer: fine)";
 
-type TermWindow = Window & { runCommandFromClick?: (c: string) => void; deskMount?: (label: string) => void; deskEject?: () => void };
+type TermWindow = Window & { runCommandFromClick?: (c: string) => void; deskMount?: (label: string) => void; deskEject?: (label: string) => void };
 
 const STICKS: (Stick & { term: string })[] = [
     { id: "projects", label: "PROJECTS", color: "#3b82f6", term: "PROJECTS" },
@@ -59,16 +59,20 @@ export function Desk() {
     const [asleep, setAsleep] = useState(false);
     const [busy, setBusy] = useState(false);
     const [game, setGame] = useState(false);
-    const [plugged, setPlugged] = useState<(typeof STICKS)[number] | null>(null);
-    const pluggedRef = useRef<(typeof STICKS)[number] | null>(null);
+    // Up to two sticks, one per port, oldest first; and the hard drive, on its cable
+    const [plugged, setPlugged] = useState<{ stick: (typeof STICKS)[number]; port: 0 | 1 }[]>([]);
+    const pluggedRef = useRef(plugged);
     pluggedRef.current = plugged;
+    const [hdd, setHdd] = useState(false);
     const [notes, setNotes] = useState<Note[]>([]);
     const [qr, setQr] = useState(false);
     const [flight, setFlight] = useState<{ n: number; from: { x: number; y: number }; to: { x: number; y: number }; name: string } | null>(null);
     const [airdrop, setAirdrop] = useState(0);
     const [pressed, setPressed] = useState<Set<string>>(new Set());
     const [tint, setTint] = useState("#2dd4bf");
-    const [dot, setDot] = useState<{ x: number; y: number } | null>(null);
+    // The mouse follows the pointer on motion values: no re-render per movement
+    const mouseX = useMotionValue(0);
+    const mouseY = useMotionValue(0);
     const [button, setButton] = useState<"left" | "right" | null>(null);
     const [wheel, setWheel] = useState(0);
     const [full, setFull] = useState(false);
@@ -177,10 +181,16 @@ export function Desk() {
             else if (d.type === "notify") pushNote(d.app || "Terminal", d.text || "", "✍️");
             else if (d.type === "fullscreen") setFull((f) => !f);
             else if (d.type === "eject") {
-                const was = pluggedRef.current;
+                const label = (d as { label?: string }).label;
                 playUsbOut();
-                setPlugged(null);
-                if (was) pushNote("USB drive", `${was.label || "?????"} ejected`, "⏏️");
+                if (label === "TIMECAPSULE") {
+                    setHdd(false);
+                    pushNote("Time Capsule", "Disconnected", "⏏️");
+                    return;
+                }
+                const was = pluggedRef.current.find((p) => p.stick.term === label);
+                setPlugged((ps) => ps.filter((p) => p.stick.term !== label));
+                if (was) pushNote("USB drive", `${was.stick.label || "?????"} ejected`, "⏏️");
             }
         };
         window.addEventListener("message", onMsg);
@@ -234,11 +244,9 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             }),
         );
         w.addEventListener("blur", () => setPressed(new Set()));
-        let leave = 0;
         w.addEventListener("mousemove", (e) => {
-            setDot({ x: Math.min(0.95, Math.max(0.05, e.clientX / w.innerWidth)), y: Math.min(0.95, Math.max(0.05, e.clientY / w.innerHeight)) });
-            window.clearTimeout(leave);
-            leave = window.setTimeout(() => setDot(null), 2500);
+            mouseX.set((Math.min(1, Math.max(0, e.clientX / w.innerWidth)) - 0.5) * 60);
+            mouseY.set((Math.min(1, Math.max(0, e.clientY / w.innerHeight)) - 0.5) * 44);
         });
         w.addEventListener("mousedown", (e) => {
             setButton(e.button === 2 ? "right" : "left");
@@ -275,6 +283,27 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         return () => window.removeEventListener("keydown", onKey);
     }, [big, full, refocus]);
 
+    // The terminal's screensaver counts only what happens inside the display.
+    // Activity anywhere on the desk is passed on (a few times a second, at
+    // most), so it waits for 30 seconds of the visitor doing nothing at all
+    useEffect(() => {
+        if (!big) return;
+        let last = 0;
+        const pass = () => {
+            const now = Date.now();
+            if (now - last < 400) return;
+            last = now;
+            try {
+                frameRef.current?.contentWindow?.dispatchEvent(new Event("pointermove"));
+            } catch {
+                /* ignore */
+            }
+        };
+        const events = ["pointermove", "pointerdown", "keydown", "wheel"] as const;
+        events.forEach((e) => window.addEventListener(e, pass, { passive: true }));
+        return () => events.forEach((e) => window.removeEventListener(e, pass));
+    }, [big]);
+
     // The tower's lattice light and its fans
     const level = !on || asleep ? 0 : game ? 1 : busy ? 0.6 : 0.18;
     useEffect(() => {
@@ -297,9 +326,18 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
 
     // ---- USB drives -------------------------------------------------------------
     const plug = (stick: (typeof STICKS)[number]) => {
-        if (plugged?.id === stick.id) return;
+        const now = pluggedRef.current;
+        if (now.some((p) => p.stick.id === stick.id)) return;
+        // Both ports taken: the older drive comes out to make room
+        let port: 0 | 1 = now.some((p) => p.port === 0) ? 1 : 0;
+        if (now.length >= 2) {
+            const oldest = now[0];
+            port = oldest.port;
+            setPlugged((ps) => ps.filter((p) => p !== oldest));
+            term()?.deskEject?.(oldest.stick.term);
+        }
         playUsbIn();
-        setPlugged(stick);
+        setPlugged((ps) => [...ps.filter((p) => p.port !== port), { stick, port }]);
         setAsleep(false);
         pushNote("USB drive", `${stick.label || "?????"} connected`, "🔌");
         whenReady(() => {
@@ -307,16 +345,34 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             refocus();
         });
     };
-    const pull = () => whenReady(() => {
-        term()?.deskEject?.();
+    const pull = (stick: Stick) => whenReady(() => {
+        term()?.deskEject?.((stick as (typeof STICKS)[number]).term);
         refocus();
     });
+    // The hard drive: on its cable already, so a click connects or disconnects it
+    const toggleHdd = () => {
+        if (hdd) {
+            whenReady(() => {
+                term()?.deskEject?.("TIMECAPSULE");
+                refocus();
+            });
+            return;
+        }
+        playUsbIn();
+        setHdd(true);
+        setAsleep(false);
+        pushNote("Time Capsule", "2 TB connected · spinning up", "💽");
+        whenReady(() => {
+            term()?.deskMount?.("TIMECAPSULE");
+            refocus();
+        });
+    };
     const overPort = (x: number, y: number) => {
         const r = portRef.current?.getBoundingClientRect();
         return !!r && x > r.left - 60 && x < r.right + 60 && y > r.top - 70 && y < r.bottom + 50;
     };
     const dragStart = (e: React.PointerEvent, stick: (typeof STICKS)[number]) => {
-        if (plugged?.id === stick.id) return;
+        if (pluggedRef.current.some((p) => p.stick.id === stick.id)) return;
         const x0 = e.clientX;
         const y0 = e.clientY;
         let moved = false;
@@ -388,10 +444,11 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                 <div aria-hidden className="absolute left-[30px] top-[640px] h-[2px] w-[1380px] bg-gradient-to-r from-transparent via-teal-300/20 to-transparent" />
 
                 <Display asleep={asleep} glow={glow} />
-                <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} onPower={power} onPull={pull} />
+                <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} onPower={power} onPull={pull} hdd={hdd} />
                 <Phone ref={phoneRef} notes={notes} qr={qr} onTap={() => setQr((q) => !q)} airdrop={airdrop} />
                 <Keyboard pressed={pressed} tint={tint} />
-                <Mouse dot={dot} button={button} wheel={wheel} tint={tint} />
+                <Mouse x={mouseX} y={mouseY} button={button} wheel={wheel} tint={tint} />
+                <HardDrive on={hdd} busy={hdd && busy} onClick={toggleHdd} />
                 <Mug />
                 <Plant />
 
@@ -400,7 +457,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     <div className="absolute inset-0 flex items-center justify-center gap-[10px]">
                         {STICKS.map((st) => {
                             const d = drag?.id === st.id ? drag : null;
-                            const out = plugged?.id === st.id;
+                            const out = plugged.some((p) => p.stick.id === st.id);
                             return (
                                 <button
                                     key={st.id}

@@ -5784,8 +5784,25 @@
             GAMES: { files: ['arcade.app', 'highscores.dat'], open: 'play' },
             SIGNME: { files: ['SIGN_ME.txt'], open: null },
             ALIEN: { files: ['.mothership'], open: null },
+            // The external hard drive: an archive of the journey so far
+            TIMECAPSULE: { files: ['journey.log', 'coffee.log'], open: null },
         };
-        let mounted = null; // label of the stick in the tower, if any
+        const mounted = new Set(); // labels of the drives in the tower (two ports, and the hard drive)
+        const JOURNEY = [
+            ['2008', "St. Helen's School · ICSE Class X, 91.6%"],
+            ['2020', 'Swami Vivekananda Vidyamandir · CBSE Class XII, 92%'],
+            ['2022', 'Vellore Institute of Technology · B.Tech IT begins'],
+            ['Sep 2024', 'SDE Intern · Seculinx, Vellore'],
+            ['2024', '2nd place · Hackovation, GraVITas-2024'],
+            ['Mar 2025', 'Full Stack Developer Intern · TechWire Studio, remote'],
+            ['May 2025', 'Project Intern · Tata Power, Mumbai'],
+            ['2025', '2nd place · Synapse, Yantra-2025'],
+            ['Sep 2025', 'Patent filed · AI powered smart disease detection'],
+            ['Oct 2025', 'Full Stack Engineering Intern · Akatsuki AI Technologies, remote'],
+            ['2026', 'Published · Scientific Reports, and Array twice'],
+            ['2026', 'Graduated · B.Tech IT, CGPA 9.22'],
+            ['Jun 2026', 'Software Development Engineer · Talendy Holdings, remote'],
+        ];
 
         async function deskCommand(command) {
             const cmd = command.toLowerCase().trim();
@@ -5802,17 +5819,23 @@
                 return;
             }
             if (cmd.startsWith('eject')) {
-                if (!mounted) await typeRaw('<span class="highlight-dim">eject: nothing is mounted. Plug in a drive from the tray on the desk.</span>');
+                // eject LABEL, or with nothing named, every drive
+                const want = command.replace(/^eject\s*(\/volumes\/)?/i, '').trim().toUpperCase();
+                const which = want ? [...mounted].filter((l) => l === want) : [...mounted];
+                if (!mounted.size) await typeRaw('<span class="highlight-dim">eject: nothing is mounted. Plug in a drive from the tray on the desk.</span>');
+                else if (!which.length) await typeRaw(`<span class="error-text">eject: ${escapeHtml(want)} is not mounted.</span>`);
                 else {
-                    await typeRaw(`<span class="highlight-dim">"${escapeHtml(mounted)}" can now be safely removed.</span>`);
-                    mounted = null;
-                    deskSay('eject');
+                    for (const l of which) {
+                        await typeRaw(`<span class="highlight-dim">"${escapeHtml(l)}" can now be safely removed.</span>`);
+                        mounted.delete(l);
+                        deskSay('eject', { label: l });
+                    }
                 }
                 endTurn();
                 return;
             }
             if (/^(ls|cd)\s+\/volumes\/?$/.test(cmd)) {
-                await typeRaw(mounted ? `<span style="color:var(--term-accent);font-weight:700">${escapeHtml(mounted)}</span>` : '<span class="highlight-dim">/Volumes is empty. Plug in a drive from the tray on the desk.</span>');
+                await typeRaw(mounted.size ? [...mounted].map((l) => `<span style="color:var(--term-accent);font-weight:700">${escapeHtml(l)}</span>`).join('  ') : '<span class="highlight-dim">/Volumes is empty. Plug in a drive from the tray on the desk.</span>');
                 endTurn();
                 return;
             }
@@ -5826,13 +5849,24 @@
                 return;
             }
             SoundFX.dataBurst();
-            mounted = label;
+            mounted.add(label);
             await typeRaw(`<span class="highlight-dim">USB drive mounted at</span> <span class="highlight-value">/Volumes/${escapeHtml(label)}</span>`);
             await typeRaw(vol.files.map((f) => `  ${escapeHtml(f)}`).join('\n'));
             if (label === 'SIGNME') {
                 await typeRaw('This drive is for you. Sign the guestbook with <span class="highlight-value">sign &lt;your name&gt;: &lt;message&gt;</span>, and it joins the radar on the main page.');
                 endTurn();
                 inputLine.value = 'sign ';
+                return;
+            }
+            if (label === 'TIMECAPSULE') {
+                await typeRaw('<span style="color:var(--term-accent)">cat journey.log</span>');
+                for (const [when, what] of JOURNEY) {
+                    await typeRaw(`  <span class="highlight-date">${escapeHtml(when.padEnd(9))}</span> ${escapeHtml(what)}`, 6);
+                }
+                await typeRaw(`  <span class="highlight-date">${'next'.padEnd(9)}</span> <span class="highlight-dim">░░░░░░░░ writing...</span>`);
+                await typeRaw('<span style="color:var(--term-accent)">cat coffee.log</span>');
+                await typeRaw('  cups since 2022 ......... not enough disk space to count');
+                endTurn();
                 return;
             }
             if (label === 'ALIEN') {
@@ -5862,7 +5896,7 @@
         // Called by the desk when a stick goes into the tower, and when it is pulled out
         const whenIdle = (fn) => (isTyping ? window.setTimeout(() => whenIdle(fn), 250) : fn());
         window.deskMount = (label) => whenIdle(() => runCommand(`mount ${label}`));
-        window.deskEject = () => { if (mounted) whenIdle(() => runCommand('eject')); };
+        window.deskEject = (label) => { if (mounted.has(label)) whenIdle(() => runCommand(`eject ${label}`)); };
 
         // Games draw in a fixed overlay of their own; tell the desk while one is up
         if (DESK) {

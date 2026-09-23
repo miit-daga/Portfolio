@@ -1,6 +1,6 @@
 "use client";
 import { forwardRef, useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion, useTransform, type MotionValue } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { kolkataNow } from "@/lib/kolkata";
 
@@ -56,36 +56,53 @@ export const Tower = forwardRef<HTMLDivElement, {
     tint: string;
     on: boolean;
     asleep: boolean;
-    plugged: Stick | null;
+    plugged: { stick: Stick; port: 0 | 1 }[];
     onPower: () => void;
-    onPull: () => void;
-}>(function Tower({ level, tint, on, asleep, plugged, onPower, onPull }, portRef) {
+    onPull: (stick: Stick) => void;
+    hdd: boolean;
+}>(function Tower({ level, tint, on, asleep, plugged, onPower, onPull, hdd }, portRef) {
     const reduce = useReducedMotion();
     return (
         <div className="absolute" style={{ left: TOWER.x, top: TOWER.y - 34, width: TOWER.w, height: TOWER.h + 34 }}>
-            {/* the handle frame, rising above the body */}
-            <div className="absolute inset-x-[6px] top-0 h-[60px] rounded-t-[26px] border-[9px] border-b-0" style={{ borderColor: "#d9dce1", boxShadow: "inset 0 2px 0 rgba(255,255,255,0.8)" }} />
-            {/* a stick in the port, standing up out of the top */}
+            {/* the handle frame, rising above the body: a polished steel tube */}
+            <svg className="absolute left-0 top-0" width={TOWER.w} height={62} viewBox={`0 0 ${TOWER.w} 62`} aria-hidden>
+                <defs>
+                    <linearGradient id="towerTube" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stopColor="#fdfdfe" />
+                        <stop offset="0.35" stopColor="#c9cdd3" />
+                        <stop offset="0.7" stopColor="#8b919a" />
+                        <stop offset="1" stopColor="#d6d9de" />
+                    </linearGradient>
+                </defs>
+                <path d={`M 11 62 V 30 Q 11 7 34 7 H ${TOWER.w - 34} Q ${TOWER.w - 11} 7 ${TOWER.w - 11} 30 V 62`} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth="11" transform="translate(0 1.5)" />
+                <path d={`M 11 62 V 30 Q 11 7 34 7 H ${TOWER.w - 34} Q ${TOWER.w - 11} 7 ${TOWER.w - 11} 30 V 62`} fill="none" stroke="url(#towerTube)" strokeWidth="10" />
+                <path d={`M 9 60 V 30 Q 9 5 34 5 H ${TOWER.w - 34} Q ${TOWER.w - 9} 5 ${TOWER.w - 9} 30 V 60`} fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.2" />
+            </svg>
+            {/* the sticks in the ports, standing up out of the top */}
             <AnimatePresence>
-                {plugged && (
+                {plugged.map(({ stick, port }) => (
                     <motion.button
-                        key={plugged.id}
+                        key={stick.id}
                         type="button"
-                        onClick={onPull}
-                        aria-label={`Pull out the ${plugged.label} drive`}
+                        onClick={() => onPull(stick)}
+                        aria-label={`Pull out the ${stick.label || "unlabelled"} drive`}
                         title="Pull it out (or type eject)"
                         className="absolute z-10 cursor-pointer"
-                        // Seated in the left port: the body's foot on the slot, the plug inside
-                        style={{ left: PORT.x - 12, top: PORT.y + 3 - 56 }}
+                        // Seated in its port: the body's foot on the slot, the plug inside
+                        style={{ left: PORT.x + port * 22 - 12, top: PORT.y + 3 - 56 }}
                         initial={{ y: -40, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
                         exit={{ y: -60, opacity: 0, transition: { duration: 0.25 } }}
                         transition={{ type: "spring", stiffness: 420, damping: 22 }}
                     >
-                        <StickArt stick={plugged} upright />
+                        <StickArt stick={stick} upright />
                     </motion.button>
-                )}
+                ))}
             </AnimatePresence>
+            {/* the hard drive's cable, into the back */}
+            <svg className="pointer-events-none absolute" style={{ left: -60, top: TOWER.h + 34 - 80, overflow: "visible" }} width="80" height="200" aria-hidden>
+                <path d="M 62 24 C 34 60, 44 150, 78 174" fill="none" stroke={hdd ? "#3f434a" : "#2c2f35"} strokeWidth="4" strokeLinecap="round" />
+            </svg>
             {/* the body */}
             <div className="absolute inset-x-0 bottom-0 rounded-[14px]" style={{ top: 34, background: ALU_SIDE, boxShadow: "0 40px 70px -24px rgba(0,0,0,0.95)" }}>
                 {/* the top: ports and the power button */}
@@ -108,23 +125,67 @@ export const Tower = forwardRef<HTMLDivElement, {
                         ))}
                     </div>
                 </div>
-                {/* the lattice front, lit from inside while it works */}
-                <div className="absolute inset-x-3 bottom-3 top-10 overflow-hidden rounded-[8px]">
-                    <motion.div
-                        className="absolute inset-0"
-                        style={{ background: `radial-gradient(ellipse 80% 70% at 50% 60%, ${tint}, transparent 75%)` }}
-                        animate={{ opacity: reduce ? level * 0.8 : level > 0.6 ? [level * 0.7, level, level * 0.7] : level * 0.8 }}
-                        transition={level > 0.6 && !reduce ? { duration: 1.2, repeat: Infinity } : { duration: 0.8 }}
-                    />
-                    <div
-                        className="absolute inset-0"
-                        style={{
-                            backgroundImage:
-                                "radial-gradient(circle at 50% 50%, rgba(8,10,14,0.8) 0 36%, #9aa0a8 40%, #eef0f3 58%, #b9bec6 76%, #8f959e 100%), radial-gradient(circle at 50% 50%, rgba(8,10,14,0.8) 0 36%, #9aa0a8 40%, #eef0f3 58%, #b9bec6 76%, #8f959e 100%)",
-                            backgroundSize: "15px 15px, 15px 15px",
-                            backgroundPosition: "0 0, 7.5px 7.5px",
-                        }}
-                    />
+                {/* the lattice front: machined bowls in a grid, each open to the inside at
+                    its centre and where four meet. The tower's light shows only there */}
+                <div className="absolute inset-x-3 bottom-3 top-10 overflow-hidden rounded-[8px]" style={{ boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.25)" }}>
+                    <svg width="100%" height="100%" aria-hidden className="block">
+                        <defs>
+                            {/* concave: the upper left of each bowl in shadow, its lower right catching the light */}
+                            <radialGradient id="latBowl" cx="0.66" cy="0.7" r="0.78">
+                                <stop offset="0" stopColor="#fbfbfc" />
+                                <stop offset="0.38" stopColor="#d5d8dd" />
+                                <stop offset="0.72" stopColor="#8a9098" />
+                                <stop offset="1" stopColor="#5d626a" />
+                            </radialGradient>
+                            <linearGradient id="latRim" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0" stopColor="rgba(255,255,255,0.95)" />
+                                <stop offset="0.5" stopColor="rgba(255,255,255,0.15)" />
+                                <stop offset="1" stopColor="rgba(60,64,72,0.55)" />
+                            </linearGradient>
+                            <pattern id="latCells" width="16" height="16" patternUnits="userSpaceOnUse">
+                                <rect width="16" height="16" fill="#a9aeb5" />
+                                <circle cx="8" cy="8" r="7.35" fill="url(#latBowl)" />
+                                <circle cx="8" cy="8" r="7.35" fill="none" stroke="url(#latRim)" strokeWidth="0.7" />
+                                {/* the openings, dark until the tower is lit */}
+                                <circle cx="8" cy="8" r="2.4" fill="#07090c" />
+                                {[0, 16].map((x) => [0, 16].map((y) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.5" fill="#07090c" />))}
+                            </pattern>
+                            <pattern id="latHoles" width="16" height="16" patternUnits="userSpaceOnUse">
+                                <circle cx="8" cy="8" r="2.4" fill="#fff" />
+                                {[0, 16].map((x) => [0, 16].map((y) => <circle key={`${x}${y}`} cx={x} cy={y} r="1.5" fill="#fff" />))}
+                            </pattern>
+                            <mask id="latMask">
+                                <rect width="100%" height="100%" fill="url(#latHoles)" />
+                            </mask>
+                            {/* the front curves away at its sides, and is lit from above */}
+                            <linearGradient id="latSides" x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0" stopColor="rgba(0,0,0,0.32)" />
+                                <stop offset="0.12" stopColor="rgba(0,0,0,0)" />
+                                <stop offset="0.88" stopColor="rgba(0,0,0,0)" />
+                                <stop offset="1" stopColor="rgba(0,0,0,0.38)" />
+                            </linearGradient>
+                            <linearGradient id="latTop" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0" stopColor="rgba(255,255,255,0.18)" />
+                                <stop offset="0.4" stopColor="rgba(255,255,255,0)" />
+                                <stop offset="1" stopColor="rgba(0,0,0,0.18)" />
+                            </linearGradient>
+                            <radialGradient id="latGlow" cx="0.5" cy="0.55" r="0.65">
+                                <stop offset="0" stopColor={tint} />
+                                <stop offset="1" stopColor={tint} stopOpacity="0.35" />
+                            </radialGradient>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#latCells)" />
+                        <motion.rect
+                            width="100%"
+                            height="100%"
+                            fill="url(#latGlow)"
+                            mask="url(#latMask)"
+                            animate={{ opacity: reduce ? level : level > 0.6 ? [level * 0.75, level, level * 0.75] : level }}
+                            transition={level > 0.6 && !reduce ? { duration: 1.2, repeat: Infinity } : { duration: 0.8 }}
+                        />
+                        <rect width="100%" height="100%" fill="url(#latSides)" />
+                        <rect width="100%" height="100%" fill="url(#latTop)" />
+                    </svg>
                 </div>
             </div>
             {/* feet */}
@@ -234,12 +295,12 @@ export function Keyboard({ pressed, tint }: { pressed: Set<string>; tint: string
 
 // A mouse on its pad: it glides as the pointer moves over the screen, its
 // buttons light when clicked, and its wheel turns when the terminal scrolls
-export function Mouse({ dot, button, wheel, tint }: { dot: { x: number; y: number } | null; button: "left" | "right" | null; wheel: number; tint: string }) {
-    const x = dot ? (dot.x - 0.5) * 56 : 0;
-    const y = dot ? (dot.y - 0.5) * 40 : 0;
+export function Mouse({ x, y, button, wheel, tint }: { x: MotionValue<number>; y: MotionValue<number>; button: "left" | "right" | null; wheel: number; tint: string }) {
+    const rotate = useTransform(x, (v) => v * 0.12);
     return (
         <div className="absolute rounded-[16px]" style={{ left: 994, top: 694, width: 176, height: 160, background: "linear-gradient(160deg, #26292f, #17191d)", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
-            <motion.div className="absolute left-1/2 top-1/2" style={{ marginLeft: -31, marginTop: -52 }} animate={{ x, y, rotate: x * 0.12 }} transition={{ type: "spring", stiffness: 180, damping: 22 }}>
+            {/* moved straight from the pointer: no spring, so it keeps up */}
+            <motion.div className="absolute left-1/2 top-1/2" style={{ marginLeft: -31, marginTop: -52, x, y, rotate }}>
                 <svg width="62" height="104" viewBox="0 0 62 104" aria-hidden className="block drop-shadow-[0_8px_8px_rgba(0,0,0,0.55)]">
                     <defs>
                         <linearGradient id="mouseBody" x1="0" x2="1">
@@ -264,6 +325,39 @@ export function Mouse({ dot, button, wheel, tint }: { dot: { x: number; y: numbe
                 </svg>
             </motion.div>
         </div>
+    );
+}
+
+// ---- External hard drive ------------------------------------------------------
+
+// A 2 TB drive on its side, cabled to the tower. A click connects or disconnects
+// it; its light breathes while connected and flickers while the terminal works
+export function HardDrive({ on, busy, onClick }: { on: boolean; busy: boolean; onClick: () => void }) {
+    const reduce = useReducedMotion();
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            aria-label={on ? "Disconnect the Time Capsule drive" : "Connect the Time Capsule drive"}
+            title={on ? "Time Capsule · connected (click to disconnect)" : "Time Capsule · 2 TB (click to connect)"}
+            className="absolute rounded-[10px] text-left"
+            style={{ left: 1186, top: 752, width: 88, height: 112, background: "linear-gradient(160deg, #3a3e45, #1d2025)", boxShadow: "0 16px 28px -12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.05)" }}
+        >
+            {/* brushed face */}
+            <span className="absolute inset-[6px] rounded-[6px]" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px)" }} />
+            <span className="absolute left-[12px] top-[14px] font-mono text-[7px] font-bold uppercase leading-tight tracking-[0.2em] text-neutral-300">
+                time
+                <br />
+                capsule
+            </span>
+            <span className="absolute bottom-[12px] left-[12px] font-mono text-[6px] tracking-[0.2em] text-neutral-500">2 TB · USB-C</span>
+            <motion.span
+                className="absolute bottom-[13px] right-[12px] h-[5px] w-[5px] rounded-full"
+                style={{ background: on ? "#38bdf8" : "#3f3f46", boxShadow: on ? "0 0 8px #38bdf8" : "none" }}
+                animate={on && !reduce ? (busy ? { opacity: [1, 0.2, 1, 0.4, 1] } : { opacity: [1, 0.35, 1] }) : { opacity: 1 }}
+                transition={on ? (busy ? { duration: 0.35, repeat: Infinity } : { duration: 2.4, repeat: Infinity }) : undefined}
+            />
+        </button>
     );
 }
 
@@ -352,7 +446,7 @@ export const Phone = forwardRef<HTMLButtonElement, { notes: Note[]; qr: boolean;
 
 // ---- Desk touches -----------------------------------------------------------
 
-/** Chai, hot when it is chai-time in Kolkata, forgotten and cold otherwise. */
+/** Chai, from above: hot when it is chai-time in Kolkata, forgotten and cold otherwise. */
 export function Mug() {
     const [hot, setHot] = useState(true);
     useEffect(() => {
@@ -366,24 +460,32 @@ export function Mug() {
     }, []);
     const reduce = useReducedMotion();
     return (
-        <div className="absolute" style={{ left: 382, top: 712, width: 70, height: 90 }} title={hot ? "Chai, still hot" : "Chai, long gone cold"}>
-            {/* steam */}
+        <div className="absolute" style={{ left: 378, top: 722, width: 84, height: 70 }} title={hot ? "Chai, still hot" : "Chai, long gone cold"}>
+            {/* the handle, seen from above */}
+            <div className="absolute right-[2px] top-1/2 h-[22px] w-[24px] -translate-y-1/2 rounded-r-[12px] border-[6px] border-l-0" style={{ borderColor: "#e8dcc8" }} />
+            {/* the rim and the chai */}
+            <div className="absolute left-0 top-0 h-[70px] w-[70px] rounded-full" style={{ background: "radial-gradient(circle at 38% 34%, #fbf6ec, #e3d6c0 60%, #c7b595)", boxShadow: "0 12px 18px -8px rgba(0,0,0,0.85)" }}>
+                <div
+                    className="absolute inset-[7px] overflow-hidden rounded-full"
+                    style={{ background: hot ? "radial-gradient(circle at 40% 38%, #d9a066, #b0743f 55%, #8a5a31)" : "radial-gradient(circle at 40% 38%, #9a7550, #6f4f31 60%, #5a3f27)", boxShadow: "inset 0 3px 6px rgba(0,0,0,0.45)" }}
+                >
+                    {/* a skin of foam on hot chai, a highlight either way */}
+                    {hot && <span className="absolute left-[12px] top-[10px] h-[16px] w-[26px] rounded-full bg-[#ecd3b0]/40 blur-[2px]" />}
+                    <span className="absolute right-[10px] top-[8px] h-[6px] w-[10px] rounded-full bg-white/35 blur-[1px]" />
+                </div>
+            </div>
+            {/* steam curling up off it */}
             {hot &&
                 !reduce &&
                 [0, 1, 2].map((i) => (
                     <motion.span
                         key={i}
-                        className="absolute bottom-[62px] h-10 w-2 rounded-full bg-white/25 blur-[3px]"
-                        style={{ left: 18 + i * 10 }}
-                        animate={{ y: [0, -26], opacity: [0, 0.8, 0], scaleX: [1, 1.8] }}
-                        transition={{ duration: 2.6, delay: i * 0.8, repeat: Infinity, ease: "easeOut" }}
+                        className="pointer-events-none absolute h-6 w-6 rounded-full bg-white/20 blur-[5px]"
+                        style={{ left: 16 + i * 12, top: 18 }}
+                        animate={{ y: [0, -24], x: [0, i === 1 ? 4 : -4], opacity: [0, 0.7, 0], scale: [0.6, 1.4] }}
+                        transition={{ duration: 2.4, delay: i * 0.7, repeat: Infinity, ease: "easeOut" }}
                     />
                 ))}
-            <div className="absolute bottom-0 left-2 h-[60px] w-[48px] rounded-b-[16px] rounded-t-[4px]" style={{ background: "linear-gradient(90deg, #d6c7b0, #f5ecdd 40%, #cbb89c)", boxShadow: "0 10px 16px -8px rgba(0,0,0,0.8)" }}>
-                <div className="absolute inset-x-1 top-1 h-2 rounded-full" style={{ background: hot ? "#b07a47" : "#6b4a2d" }} />
-            </div>
-            {/* the handle */}
-            <div className="absolute bottom-[14px] right-[4px] h-[30px] w-[18px] rounded-r-full border-[5px] border-l-0" style={{ borderColor: "#e3d6c2" }} />
         </div>
     );
 }
@@ -392,7 +494,7 @@ export function Plant() {
     const reduce = useReducedMotion();
     const leaves = [-38, -18, 0, 18, 38];
     return (
-        <div className="absolute" style={{ left: 1264, top: 730, width: 110, height: 140 }} title="A plant, doing its best in orbit">
+        <div className="absolute" style={{ left: 1292, top: 730, width: 110, height: 140 }} title="A plant, doing its best in orbit">
             <motion.div className="absolute inset-x-0 bottom-[56px] h-[90px] origin-bottom" animate={reduce ? undefined : { rotate: [-2, 2, -2] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}>
                 {leaves.map((r, i) => (
                     <span
