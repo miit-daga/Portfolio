@@ -1091,32 +1091,84 @@ function IsroView() {
     );
 }
 
-// Live video from the ISS. Sen's 4K cameras by default, NASA's own stream as
-// the fallback (both found live by /api/iss-stream, since their IDs change),
-// and a recorded spacewalk for when it is night up there
-const SPACEWALK = "3F0XlKxaqbk"; // WorldCam: Terry Virts' 2015 GoPro spacewalk, looped with music
-
-type Feed = "sen" | "nasa" | "spacewalk";
-const FEED_LABEL: Record<Feed, string> = { sen: "Sen 4K", nasa: "NASA", spacewalk: "spacewalk" };
+// Live video from the ISS, a few ways. YouTube IDs change whenever a stream
+// restarts, so the live ones are addressed the way YouTube resolves itself in
+// the visitor's browser: Sen's channel's current live stream, and NASA's ISS
+// playlist. (Looking them up from the server does not work: YouTube turns
+// data centres away.) If a feed errors, the player moves on to the next.
+type Feed = "sen" | "nasa" | "afar" | "dream" | "spacewalk";
+const FEEDS: Record<Feed, { label: string; embed: string | null; link: string; live: boolean; note: string }> = {
+    sen: {
+        label: "Sen 4K",
+        embed: "live_stream?channel=UCkvW_7kp9LJrztmgA4q4bJQ",
+        link: "https://www.youtube.com/@Sen/live",
+        live: true,
+        note: "Sen's 4K cameras on the station, live around the clock.",
+    },
+    nasa: {
+        label: "NASA",
+        embed: "videoseries?list=PL2aBZuCeDwlQMf6xMgQAUAY_nbHAgW5jz",
+        link: "https://www.youtube.com/playlist?list=PL2aBZuCeDwlQMf6xMgQAUAY_nbHAgW5jz",
+        live: true,
+        note: "NASA's own HD cameras on the station, live.",
+    },
+    afar: {
+        label: "overview",
+        embed: "OKQEMp2555A",
+        link: "https://www.youtube.com/watch?v=OKQEMp2555A",
+        live: true,
+        note: "afarTV's overview camera, with the straight-down view inset. Archived video fills in when the live feed drops.",
+    },
+    dream: {
+        label: "Dream Trips",
+        // Its owner has turned off playing it on other sites
+        embed: null,
+        link: "https://www.youtube.com/watch?v=0FBiyFpV__g",
+        live: true,
+        note: "Dream Trips' 24/7 Earth view. It only plays on YouTube.",
+    },
+    spacewalk: {
+        label: "spacewalk",
+        embed: "3F0XlKxaqbk",
+        link: "https://www.youtube.com/watch?v=3F0XlKxaqbk",
+        live: false,
+        note: "Terry Virts' spacewalk, filmed on a GoPro in 2015 and replayed with music.",
+    },
+};
+const FEED_ORDER: Feed[] = ["sen", "nasa", "afar", "dream", "spacewalk"];
+// Where to go when a feed will not play
+const NEXT_FEED: Partial<Record<Feed, Feed>> = { sen: "nasa", nasa: "afar", afar: "spacewalk" };
 
 function IssLive({ onClose }: { onClose: () => void }) {
-    const [ids, setIds] = useState<{ sen: string | null; nasa: string | null } | null>(null);
-    const [feed, setFeed] = useState<Feed | null>(null);
+    const [feed, setFeed] = useState<Feed>("sen");
+    const frameRef = useRef<HTMLIFrameElement>(null);
     // Whether the station is in Earth's shadow, and for how much longer
     const [night, setNight] = useState<{ dark: boolean; minutes: number | null } | null>(null);
 
+    // Hear the player's errors (YouTube's iframe messages) and move on
     useEffect(() => {
-        fetch("/api/iss-stream")
-            .then((r) => r.json())
-            .then((d: { sen: string | null; nasa: string | null }) => {
-                setIds(d);
-                setFeed((f) => f ?? (d.sen ? "sen" : d.nasa ? "nasa" : "spacewalk"));
-            })
-            .catch(() => {
-                setIds({ sen: null, nasa: null });
-                setFeed("spacewalk");
-            });
+        const onMessage = (e: MessageEvent) => {
+            let host = "";
+            try {
+                host = new URL(e.origin).hostname;
+            } catch {
+                return;
+            }
+            if (!/(^|\.)youtube(-nocookie)?\.com$/.test(host)) return;
+            let data: { event?: string } | null = null;
+            try {
+                data = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+            } catch {
+                return;
+            }
+            if (data?.event === "onError") setFeed((f) => NEXT_FEED[f] ?? f);
+        };
+        window.addEventListener("message", onMessage);
+        return () => window.removeEventListener("message", onMessage);
     }, []);
+    // Ask the player to send its events
+    const listen = () =>
+        frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
 
     useEffect(() => {
         let alive = true;
@@ -1145,8 +1197,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
         };
     }, []);
 
-    const idFor = (f: Feed) => (f === "spacewalk" ? SPACEWALK : ids?.[f] ?? null);
-    const current = feed ? idFor(feed) : null;
+    const f = FEEDS[feed];
 
     return (
         <motion.div
@@ -1165,56 +1216,61 @@ function IssLive({ onClose }: { onClose: () => void }) {
             >
                 <div className="mb-1.5 flex items-center justify-between px-0.5">
                     <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-neutral-300">
-                        <span className={cn("h-1.5 w-1.5 rounded-full", feed === "spacewalk" ? "bg-neutral-500" : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]")} />
-                        {feed === "spacewalk" ? "recorded · 2015" : "live from the iss"}
+                        <span className={cn("h-1.5 w-1.5 rounded-full", f.live ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" : "bg-neutral-500")} />
+                        {f.live ? "live from the iss" : "recorded · 2015"}
                     </p>
                     <button type="button" onClick={onClose} aria-label="Close the live view" className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white">
                         <IconX className="h-3.5 w-3.5" />
                     </button>
                 </div>
                 <div className="relative overflow-hidden rounded-lg bg-black" style={{ width: 256, height: 144 }}>
-                    {current ? (
+                    {f.embed ? (
                         <iframe
-                            key={current}
-                            src={`https://www.youtube-nocookie.com/embed/${current}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`}
-                            title={feed === "spacewalk" ? "A recorded spacewalk outside the ISS" : "Live view of Earth from the International Space Station"}
+                            ref={frameRef}
+                            key={feed}
+                            src={`https://www.youtube-nocookie.com/embed/${f.embed}${f.embed.includes("?") ? "&" : "?"}autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}`}
+                            title={f.live ? "Live view of Earth from the International Space Station" : "A recorded spacewalk outside the ISS"}
                             width={256}
                             height={144}
                             allow="autoplay; encrypted-media; picture-in-picture"
                             allowFullScreen
                             className="block"
+                            onLoad={listen}
                         />
                     ) : (
-                        <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">finding the live feed…</p>
+                        // Not playable here: its picture, opening it on YouTube
+                        <a href={f.link} target="_blank" rel="noopener noreferrer" className="group absolute inset-0 block">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src="https://i.ytimg.com/vi/0FBiyFpV__g/hqdefault.jpg" alt="" className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-90" />
+                            <span className="absolute inset-0 flex items-center justify-center">
+                                <span className="rounded-full bg-black/70 px-3 py-1 text-[10px] text-neutral-100">watch on YouTube ↗</span>
+                            </span>
+                        </a>
                     )}
                 </div>
                 {/* Which feed */}
-                <div className="mt-1.5 flex gap-1 px-0.5">
-                    {(["sen", "nasa", "spacewalk"] as const).map((f) => (
+                <div className="mt-1.5 flex flex-wrap gap-1 px-0.5">
+                    {FEED_ORDER.map((k) => (
                         <button
-                            key={f}
+                            key={k}
                             type="button"
-                            disabled={!idFor(f)}
-                            onClick={() => setFeed(f)}
+                            onClick={() => setFeed(k)}
                             className={cn(
-                                "rounded-full border px-2 py-0.5 text-[9px] tracking-wide transition-colors disabled:opacity-30",
-                                feed === f ? "border-amber-200/40 bg-amber-200/10 text-amber-100" : "border-white/10 text-neutral-400 hover:text-neutral-200",
+                                "rounded-full border px-2 py-0.5 text-[9px] tracking-wide transition-colors",
+                                feed === k ? "border-amber-200/40 bg-amber-200/10 text-amber-100" : "border-white/10 text-neutral-400 hover:text-neutral-200",
                             )}
                         >
-                            {FEED_LABEL[f]}
+                            {FEEDS[k].label}
+                            {!FEEDS[k].embed && " ↗"}
                         </button>
                     ))}
                 </div>
                 <p className="mt-1.5 px-0.5 text-[9px] leading-snug text-neutral-500">
-                    {feed === "spacewalk"
-                        ? "Terry Virts' spacewalk, filmed on a GoPro in 2015 and replayed with music."
-                        : night?.dark
-                          ? `The station is on the night side of Earth, so the view is dark${night.minutes ? `: daylight again in about ${night.minutes} min` : ""}.`
-                          : feed === "nasa"
-                            ? "NASA's own cameras on the station, live."
-                            : "Sen's 4K cameras on the station, live around the clock."}{" "}
-                    {current && (
-                        <a href={`https://www.youtube.com/watch?v=${current}`} target="_blank" rel="noopener noreferrer" className="text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-neutral-200">
+                    {f.live && night?.dark
+                        ? `The station is on the night side of Earth, so the view is dark${night.minutes ? `: daylight again in about ${night.minutes} min` : ""}.`
+                        : f.note}{" "}
+                    {f.embed && (
+                        <a href={f.link} target="_blank" rel="noopener noreferrer" className="text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-neutral-200">
                             YouTube ↗
                         </a>
                     )}
