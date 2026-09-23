@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { CloseButton } from "./close-button";
-import { CrtMonitor } from "./crt-monitor";
+import { RetroComputer } from "./retro-computer";
 import { RESUME_DOWNLOAD_URL, RESUME_DRIVE_URL, RESUME_PREVIEW_URL } from "@/lib/resume";
 
 export const metadata: Metadata = {
@@ -11,8 +11,9 @@ export const metadata: Metadata = {
 
 // The resume on the site itself: the Drive file in an embedded preview, with
 // download and Drive links, instead of sending visitors off to Drive. It is
-// shown on an old CRT monitor on a ship's console (crt-monitor.tsx), with the
-// stars out beyond it.
+// shown on a beige 1980s computer adrift among the stars (retro-computer.tsx),
+// drawn from the Drive file itself (/api/resume-pdf), so updating the file in
+// Drive updates the page.
 
 // A fixed sky, the same on the server and in the browser
 const STARS = (() => {
@@ -82,7 +83,7 @@ export default function ResumePage() {
             </header>
 
             <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col px-3 pb-6 sm:px-4 md:px-6">
-                <CrtMonitor src={RESUME_PREVIEW_URL} />
+                <RetroComputer pdf="/api/resume-pdf" fallback={RESUME_PREVIEW_URL} />
             </section>
         </main>
     );
