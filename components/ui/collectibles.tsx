@@ -65,6 +65,36 @@ export function CollectiblesProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
+    // The fragment from the terminal desk's drawer (app/terminal/desk.tsx):
+    // taken there, it counts here, once a session, as the next one not yet
+    // found. Heard live too, when the desk is open in another tab
+    useEffect(() => {
+        const redeem = () => {
+            try {
+                if (localStorage.getItem("desk-fragment") !== "1" || sessionStorage.getItem("desk-fragment-counted")) return;
+                sessionStorage.setItem("desk-fragment-counted", "1");
+                setFound((prev) => {
+                    const id = FRAGMENT_IDS.find((f) => !prev.has(f));
+                    if (!id) return prev;
+                    const next = new Set(prev);
+                    next.add(id);
+                    sessionStorage.setItem(FRAGMENTS_STORAGE_KEY, JSON.stringify([...next]));
+                    return next;
+                });
+            } catch {
+                /* ignore */
+            }
+        };
+        // after the hydrate above has read the session's progress
+        const id = window.setTimeout(redeem, 0);
+        const onStorage = (e: StorageEvent) => e.key === "desk-fragment" && redeem();
+        window.addEventListener("storage", onStorage);
+        return () => {
+            window.clearTimeout(id);
+            window.removeEventListener("storage", onStorage);
+        };
+    }, []);
+
     const collect = useCallback((id: string) => {
         setFound((prev) => {
             if (prev.has(id)) return prev;

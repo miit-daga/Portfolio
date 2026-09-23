@@ -2,8 +2,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
-import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, type Note, type Stick } from "./props";
-import { playAirDrop, playNotify, playPowerButton, playUsbIn, playUsbOut, setFan } from "./desk-sound";
+import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, useChaiTime, type Note, type Stick } from "./props";
+import { Drawer, Duck, Life, Webcam, asciiSelfie } from "./desk-extras";
+import {
+    playAirDrop,
+    playDrawer,
+    playMusic,
+    playNotify,
+    playPour,
+    playPowerButton,
+    playQuack,
+    playShutter,
+    playSip,
+    playSparkle,
+    playUsbIn,
+    playUsbOut,
+    setFan,
+    stopMusic,
+} from "./desk-sound";
 
 // The terminal on a desk in orbit, for large screens (terminal.html sends them
 // here). The terminal itself is public/terminal.html, untouched in how it
@@ -13,12 +29,21 @@ import { playAirDrop, playNotify, playPowerButton, playUsbIn, playUsbOut, setFan
 //   Display and tower   the tower's lattice glows and its fans hum harder
 //                       while a command or a game runs; its power button
 //                       starts the terminal, then sleeps and wakes the display
-//   USB drives          drag one from the tray to the tower's ports (or tap
+//   USB drives          drag one from the stand to the tower's ports (or tap
 //                       it): it mounts in the terminal at /Volumes
 //   AirDrop             a download flies off the screen to the phone
-//   Phone               notifications as things happen; tap it for a QR code
+//   Phone               notifications as things happen; its dock opens
+//                       Messages (signs the guestbook), Weather, Music and a QR code
 //   Keyboard, mouse     mirror the visitor's typing, pointer, clicks and scrolling
-//   Chai and a plant    chai steams at chai-time in Kolkata
+//   Chai                click to sip; it refills at chai-time in Kolkata
+//   Plant               grows a little each visit, droops after a week away;
+//                       drag the mug onto it to water it
+//   Duck, webcam        explain a bug to the duck; the webcam takes an ASCII selfie
+//   Drawer              a floppy, a sticky note and a cosmic fragment
+//
+// It is seen from the chair: things that stand (display, tower, phone, mug)
+// face the viewer, and things that lie flat (keyboard, mouse) lie on the
+// desk's surface, which is tilted away in 3D.
 //
 // The scene is drawn at 1440 x 900 and scaled to fit. The terminal is not
 // scaled: it is laid over the screen at its real size, so its text stays
@@ -28,7 +53,23 @@ const W = 1440;
 const H = 900;
 const BIG = "(min-width: 1024px) and (min-height: 620px) and (pointer: fine)";
 
-type TermWindow = Window & { runCommandFromClick?: (c: string) => void; deskMount?: (label: string) => void; deskEject?: (label: string) => void };
+type TermWindow = Window & {
+    runCommandFromClick?: (c: string) => void;
+    deskMount?: (label: string) => void;
+    deskEject?: (label: string) => void;
+    deskSelfie?: (result: { art: string } | { error: string }) => void;
+};
+
+// The desk's surface: a plane of SURFACE.w x SURFACE.d, its front edge at
+// SURFACE.front, tilted back about that edge. Seen from the chair, its far
+// edge is 150 up the screen and 8% narrower
+const SURFACE = { x: 10, w: 1420, d: 284, front: 790, tilt: 55, perspective: 2678 };
+// Where the mug and plant stand, and where the mug pours when dropped on the plant
+const MUG = { x: 352, y: 692 };
+const PLANT = { x: 1282, y: 616 };
+const POUR = { x: 1236, y: 634 };
+const PLANT_KEY = "desk-plant";
+const FRAGMENT_KEY = "desk-fragment";
 
 const STICKS: (Stick & { term: string })[] = [
     { id: "projects", label: "PROJECTS", color: "#3b82f6", term: "PROJECTS" },
@@ -53,7 +94,7 @@ export function Desk() {
     const [view, setView] = useState({ s: 1, ox: 0, oy: 0, vw: 0, vh: 0 });
     const frameRef = useRef<HTMLIFrameElement>(null);
     const portRef = useRef<HTMLDivElement>(null);
-    const phoneRef = useRef<HTMLButtonElement>(null);
+    const phoneRef = useRef<HTMLDivElement>(null);
 
     const [on, setOn] = useState(false); // the terminal has been started
     const [asleep, setAsleep] = useState(false);
@@ -67,7 +108,18 @@ export function Desk() {
     // Connected but unmounted by a typed eject: still in its port, just idle
     const [unmounted, setUnmounted] = useState<Set<string>>(new Set());
     const [notes, setNotes] = useState<Note[]>([]);
-    const [qr, setQr] = useState(false);
+    const [music, setMusic] = useState(false);
+    // Chai: sips left of 4; the mug, dragged or pouring
+    const hot = useChaiTime();
+    const [chai, setChai] = useState(4);
+    const [mugDrag, setMugDrag] = useState<{ dx: number; dy: number } | null>(null);
+    const [pouring, setPouring] = useState(false);
+    const plantRef = useRef<HTMLDivElement>(null);
+    const [plant, setPlant] = useState({ stage: 2, droop: false, watered: 0, visits: 1 });
+    const [drawer, setDrawer] = useState(false);
+    const [fragment, setFragment] = useState(true);
+    const [quack, setQuack] = useState(0);
+    const [camLive, setCamLive] = useState(false);
     const [flight, setFlight] = useState<{ n: number; from: { x: number; y: number }; to: { x: number; y: number }; name: string } | null>(null);
     const [airdrop, setAirdrop] = useState(0);
     const [pressed, setPressed] = useState<Set<string>>(new Set());
@@ -147,7 +199,7 @@ export function Desk() {
         const k = kolkataNow();
         noteId.current = 2;
         setNotes([
-            { id: 2, app: "Desk", text: "Plug a drive from the tray into the tower", icon: "🔌" },
+            { id: 2, app: "Desk", text: "Plug a drive from the stand into the tower", icon: "🔌" },
             { id: 1, app: "Kolkata station", text: `Miit is ${k.mood.label}. ${k.mood.reply[0].toUpperCase()}${k.mood.reply.slice(1)}.`, icon: "🛰️" },
         ]);
     }, []);
@@ -182,6 +234,24 @@ export function Desk() {
             else if (d.type === "download") airDrop(d.filename || "Resume-Miit_Daga.pdf");
             else if (d.type === "notify") pushNote(d.app || "Terminal", d.text || "", "✍️");
             else if (d.type === "fullscreen") setFull((f) => !f);
+            else if (d.type === "quack") {
+                playQuack();
+                setQuack((q) => q + 1);
+            } else if (d.type === "selfie") {
+                setCamLive(true);
+                asciiSelfie().then((r) => {
+                    setCamLive(false);
+                    if ("art" in r) {
+                        playShutter();
+                        pushNote("Camera", "Selfie taken · printed in the terminal, never uploaded", "📸");
+                    }
+                    try {
+                        (frameRef.current?.contentWindow as TermWindow | null)?.deskSelfie?.(r);
+                    } catch {
+                        /* ignore */
+                    }
+                });
+            }
             else if (d.type === "unmount" || d.type === "mounted") {
                 const label = (d as { label?: string }).label || "";
                 setUnmounted((u) => {
@@ -286,6 +356,9 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                 return;
             }
             if (e.metaKey || e.ctrlKey || e.altKey) return;
+            // typing into the phone's Messages stays there
+            const t = e.target as HTMLElement | null;
+            if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
             const i = input();
             if (!i || i.disabled) return;
             refocus();
@@ -409,6 +482,135 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
     };
 
 
+    // ---- the plant, the chai, the drawer, the duck, the webcam, music ---------------
+    // The plant grows a stage each visit (once a session), and a stage for each
+    // day it is watered; a week without a visit and it droops until watered
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(PLANT_KEY) || "null") as { visits: number; last: number; waterings: number; wateredOn: string; droop: boolean } | null;
+            const data = saved ?? { visits: 0, last: 0, waterings: 0, wateredOn: "", droop: false };
+            if (!sessionStorage.getItem("desk-plant-counted")) {
+                sessionStorage.setItem("desk-plant-counted", "1");
+                if (data.last && Date.now() - data.last > 7 * 86400000) data.droop = true;
+                data.visits += 1;
+                data.last = Date.now();
+                localStorage.setItem(PLANT_KEY, JSON.stringify(data));
+            }
+            setPlant({ stage: 1 + data.visits + data.waterings, droop: data.droop, watered: 0, visits: data.visits });
+            setFragment(localStorage.getItem(FRAGMENT_KEY) !== "1");
+        } catch {
+            /* storage unavailable: a plant for today only */
+        }
+    }, []);
+    const water = () => {
+        setPouring(true);
+        playPour();
+        setChai((c) => c - 1);
+        window.setTimeout(() => setPouring(false), 1300);
+        let grew = false;
+        try {
+            const data = JSON.parse(localStorage.getItem(PLANT_KEY) || "null") ?? { visits: 1, last: Date.now(), waterings: 0, wateredOn: "", droop: false };
+            const today = new Date().toDateString();
+            if (data.wateredOn !== today) {
+                data.waterings += 1;
+                data.wateredOn = today;
+                grew = true;
+            }
+            data.droop = false;
+            localStorage.setItem(PLANT_KEY, JSON.stringify(data));
+            setPlant((p) => ({ ...p, stage: 1 + data.visits + data.waterings, droop: false, watered: p.watered + 1 }));
+        } catch {
+            setPlant((p) => ({ ...p, droop: false, watered: p.watered + 1 }));
+        }
+        window.setTimeout(() => pushNote("Plant", grew ? "Watered with chai. It seems to like it, and it grew a little" : "Watered already today. It is happy", "🪴"), 900);
+    };
+    // A sip; empty, it refills at chai-time, and otherwise waits
+    const refill = useRef(0);
+    useEffect(() => () => window.clearTimeout(refill.current), []);
+    const sip = () => {
+        if (chai <= 0) {
+            pushNote("Chai", hot ? "Pouring a fresh cup…" : "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
+            return;
+        }
+        playSip();
+        const left = chai - 1;
+        setChai(left);
+        if (!hot && left === 3) pushNote("Chai", "Stone cold. Miit forgot this one hours ago", "🧊");
+        if (left === 0 && hot) {
+            window.clearTimeout(refill.current);
+            refill.current = window.setTimeout(() => {
+                playPour();
+                setChai(4);
+                pushNote("Chai", "Fresh cup poured. It is chai-time in Kolkata", "☕");
+            }, 4000);
+        } else if (left === 0) pushNote("Chai", "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
+    };
+    // Click the mug to sip; drag it onto the plant to water it
+    const mugDown = (e: React.PointerEvent) => {
+        if (pouring) return;
+        const x0 = e.clientX;
+        const y0 = e.clientY;
+        let moved = false;
+        const move = (ev: PointerEvent) => {
+            const dx = (ev.clientX - x0) / view.s;
+            const dy = (ev.clientY - y0) / view.s;
+            if (Math.hypot(dx, dy) > 5) moved = true;
+            if (moved) setMugDrag({ dx, dy });
+        };
+        const up = (ev: PointerEvent) => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            setMugDrag(null);
+            if (!moved) return sip();
+            const r = plantRef.current?.getBoundingClientRect();
+            if (r && ev.clientX > r.left - 30 && ev.clientX < r.right + 30 && ev.clientY > r.top - 30 && ev.clientY < r.bottom + 20) {
+                if (chai > 0) water();
+                else pushNote("Plant", "The mug is empty. Nothing to water it with", "🪴");
+            }
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+    };
+    const toggleMusic = (want: boolean) => {
+        if (want) setMusic(playMusic());
+        else {
+            stopMusic();
+            setMusic(false);
+        }
+    };
+    useEffect(() => () => stopMusic(), []);
+    const openDrawer = () => {
+        playDrawer(!drawer);
+        setDrawer((d) => !d);
+    };
+    // The drawer's fragment counts on the main page: it reads this and hands
+    // over a fragment there (components/ui/collectibles.tsx)
+    const takeFragment = () => {
+        playSparkle();
+        setFragment(false);
+        try {
+            localStorage.setItem(FRAGMENT_KEY, "1");
+        } catch {
+            /* ignore */
+        }
+        pushNote("Cosmic fragment", "Pocketed. It counts toward the hunt on the main page", "✦");
+    };
+    const askDuck = () => {
+        playQuack();
+        setQuack((q) => q + 1);
+        whenReady(() => {
+            term()?.runCommandFromClick?.("duck");
+            refocus();
+        });
+    };
+    const selfie = () => {
+        if (camLive) return;
+        whenReady(() => {
+            term()?.runCommandFromClick?.("selfie");
+            refocus();
+        });
+    };
+
     // ---- small screens: the terminal on its own -------------------------------
     if (big === false) {
         return src ? <iframe src={src} title="Terminal" className="fixed inset-0 h-full w-full border-0 bg-black" /> : null;
@@ -451,51 +653,116 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     </button>
                 </div>
 
-                {/* the desk, floating */}
+                {/* the desk, floating: its surface tilted away, with what lies flat on it */}
+                <div
+                    className="absolute"
+                    style={{
+                        left: SURFACE.x,
+                        top: SURFACE.front - SURFACE.d,
+                        width: SURFACE.w,
+                        height: SURFACE.d,
+                        transformOrigin: "50% 100%",
+                        transform: `perspective(${SURFACE.perspective}px) rotateX(${SURFACE.tilt}deg)`,
+                    }}
+                >
+                    <div
+                        aria-hidden
+                        className="absolute inset-0 rounded-[20px]"
+                        style={{ background: "linear-gradient(180deg, #121419 0%, #1a1d24 70%, #20242c 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)" }}
+                    />
+                    <div aria-hidden className="absolute inset-x-[20px] top-0 h-[2px] bg-gradient-to-r from-transparent via-teal-300/20 to-transparent" />
+                    {/* a felt desk mat under the keyboard and mouse */}
+                    <div aria-hidden className="absolute rounded-[14px]" style={{ left: 420, top: 62, width: 780, height: 210, background: "linear-gradient(180deg, #1f2937, #273244)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.05)" }} />
+                    <Keyboard pressed={pressed} tint={tint} />
+                    <Mouse x={mouseX} y={mouseY} button={button} wheel={wheel} tint={tint} />
+                </div>
+                {/* its front edge */}
                 <div
                     aria-hidden
-                    className="absolute rounded-[20px]"
-                    style={{ left: 30, top: 640, width: 1380, height: 250, background: "linear-gradient(180deg, #1c1f26 0%, #121419 40%, #0b0c10 100%)", boxShadow: "0 60px 120px -40px rgba(0,0,0,1), inset 0 1px 0 rgba(255,255,255,0.08)" }}
+                    className="absolute rounded-b-[14px]"
+                    style={{ left: SURFACE.x, top: SURFACE.front, width: SURFACE.w, height: 48, background: "linear-gradient(180deg, #2a2e37 0%, #15171c 30%, #0b0c10 100%)", boxShadow: "0 60px 120px -40px rgba(0,0,0,1), inset 0 1px 0 rgba(255,255,255,0.12)" }}
                 />
-                <div aria-hidden className="absolute left-[30px] top-[640px] h-[2px] w-[1380px] bg-gradient-to-r from-transparent via-teal-300/20 to-transparent" />
 
                 <Display asleep={asleep} glow={glow} />
+                <Webcam live={camLive} onClick={selfie} />
                 <Tower ref={portRef} level={level} tint={tint} on={on} asleep={asleep} plugged={plugged} unmounted={unmounted} onPower={power} onPull={pull} hdd={hdd} />
-                <Phone ref={phoneRef} notes={notes} qr={qr} onTap={() => setQr((q) => !q)} airdrop={airdrop} />
-                <Keyboard pressed={pressed} tint={tint} />
-                <Mouse x={mouseX} y={mouseY} button={button} wheel={wheel} tint={tint} />
+                <Duck quack={quack} onClick={askDuck} />
                 <HardDrive on={hdd} idle={unmounted.has("TIMECAPSULE")} busy={hdd && busy && !unmounted.has("TIMECAPSULE")} onClick={toggleHdd} />
-                <Mug />
-                <Plant />
+                <div ref={plantRef} className="absolute" style={{ left: PLANT.x, top: PLANT.y }} title={`A plant, doing its best in orbit · visit ${plant.visits}${plant.droop ? " · thirsty: drag the mug onto it" : ""}`}>
+                    <Plant stage={plant.stage} droop={plant.droop} watered={plant.watered} />
+                </div>
 
-                {/* the tray of drives */}
-                <div className="absolute rounded-[14px]" style={{ left: 96, top: 790, width: 268, height: 96, background: "linear-gradient(180deg, #2a2d34, #1a1c21)", boxShadow: "inset 0 3px 8px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.06)" }}>
-                    <div className="absolute inset-0 flex items-center justify-center gap-[10px]">
-                        {STICKS.map((st) => {
-                            const d = drag?.id === st.id ? drag : null;
-                            const out = plugged.some((p) => p.stick.id === st.id);
-                            return (
-                                <button
-                                    key={st.id}
-                                    type="button"
-                                    onPointerDown={(e) => dragStart(e, st)}
-                                    aria-label={`${st.alien ? "An unlabelled drive with an alien sticker" : `${st.label} drive`}. Plug it into the tower`}
-                                    title={st.alien ? "An unlabelled drive" : `${st.label}: drag it to the tower, or tap`}
-                                    className="relative cursor-grab touch-none active:cursor-grabbing"
-                                    style={{
-                                        opacity: out ? 0.15 : 1,
-                                        transform: d ? `translate(${d.dx}px, ${d.dy}px) scale(1.12)` : undefined,
-                                        transition: d ? "none" : "transform 0.3s ease",
-                                        zIndex: d ? 50 : undefined,
-                                    }}
-                                >
-                                    <StickArt stick={st} />
-                                </button>
-                            );
-                        })}
+                {/* the drives, standing in a block */}
+                <div className="absolute" style={{ left: 96, top: 700, width: 220, height: 78 }}>
+                    <div aria-hidden className="absolute inset-x-0 rounded-[8px]" style={{ top: 44, height: 12, background: "linear-gradient(180deg, #4b5058, #2d3036)" }} />
+                    {STICKS.map((st, i) => {
+                        const d = drag?.id === st.id ? drag : null;
+                        const out = plugged.some((p) => p.stick.id === st.id);
+                        return (
+                            <button
+                                key={st.id}
+                                type="button"
+                                onPointerDown={(e) => dragStart(e, st)}
+                                aria-label={`${st.alien ? "An unlabelled drive with an alien sticker" : `${st.label} drive`}. Plug it into the tower`}
+                                title={st.alien ? "An unlabelled drive" : `${st.label}: drag it to the tower, or tap`}
+                                className="absolute cursor-grab touch-none active:cursor-grabbing"
+                                style={{
+                                    left: 13 + i * 34,
+                                    top: -2,
+                                    opacity: out ? 0.15 : 1,
+                                    transform: d ? `translate(${d.dx}px, ${d.dy}px) scale(1.12)` : undefined,
+                                    transition: d ? "none" : "transform 0.3s ease",
+                                    zIndex: d ? 50 : 1,
+                                }}
+                            >
+                                <StickArt stick={st} upright />
+                            </button>
+                        );
+                    })}
+                    {/* the block's front, hiding the sticks' feet */}
+                    <div aria-hidden className="absolute inset-x-0 bottom-0 z-[2] rounded-b-[8px] rounded-t-[3px]" style={{ top: 51, background: "linear-gradient(180deg, #3a3e46, #1c1e23)", boxShadow: "0 12px 18px -8px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.12)" }}>
+                        <span className="absolute inset-x-0 bottom-[8px] text-center font-mono text-[7px] uppercase tracking-[0.3em] text-neutral-500">drag to the tower</span>
                     </div>
                 </div>
 
+                {/* chai: click to sip, drag onto the plant to water it */}
+                <motion.div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={chai > 0 ? "The mug of chai. Click to sip, or drag it onto the plant" : "An empty mug"}
+                    title={chai > 0 ? (hot ? "Chai · click to sip, or drag onto the plant to water it" : "Chai, long gone cold · click to sip") : hot ? "Empty · refilling" : "Empty · brew later"}
+                    onPointerDown={mugDown}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && sip()}
+                    className="absolute z-20 cursor-grab touch-none active:cursor-grabbing"
+                    style={{ left: MUG.x, top: MUG.y }}
+                    animate={pouring ? { x: POUR.x - MUG.x, y: POUR.y - MUG.y, rotate: 48 } : mugDrag ? { x: mugDrag.dx, y: mugDrag.dy, rotate: 0 } : { x: 0, y: 0, rotate: 0 }}
+                    transition={mugDrag ? { duration: 0 } : { type: "spring", stiffness: 220, damping: 24 }}
+                >
+                    <Mug level={chai} hot={hot} pouring={pouring} />
+                    {/* the pour */}
+                    <AnimatePresence>
+                        {pouring && (
+                            <motion.span
+                                className="pointer-events-none absolute block w-[4px] origin-top rounded-full bg-[#b87a44]"
+                                style={{ left: 62, top: 14, height: 70, rotate: -48 }}
+                                initial={{ scaleY: 0, opacity: 0 }}
+                                animate={{ scaleY: 1, opacity: 0.9 }}
+                                exit={{ scaleY: 0, opacity: 0 }}
+                                transition={{ delay: 0.35, duration: 0.25 }}
+                            />
+                        )}
+                    </AnimatePresence>
+                </motion.div>
+
+                <Drawer
+                    open={drawer}
+                    onToggle={openDrawer}
+                    fragment={fragment}
+                    onFloppy={() => pushNote("Floppy disk", "Nothing here reads this any more. The resume page still has a drive", "💾")}
+                    onNote={() => pushNote("Sticky note", "↑ ↑ ↓ ↓ ← → ← → B A · try it at the very bottom of the main page", "📝")}
+                    onFragment={takeFragment}
+                />
+                <Phone ref={phoneRef} notes={notes} airdrop={airdrop} music={music} onMusic={toggleMusic} onSigned={(name, message) => pushNote("Guestbook", `${name}: ${message}`, "✍️")} />
             </div>
 
             {/* the terminal, over the screen at its real size */}
@@ -512,8 +779,9 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             )}
             {/* asleep: the panel dark over it; tap to wake */}
             {asleep && !full && (
-                <button type="button" aria-label="Wake the display" onClick={power} className="absolute z-40 bg-black" style={screenRect}>
-                    <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-700">asleep · tap to wake</span>
+                <button type="button" aria-label="Wake the display" onClick={power} className="absolute z-40 overflow-hidden bg-black" style={screenRect}>
+                    <Life tint={tint} />
+                    <span className="relative rounded bg-black/70 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-500">asleep · tap to wake</span>
                 </button>
             )}
             {full && (

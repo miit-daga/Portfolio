@@ -3330,7 +3330,7 @@
         }
 
         // Commands that exist but are deliberately absent from the public list.
-        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen']);
+        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie']);
         function isKnownCommand(text) {
             const base = (text || '').trim().split(/\s+/)[0].toLowerCase();
             if (!base) return false;
@@ -4955,7 +4955,7 @@
             }
 
             // --- The desk's USB drives, and its full screen ----------------
-            if (cmd === 'fullscreen' || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
+            if (cmd === 'fullscreen' || cmd === 'duck' || cmd === 'selfie' || cmd === 'eject' || cmd.startsWith('eject ') || cmd === 'mount' || cmd.startsWith('mount ') || /^(ls|cd)\s+\/volumes\b/.test(cmd)) {
                 await deskCommand(command);
                 return;
             }
@@ -5828,11 +5828,21 @@
                 endTurn();
                 return;
             }
+            if (cmd === 'duck') {
+                await rubberDuck();
+                endTurn();
+                return;
+            }
+            if (cmd === 'selfie') {
+                await deskSelfie();
+                endTurn();
+                return;
+            }
             if (cmd.startsWith('eject')) {
                 // eject LABEL, or with nothing named, every drive
                 const want = command.replace(/^eject\s*(\/volumes\/)?/i, '').trim().toUpperCase();
                 const which = want ? [...mounted].filter((l) => l === want) : [...mounted];
-                if (!mounted.size) await typeRaw('<span class="highlight-dim">eject: nothing is mounted. Plug in a drive from the tray on the desk.</span>');
+                if (!mounted.size) await typeRaw('<span class="highlight-dim">eject: nothing is mounted. Plug in a drive from the stand on the desk.</span>');
                 else if (!which.length) await typeRaw(`<span class="error-text">eject: ${escapeHtml(want)} is not mounted.</span>`);
                 else {
                     for (const l of which) {
@@ -5852,7 +5862,7 @@
                 return;
             }
             if (/^(ls|cd)\s+\/volumes\/?$/.test(cmd)) {
-                await typeRaw(mounted.size ? [...mounted].map((l) => `<span style="color:var(--term-accent);font-weight:700">${escapeHtml(l)}</span>`).join('  ') : '<span class="highlight-dim">/Volumes is empty. Plug in a drive from the tray on the desk.</span>');
+                await typeRaw(mounted.size ? [...mounted].map((l) => `<span style="color:var(--term-accent);font-weight:700">${escapeHtml(l)}</span>`).join('  ') : '<span class="highlight-dim">/Volumes is empty. Plug in a drive from the stand on the desk.</span>');
                 endTurn();
                 return;
             }
@@ -5879,7 +5889,7 @@
             if (!vol || !connected.has(label)) {
                 SoundFX.error();
                 await typeRaw(`<span class="error-text">mount: no drive named ${escapeHtml(label)} is plugged in.</span>`);
-                await typeRaw('<span class="highlight-dim">Plug one in from the tray on the desk (or connect the Time Capsule), and it mounts itself.</span>');
+                await typeRaw('<span class="highlight-dim">Plug one in from the stand on the desk (or connect the Time Capsule), and it mounts itself.</span>');
                 endTurn();
                 return;
             }
@@ -5934,10 +5944,74 @@
             await executeCommand(vol.open);
         }
 
+        // The rubber duck on the desk: explain the bug to it, out loud or typed.
+        // It only ever quacks, but it quacks a real tip for what it heard
+        const DUCK_TIPS = [
+            [/undefined|null|nan|cannot read/, 'Log the value one step before it breaks. It was undefined earlier than you think.'],
+            [/async|await|promise|then|callback|race/, 'Check for a missing await. The code ran, just not in the order you pictured.'],
+            [/css|style|layout|align|center|centre|overflow|z-index/, 'Open devtools, pick the element, read its computed styles. Something up the tree is winning.'],
+            [/cache|stale|old version|not updating|refresh/, 'Hard refresh, then clear the cache. If it is still old, the bug is upstream of you.'],
+            [/deploy|prod|production|works locally|vercel|ci/, 'Diff the environments: env vars, versions, build flags. Works on my machine is a clue, not a verdict.'],
+            [/sql|query|database|db|postgres|mongo|bigquery/, 'Run the query by hand with the exact values. Then check the indexes and the joins.'],
+            [/type|typescript|ts\b|any\b/, 'Hover the variable and read the type the compiler actually inferred, not the one you meant.'],
+            [/loop|infinite|hang|freeze|stuck|slow/, 'Pause it in the debugger and look at the stack. The loop condition is lying to you.'],
+            [/regex|pattern|match/, 'Test the pattern on the smallest input that fails. Anchors and greedy quantifiers first.'],
+            [/test|flaky|sometimes|random/, 'Flaky means state or timing. Run it alone, then in a loop of a hundred, and compare.'],
+            [/api|fetch|request|cors|404|500|network/, 'Open the network tab. Read the request that was sent, not the one in your code.'],
+            [/merge|git|branch|conflict|rebase/, 'git log --oneline --graph. Find the commit where it last worked, then bisect.'],
+        ];
+        const DUCK_ANY = [
+            'Explain it again, one line at a time. The line you skip is the bug.',
+            'What changed since it last worked? Start there.',
+            'Make it smaller. Delete half until it stops failing.',
+            'Read the error message once more, slowly, all of it.',
+            'Take a break and drink some water. The duck insists.',
+            'Are you editing the file you are running?',
+        ];
+        async function rubberDuck() {
+            await typeRaw('<span style="color:#facc15">🦆 The duck is listening.</span> <span class="highlight-dim">Explain your bug. Empty line or Esc to stop.</span>');
+            for (let turn = 0; turn < 12; turn++) {
+                const said = await promptFor('<span style="color:#facc15">duck ›</span> ');
+                if (said === null || !said.trim()) break;
+                await typeRaw(`<span class="highlight-dim">${escapeHtml(said)}</span>`);
+                deskSay('quack');
+                await typeSpinner('The duck is thinking', 900);
+                const low = said.toLowerCase();
+                const hit = DUCK_TIPS.find(([re]) => re.test(low));
+                const tip = hit ? hit[1] : DUCK_ANY[Math.floor(Math.random() * DUCK_ANY.length)];
+                await typeRaw(`<span style="color:#facc15">🦆 Quack.</span> ${escapeHtml(tip)}`);
+            }
+            await typeRaw('<span class="highlight-dim">The duck goes back to staring at the screen.</span>');
+        }
+
+        // The webcam on top of the display: the desk takes one frame, turns it
+        // into characters in the visitor's browser, and hands the text back.
+        // The picture itself never leaves the desk page
+        let selfieDone = null;
+        window.deskSelfie = (result) => { if (selfieDone) selfieDone(result); };
+        async function deskSelfie() {
+            await typeRaw('<span class="highlight-dim">Look at the camera on top of the display. Your browser asks first; the picture never leaves it.</span>');
+            const result = await new Promise((resolve) => {
+                selfieDone = resolve;
+                deskSay('selfie');
+                window.setTimeout(() => resolve({ error: 'timeout' }), 30000);
+            });
+            selfieDone = null;
+            if (!result || result.error) {
+                SoundFX.error();
+                const why = result && result.error === 'denied' ? 'camera permission was not given' : result && result.error === 'none' ? 'no camera found' : 'the camera did not answer';
+                await typeRaw(`<span class="error-text">selfie: ${why}.</span>`);
+                return;
+            }
+            SoundFX.successChime();
+            await typeRaw(`<pre style="margin:4px 0;font-size:7px;line-height:7px;letter-spacing:0.5px;color:var(--term-primary)">${escapeHtml(result.art)}</pre>`);
+            await typeRaw('<span class="highlight-dim">Say cheese. It is only on this screen, and gone when you run clear.</span>');
+        }
+
         // The desk's commands complete like the rest (inside the desk only), and
         // eject completes with whatever is mounted
         if (DESK) {
-            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen');
+            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie');
             ARG_TARGETS.eject = () => [...mounted].map((l) => l.toLowerCase());
             ARG_TARGETS.mount = () => [...connected].filter((l) => !mounted.has(l)).map((l) => l.toLowerCase());
         }

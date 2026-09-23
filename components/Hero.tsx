@@ -7,6 +7,7 @@ import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { HeroName } from "./ui/hero-name"
 import { Terminal, ChevronDown } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
+import { MiniDesk } from "./ui/mini-desk"
 import { AstronautBuddy } from "./ui/astronaut"
 import { RocketDock } from "./ui/rocket-dock"
 import { cn } from "@/lib/utils"
@@ -429,6 +430,9 @@ const Hero = () => {
 
           {/* --- BOTTOM RIGHT: BUTTONS --- */}
           <div className="absolute bottom-10 right-10 flex flex-col items-end gap-2 pointer-events-auto hidden lg:flex">
+            <MagneticWrapper strength={0.3}>
+              <MiniDesk />
+            </MagneticWrapper>
             <MagneticWrapper strength={0.4}>
               <a
                 href="/terminal.html"

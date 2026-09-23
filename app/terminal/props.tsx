@@ -44,7 +44,7 @@ export function Display({ asleep, glow }: { asleep: boolean; glow: string }) {
 
 // ---- Tower -----------------------------------------------------------------
 
-export const TOWER = { x: 1212, y: 236, w: 176, h: 424 };
+export const TOWER = { x: 1196, y: 236, w: 176, h: 424 };
 // The left port's centre, in the tower's own box (its top edge is 34 above the body):
 // strip at inset 12, padding 8, two 16px ports 6 apart, ending at the strip's right
 const PORT = { x: TOWER.w - 12 - 8 - 16 - 6 - 8, y: 34 + 10 + 10 };
@@ -104,8 +104,9 @@ export const Tower = forwardRef<HTMLDivElement, {
                 ))}
             </AnimatePresence>
             {/* the hard drive's cable, into the back */}
-            <svg className="pointer-events-none absolute" style={{ left: -60, top: TOWER.h + 34 - 80, overflow: "visible" }} width="80" height="200" aria-hidden>
-                <path d="M 62 24 C 34 60, 44 150, 78 174" fill="none" stroke={hdd ? "#3f434a" : "#2c2f35"} strokeWidth="4" strokeLinecap="round" />
+            <svg className="pointer-events-none absolute" style={{ left: -40, top: TOWER.h + 34 - 60, overflow: "visible" }} width="60" height="80" aria-hidden>
+                <path d="M 46 34 C 28 36, 20 52, 26 76" fill="none" stroke="#15171b" strokeWidth="5" strokeLinecap="round" />
+                <path d="M 46 33 C 28 35, 20 51, 25.5 75" fill="none" stroke={hdd ? "#5b6069" : "#3a3e45"} strokeWidth="1.2" strokeLinecap="round" />
             </svg>
             {/* the body */}
             <div className="absolute inset-x-0 bottom-0 rounded-[14px]" style={{ top: 34, background: ALU_SIDE, boxShadow: "0 40px 70px -24px rgba(0,0,0,0.95)" }}>
@@ -203,7 +204,7 @@ export const Tower = forwardRef<HTMLDivElement, {
 // ---- USB sticks -----------------------------------------------------------
 
 export function StickArt({ stick, upright = false }: { stick: Stick; upright?: boolean }) {
-    // Drawn standing; lying in the tray it is turned on its side
+    // Drawn standing, plug down; upright, as it stands in the block or in a port, without the plug
     return (
         <svg viewBox={upright ? "0 0 30 70" : "0 0 30 78"} width={upright ? 24 : 30} height={upright ? 56 : 78} aria-hidden className="block drop-shadow-[0_3px_4px_rgba(0,0,0,0.5)]">
             {/* the plug, which is inside the port when it is plugged in */}
@@ -251,9 +252,12 @@ export function StickArt({ stick, upright = false }: { stick: Stick; upright?: b
     );
 }
 
-// ---- Keyboard and trackpad -------------------------------------------------
+// ---- Keyboard and mouse ----------------------------------------------------
+// Both lie flat on the desk: they are drawn from above and placed on the desk's
+// surface, which desk.tsx tilts away from the viewer. Positions are the
+// surface's own (top-down) units
 
-// Top-down: [label, width in units, KeyboardEvent.code]
+// [label, width in units, KeyboardEvent.code]
 type K = [string, number, string];
 const ROW = (s: string, prefix = "Key"): K[] => [...s].map((c) => [c.toUpperCase(), 1, /\d/.test(c) ? `Digit${c}` : `${prefix}${c.toUpperCase()}`]);
 const ROWS: { h: number; keys: K[] }[] = [
@@ -267,7 +271,7 @@ const ROWS: { h: number; keys: K[] }[] = [
 
 export function Keyboard({ pressed, tint }: { pressed: Set<string>; tint: string }) {
     return (
-        <div className="absolute rounded-[12px] p-[8px]" style={{ left: 468, top: 690, width: 504, background: ALU, boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.9)" }}>
+        <div className="absolute rounded-[12px] p-[8px]" style={{ left: 460, top: 90, width: 504, background: ALU, boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.9)" }}>
             <div className="space-y-[4px]">
                 {ROWS.map((row, r) => (
                     <div key={r} className="flex gap-[4px]">
@@ -302,7 +306,7 @@ export function Keyboard({ pressed, tint }: { pressed: Set<string>; tint: string
 export function Mouse({ x, y, button, wheel, tint }: { x: MotionValue<number>; y: MotionValue<number>; button: "left" | "right" | null; wheel: number; tint: string }) {
     const rotate = useTransform(x, (v) => v * 0.12);
     return (
-        <div className="absolute rounded-[16px]" style={{ left: 994, top: 694, width: 176, height: 160, background: "linear-gradient(160deg, #26292f, #17191d)", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
+        <div className="absolute rounded-[16px]" style={{ left: 980, top: 92, width: 176, height: 160, background: "linear-gradient(160deg, #26292f, #17191d)", boxShadow: "0 14px 30px -12px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)" }}>
             {/* moved straight from the pointer: no spring, so it keeps up */}
             <motion.div className="absolute left-1/2 top-1/2" style={{ marginLeft: -31, marginTop: -52, x, y, rotate }}>
                 <svg width="62" height="104" viewBox="0 0 62 104" aria-hidden className="block drop-shadow-[0_8px_8px_rgba(0,0,0,0.55)]">
@@ -345,7 +349,7 @@ export function HardDrive({ on, idle, busy, onClick }: { on: boolean; idle: bool
             aria-label={on ? "Disconnect the Time Capsule drive" : "Connect the Time Capsule drive"}
             title={on ? (idle ? "Time Capsule · unmounted (click to disconnect, or type mount timecapsule)" : "Time Capsule · connected (click to disconnect)") : "Time Capsule · 2 TB (click to connect)"}
             className="absolute rounded-[10px] text-left"
-            style={{ left: 1186, top: 752, width: 88, height: 112, background: "linear-gradient(160deg, #3a3e45, #1d2025)", boxShadow: "0 16px 28px -12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.05)" }}
+            style={{ left: 1176, top: 668, width: 88, height: 112, background: "linear-gradient(160deg, #3a3e45, #1d2025)", boxShadow: "0 16px 28px -12px rgba(0,0,0,0.95), inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.05)" }}
         >
             {/* brushed face */}
             <span className="absolute inset-[6px] rounded-[6px]" style={{ backgroundImage: "repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 3px)" }} />
@@ -366,13 +370,29 @@ export function HardDrive({ on, idle, busy, onClick }: { on: boolean; idle: bool
     );
 }
 
+
 // ---- Phone ------------------------------------------------------------------
 
 export const PHONE = { x: 92, y: 410, w: 112, h: 226 };
 export type Note = { id: number; app: string; text: string; icon: string };
+type App = "messages" | "weather" | "music" | "qr";
 
-export const Phone = forwardRef<HTMLButtonElement, { notes: Note[]; qr: boolean; onTap: () => void; airdrop: number }>(function Phone({ notes, qr, onTap, airdrop }, ref) {
+const APPS: { id: App; icon: string; label: string; bg: string }[] = [
+    { id: "messages", icon: "💬", label: "Messages", bg: "linear-gradient(160deg, #4ade80, #16a34a)" },
+    { id: "weather", icon: "⛅", label: "Weather", bg: "linear-gradient(160deg, #60a5fa, #1d4ed8)" },
+    { id: "music", icon: "♫", label: "Music", bg: "linear-gradient(160deg, #fb7185, #be123c)" },
+    { id: "qr", icon: "▦", label: "Take the site with you", bg: "linear-gradient(160deg, #e5e7eb, #9ca3af)" },
+];
+
+// The phone on its stand: the lock screen shows the time in Kolkata and the
+// desk's notifications. Its dock opens four apps; opening one picks the phone
+// up off the stand, bigger, so it can be used
+export const Phone = forwardRef<
+    HTMLDivElement,
+    { notes: Note[]; airdrop: number; music: boolean; onMusic: (on: boolean) => void; onSigned: (name: string, message: string) => void }
+>(function Phone({ notes, airdrop, music, onMusic, onSigned }, ref) {
     const [now, setNow] = useState<ReturnType<typeof kolkataNow> | null>(null);
+    const [app, setApp] = useState<App | null>(null);
     useEffect(() => {
         const tick = () => setNow(kolkataNow());
         tick();
@@ -385,30 +405,24 @@ export const Phone = forwardRef<HTMLButtonElement, { notes: Note[]; qr: boolean;
             {/* the stand */}
             <div className="absolute rounded-[4px]" style={{ left: PHONE.x + 26, top: PHONE.y + PHONE.h - 14, width: 60, height: 32, background: ALU_SIDE, clipPath: "polygon(30% 0, 70% 0, 100% 100%, 0 100%)" }} />
             <div className="absolute rounded-[5px]" style={{ left: PHONE.x + 6, top: PHONE.y + PHONE.h + 14, width: 100, height: 8, background: ALU, boxShadow: "0 8px 16px -6px rgba(0,0,0,0.8)" }} />
-            <button
+            <motion.div
                 ref={ref}
-                type="button"
-                onClick={onTap}
-                aria-label={qr ? "Back to the notifications" : "Show a QR code for this site"}
-                title={qr ? "Back" : "Scan to take the site with you"}
-                className="absolute overflow-hidden rounded-[20px] p-[4px] text-left"
-                style={{ left: PHONE.x, top: PHONE.y, width: PHONE.w, height: PHONE.h, background: "linear-gradient(160deg, #3f3f46, #18181b)", boxShadow: "0 24px 40px -18px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(255,255,255,0.12)" }}
+                className="absolute z-20 overflow-hidden rounded-[20px] p-[4px]"
+                style={{ left: PHONE.x, top: PHONE.y, width: PHONE.w, height: PHONE.h, originX: 0, originY: 1, background: "linear-gradient(160deg, #3f3f46, #18181b)", boxShadow: "0 24px 40px -18px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(255,255,255,0.12)" }}
+                animate={app ? { scale: 1.9, y: -14 } : { scale: 1, y: 0 }}
+                transition={{ type: "spring", stiffness: 260, damping: 26 }}
             >
-                <div className="relative h-full w-full overflow-hidden rounded-[16px]" style={{ background: "radial-gradient(120% 70% at 30% 0%, #312e81, #0b1020 60%, #020617)" }}>
+                <div className="relative h-full w-full overflow-hidden rounded-[16px] font-sans" style={{ background: "radial-gradient(120% 70% at 30% 0%, #312e81, #0b1020 60%, #020617)" }}>
                     {/* the island */}
-                    <span className="absolute left-1/2 top-[6px] h-[10px] w-[34px] -translate-x-1/2 rounded-full bg-black" />
-                    {qr ? (
-                        <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center">
-                            <div className="rounded-lg bg-white p-1.5">
-                                <QRCodeSVG value="https://miitdaga.dev" size={72} bgColor="#ffffff" fgColor="#0b1020" level="M" />
-                            </div>
-                            <p className="font-sans text-[8px] leading-tight text-neutral-300">Scan to take the site with you</p>
-                        </div>
-                    ) : (
+                    <span className="absolute left-1/2 top-[6px] z-10 h-[10px] w-[34px] -translate-x-1/2 rounded-full bg-black" />
+                    {app === null && (
                         <>
-                            <p className="mt-[22px] text-center font-sans text-[8px] text-neutral-300">{date}</p>
-                            <p className="text-center font-sans text-[30px] font-semibold leading-none tracking-tight text-white/90">{now?.time.replace(/\s?[AP]M/, "") ?? ""}</p>
-                            <p className="mt-0.5 text-center font-sans text-[7px] text-neutral-400">Kolkata · {now?.mood.label ?? ""}</p>
+                            <p className="mt-[22px] text-center text-[8px] text-neutral-300">{date}</p>
+                            <p className="text-center text-[30px] font-semibold leading-none tracking-tight text-white/90">{now?.time.replace(/\s?[AP]M/, "") ?? ""}</p>
+                            <p className="mt-0.5 text-center text-[7px] text-neutral-400">
+                                Kolkata · {now?.mood.label ?? ""}
+                                {music ? " · ♫" : ""}
+                            </p>
                             <div className="mt-2 space-y-1 px-1.5">
                                 <AnimatePresence initial={false}>
                                     {notes.slice(0, 3).map((n) => (
@@ -420,16 +434,49 @@ export const Phone = forwardRef<HTMLButtonElement, { notes: Note[]; qr: boolean;
                                             animate={{ opacity: 1, y: 0, scale: 1 }}
                                             exit={{ opacity: 0, scale: 0.9 }}
                                         >
-                                            <p className="flex items-center gap-1 font-sans text-[6.5px] font-semibold uppercase tracking-wide text-neutral-300">
+                                            <p className="flex items-center gap-1 text-[6.5px] font-semibold uppercase tracking-wide text-neutral-300">
                                                 <span>{n.icon}</span>
                                                 {n.app}
                                             </p>
-                                            <p className="line-clamp-2 font-sans text-[7.5px] leading-tight text-white">{n.text}</p>
+                                            <p className="line-clamp-2 text-[7.5px] leading-tight text-white">{n.text}</p>
                                         </motion.div>
                                     ))}
                                 </AnimatePresence>
                             </div>
+                            {/* the dock */}
+                            <div className="absolute inset-x-1.5 bottom-[10px] flex justify-between rounded-[12px] bg-white/10 px-[5px] py-[4px] backdrop-blur-md">
+                                {APPS.map((a) => (
+                                    <button
+                                        key={a.id}
+                                        type="button"
+                                        onClick={() => setApp(a.id)}
+                                        aria-label={a.label}
+                                        title={a.label}
+                                        className="flex h-[19px] w-[19px] items-center justify-center rounded-[6px] text-[10px] leading-none text-white transition-transform hover:scale-110"
+                                        style={{ background: a.bg, color: a.id === "qr" ? "#111827" : undefined }}
+                                    >
+                                        {a.icon}
+                                    </button>
+                                ))}
+                            </div>
                         </>
+                    )}
+                    {app === "qr" && (
+                        <div className="flex h-full flex-col items-center justify-center gap-2 px-2 text-center">
+                            <div className="rounded-lg bg-white p-1.5">
+                                <QRCodeSVG value="https://miitdaga.dev" size={72} bgColor="#ffffff" fgColor="#0b1020" level="M" />
+                            </div>
+                            <p className="text-[8px] leading-tight text-neutral-300">Scan to take the site with you</p>
+                        </div>
+                    )}
+                    {app === "messages" && <MessagesApp reply={now?.mood.reply ?? ""} onSigned={onSigned} />}
+                    {app === "weather" && <WeatherApp />}
+                    {app === "music" && <MusicApp on={music} onToggle={() => onMusic(!music)} />}
+                    {/* the home bar: back to the lock screen */}
+                    {app && (
+                        <button type="button" onClick={() => setApp(null)} aria-label="Back to the lock screen" title="Home" className="absolute inset-x-0 bottom-0 z-10 flex h-[12px] items-center justify-center">
+                            <span className="block h-[3px] w-[36px] rounded-full bg-white/70" />
+                        </button>
                     )}
                     {/* AirDrop's rings, when something arrives */}
                     <AnimatePresence>
@@ -444,50 +491,218 @@ export const Phone = forwardRef<HTMLButtonElement, { notes: Note[]; qr: boolean;
                         )}
                     </AnimatePresence>
                 </div>
-            </button>
+            </motion.div>
         </>
     );
 });
 
+// Messages: a note to Miit, which signs the guestbook, or an email instead
+function MessagesApp({ reply, onSigned }: { reply: string; onSigned: (name: string, message: string) => void }) {
+    const [name, setName] = useState("");
+    const [text, setText] = useState("");
+    const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+    const [error, setError] = useState("");
+    const [sent, setSent] = useState("");
+    const send = async () => {
+        const message = text.trim();
+        if (!message || state === "sending") return;
+        setState("sending");
+        try {
+            const res = await fetch("/api/guestbook", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: name.trim(), message }) });
+            const data = await res.json().catch(() => null);
+            if (!res.ok) {
+                setError((data && data.error) || "Could not send it.");
+                setState("error");
+                return;
+            }
+            setSent(message);
+            setText("");
+            setState("sent");
+            onSigned(data?.entry?.name || name.trim() || "Anonymous", message);
+        } catch {
+            setError("No signal. Try again.");
+            setState("error");
+        }
+    };
+    return (
+        <div className="flex h-full flex-col pb-[12px] pt-[20px] text-[7px] text-white">
+            <div className="flex items-center gap-1 border-b border-white/10 px-2 pb-1">
+                <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-indigo-500 text-[7px] font-bold">M</span>
+                <div className="leading-tight">
+                    <p className="text-[7.5px] font-semibold">Miit</p>
+                    <p className="text-[5.5px] text-neutral-400">{reply}</p>
+                </div>
+            </div>
+            <div className="flex-1 space-y-1 overflow-hidden px-1.5 pt-1.5">
+                <p className="max-w-[80%] rounded-[8px] rounded-bl-[2px] bg-white/15 px-1.5 py-1 leading-tight">Hey! Leave me a note. It goes on the guestbook on my site.</p>
+                {state === "sent" && (
+                    <>
+                        <p className="ml-auto max-w-[80%] break-words rounded-[8px] rounded-br-[2px] bg-sky-500 px-1.5 py-1 leading-tight">{sent}</p>
+                        <p className="text-right text-[5.5px] text-neutral-400">Delivered · signed the guestbook</p>
+                        <p className="max-w-[80%] rounded-[8px] rounded-bl-[2px] bg-white/15 px-1.5 py-1 leading-tight">Thank you! ✨</p>
+                    </>
+                )}
+                {state === "error" && <p className="text-center text-[6px] text-rose-300">{error}</p>}
+            </div>
+            <div className="space-y-[3px] px-1.5">
+                <input value={name} onChange={(e) => setName(e.target.value.slice(0, 24))} placeholder="Your name (optional)" aria-label="Your name" className="w-full rounded-full bg-white/10 px-1.5 py-[2px] text-[6.5px] text-white outline-none placeholder:text-neutral-500 focus:bg-white/15" />
+                <div className="flex items-center gap-[3px]">
+                    <input
+                        value={text}
+                        onChange={(e) => setText(e.target.value.slice(0, 200))}
+                        onKeyDown={(e) => e.key === "Enter" && send()}
+                        placeholder="Message"
+                        aria-label="Message"
+                        className="min-w-0 flex-1 rounded-full bg-white/10 px-1.5 py-[2px] text-[6.5px] text-white outline-none placeholder:text-neutral-500 focus:bg-white/15"
+                    />
+                    <button type="button" onClick={send} disabled={!text.trim() || state === "sending"} aria-label="Send" className="flex h-[12px] w-[12px] items-center justify-center rounded-full bg-sky-500 text-[7px] font-bold disabled:opacity-40">
+                        {state === "sending" ? "…" : "↑"}
+                    </button>
+                </div>
+                <a href="mailto:miitcodes27@gmail.com?subject=Hello%20from%20the%20terminal%20desk" className="block text-center text-[6px] text-sky-300 hover:underline">
+                    or email instead
+                </a>
+            </div>
+        </div>
+    );
+}
+
+// Weather: Kolkata's, now, from the same free service as the globe
+const weatherWord = (code: number) =>
+    code === 0 ? "Clear" : code <= 2 ? "Partly cloudy" : code === 3 ? "Overcast" : code <= 48 ? "Fog" : code <= 57 ? "Drizzle" : code <= 67 ? "Rain" : code <= 77 ? "Snow" : code <= 82 ? "Showers" : "Thunderstorms";
+const weatherIcon = (code: number, day: boolean) =>
+    code === 0 ? (day ? "☀️" : "🌙") : code <= 2 ? (day ? "⛅" : "☁️") : code === 3 ? "☁️" : code <= 48 ? "🌫️" : code <= 67 ? "🌧️" : code <= 77 ? "❄️" : code <= 82 ? "🌦️" : "⛈️";
+
+function WeatherApp() {
+    const [w, setW] = useState<{ temp: number; code: number; day: boolean; hum: number; wind: number; hi: number; lo: number } | null>(null);
+    const [failed, setFailed] = useState(false);
+    useEffect(() => {
+        fetch("https://api.open-meteo.com/v1/forecast?latitude=22.57&longitude=88.36&current=temperature_2m,weather_code,relative_humidity_2m,wind_speed_10m,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FKolkata&forecast_days=1")
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((d) => {
+                const c = d.current;
+                setW({ temp: Math.round(c.temperature_2m), code: c.weather_code, day: !!c.is_day, hum: c.relative_humidity_2m, wind: Math.round(c.wind_speed_10m), hi: Math.round(d.daily.temperature_2m_max[0]), lo: Math.round(d.daily.temperature_2m_min[0]) });
+            })
+            .catch(() => setFailed(true));
+    }, []);
+    return (
+        <div className="flex h-full flex-col items-center px-2 pb-[14px] pt-[24px] text-center text-white" style={{ background: w?.day === false ? "linear-gradient(180deg, #1e1b4b, #0f172a)" : "linear-gradient(180deg, #2563eb, #60a5fa)" }}>
+            <p className="text-[9px] font-medium">Kolkata</p>
+            {w ? (
+                <>
+                    <p className="text-[34px] font-extralight leading-none">{w.temp}°</p>
+                    <p className="text-[7.5px]">{weatherWord(w.code)}</p>
+                    <p className="text-[7px] text-white/80">
+                        H:{w.hi}° L:{w.lo}°
+                    </p>
+                    <p className="mt-2 text-[26px] leading-none">{weatherIcon(w.code, w.day)}</p>
+                    <div className="mt-auto grid w-full grid-cols-2 gap-1 text-[6px]">
+                        <p className="rounded-[6px] bg-white/15 py-1">
+                            HUMIDITY
+                            <br />
+                            <span className="text-[9px]">{w.hum}%</span>
+                        </p>
+                        <p className="rounded-[6px] bg-white/15 py-1">
+                            WIND
+                            <br />
+                            <span className="text-[9px]">{w.wind} km/h</span>
+                        </p>
+                    </div>
+                </>
+            ) : (
+                <p className="mt-6 text-[7px] text-white/80">{failed ? "No signal from Kolkata right now." : "Asking the sky…"}</p>
+            )}
+        </div>
+    );
+}
+
+// Music: a space ambient, made up in the browser as it plays (desk-sound.ts)
+function MusicApp({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+    const reduce = useReducedMotion();
+    return (
+        <div className="flex h-full flex-col items-center px-3 pb-[16px] pt-[24px] text-center text-white">
+            <div className="relative flex h-[76px] w-[76px] items-end justify-center gap-[3px] overflow-hidden rounded-[10px] pb-2" style={{ background: "radial-gradient(circle at 30% 20%, #f0abfc, #7c3aed 45%, #0f172a)" }}>
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                    <motion.span
+                        key={i}
+                        className="block w-[4px] rounded-full bg-white/80"
+                        animate={on && !reduce ? { height: [6, 18 + ((i * 7) % 16), 8, 24 - ((i * 5) % 12), 6] } : { height: 4 }}
+                        transition={on && !reduce ? { duration: 1.6 + i * 0.2, repeat: Infinity, ease: "easeInOut" } : { duration: 0.4 }}
+                    />
+                ))}
+            </div>
+            <p className="mt-2 text-[8px] font-semibold">Low Earth Orbit</p>
+            <p className="text-[6.5px] text-neutral-400">ambient · made up as it plays</p>
+            <button type="button" onClick={onToggle} aria-label={on ? "Pause" : "Play"} className="mt-3 flex h-[24px] w-[24px] items-center justify-center rounded-full bg-white text-[10px] text-black">
+                {on ? "❚❚" : "▶"}
+            </button>
+            <p className="mt-auto text-[6px] text-neutral-500">It keeps playing on the lock screen</p>
+        </div>
+    );
+}
+
 // ---- Desk touches -----------------------------------------------------------
 
-/** Chai, from above: hot when it is chai-time in Kolkata, forgotten and cold otherwise. */
-export function Mug() {
+const CHAI_TIME = ["morning coffee", "evening chai", "waking up slowly", "lunch break", "late-night commits"];
+/** Is it chai-time in Kolkata? Checked every minute. */
+export function useChaiTime() {
     const [hot, setHot] = useState(true);
     useEffect(() => {
-        const check = () => {
-            const label = kolkataNow().mood.label;
-            setHot(["morning coffee", "evening chai", "waking up slowly", "lunch break", "late-night commits"].includes(label));
-        };
+        const check = () => setHot(CHAI_TIME.includes(kolkataNow().mood.label));
         check();
         const id = window.setInterval(check, 60000);
         return () => window.clearInterval(id);
     }, []);
+    return hot;
+}
+
+/** Chai, seen from the chair: the front of the mug, and the chai inside, `level` sips of 4 left. */
+export function Mug({ level, hot, pouring }: { level: number; hot: boolean; pouring: boolean }) {
     const reduce = useReducedMotion();
+    // The chai's surface sinks into the mug as it is drunk: the lower it is,
+    // the less of it shows past the rim
+    const depth = [30, 21, 14, 7, 1][Math.max(0, Math.min(4, level))];
     return (
-        <div className="absolute" style={{ left: 378, top: 722, width: 84, height: 70 }} title={hot ? "Chai, still hot" : "Chai, long gone cold"}>
-            {/* the handle, seen from above */}
-            <div className="absolute right-[2px] top-1/2 h-[22px] w-[24px] -translate-y-1/2 rounded-r-[12px] border-[6px] border-l-0" style={{ borderColor: "#e8dcc8" }} />
-            {/* the rim and the chai */}
-            <div className="absolute left-0 top-0 h-[70px] w-[70px] rounded-full" style={{ background: "radial-gradient(circle at 38% 34%, #fbf6ec, #e3d6c0 60%, #c7b595)", boxShadow: "0 12px 18px -8px rgba(0,0,0,0.85)" }}>
-                <div
-                    className="absolute inset-[7px] overflow-hidden rounded-full"
-                    style={{ background: hot ? "radial-gradient(circle at 40% 38%, #d9a066, #b0743f 55%, #8a5a31)" : "radial-gradient(circle at 40% 38%, #9a7550, #6f4f31 60%, #5a3f27)", boxShadow: "inset 0 3px 6px rgba(0,0,0,0.45)" }}
-                >
-                    {/* a skin of foam on hot chai, a highlight either way */}
-                    {hot && <span className="absolute left-[12px] top-[10px] h-[16px] w-[26px] rounded-full bg-[#ecd3b0]/40 blur-[2px]" />}
-                    <span className="absolute right-[10px] top-[8px] h-[6px] w-[10px] rounded-full bg-white/35 blur-[1px]" />
-                </div>
-            </div>
-            {/* steam curling up off it */}
+        <div className="relative h-[84px] w-[80px]">
+            <svg width="80" height="84" viewBox="0 0 80 84" aria-hidden className="absolute inset-0 overflow-visible drop-shadow-[0_10px_8px_rgba(0,0,0,0.55)]">
+                <defs>
+                    <linearGradient id="mugBody" x1="0" x2="1">
+                        <stop offset="0" stopColor="#c9b89a" />
+                        <stop offset="0.4" stopColor="#f6efe2" />
+                        <stop offset="1" stopColor="#bba98a" />
+                    </linearGradient>
+                    <clipPath id="mugRim">
+                        <ellipse cx="34" cy="18" rx="27" ry="8" />
+                    </clipPath>
+                </defs>
+                {/* the handle */}
+                <path d="M 58 32 C 78 30, 78 60, 58 60" fill="none" stroke="#dccfb6" strokeWidth="7" strokeLinecap="round" />
+                {/* the body */}
+                <path d="M 7 18 V 70 C 7 80, 61 80, 61 70 V 18 Z" fill="url(#mugBody)" />
+                {/* a band round it, with a small star */}
+                <path d="M 7 46 C 7 52, 61 52, 61 46 V 52 C 61 58, 7 58, 7 52 Z" fill="#0f766e" opacity="0.85" />
+                <text x="34" y="54.5" textAnchor="middle" fontSize="6" fill="#ccfbf1">✦</text>
+                {/* inside: the far wall, then the chai at its level */}
+                <ellipse cx="34" cy="18" rx="27" ry="8" fill="#e7dcc6" />
+                <g clipPath="url(#mugRim)">
+                    <ellipse cx="34" cy="18" rx="27" ry="8" fill="#b9a784" opacity="0.5" transform="translate(0 -3)" />
+                    {level > 0 && <ellipse cx="34" cy={18 + (30 - depth) * 0.36} rx="26" ry="7.4" fill={hot ? "#b87a44" : "#7a5634"} />}
+                    {level > 0 && hot && <ellipse cx="30" cy={16 + (30 - depth) * 0.36} rx="10" ry="2.4" fill="#ecd3b0" opacity="0.35" />}
+                    {level === 0 && <ellipse cx="34" cy="24" rx="20" ry="4" fill="none" stroke="#8a6a47" strokeWidth="1" opacity="0.5" />}
+                </g>
+                <ellipse cx="34" cy="18" rx="27" ry="8" fill="none" stroke="#fbf7ef" strokeWidth="1.6" />
+            </svg>
+            {/* steam, while there is hot chai in it */}
             {hot &&
+                level > 0 &&
                 !reduce &&
+                !pouring &&
                 [0, 1, 2].map((i) => (
                     <motion.span
                         key={i}
                         className="pointer-events-none absolute h-6 w-6 rounded-full bg-white/20 blur-[5px]"
-                        style={{ left: 16 + i * 12, top: 18 }}
-                        animate={{ y: [0, -24], x: [0, i === 1 ? 4 : -4], opacity: [0, 0.7, 0], scale: [0.6, 1.4] }}
+                        style={{ left: 14 + i * 12, top: 0 }}
+                        animate={{ y: [0, -30], x: [0, i === 1 ? 4 : -4], opacity: [0, 0.7, 0], scale: [0.6, 1.4] }}
                         transition={{ duration: 2.4, delay: i * 0.7, repeat: Infinity, ease: "easeOut" }}
                     />
                 ))}
@@ -495,23 +710,60 @@ export function Mug() {
     );
 }
 
-export function Plant() {
+/** A snake plant in a pot, from the front. It grows a stage each visit (desk.tsx
+ * keeps count), and droops if nobody has been by for a week. */
+export function Plant({ stage, droop, watered }: { stage: number; droop: boolean; watered: number }) {
     const reduce = useReducedMotion();
-    const leaves = [-38, -18, 0, 18, 38];
+    const n = Math.min(9, 3 + Math.floor(stage / 1.5));
+    const grow = 0.55 + Math.min(9, stage) * 0.075;
+    // Fanned out from the middle; tall in the middle, shorter to the sides
+    const leaves = Array.from({ length: n }, (_, i) => {
+        const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1;
+        const len = (78 - Math.abs(t) * 26 + ((i * 13) % 9)) * grow;
+        const angle = t * (droop ? 58 : 26);
+        return { t, len, angle, w: 7 + ((i * 5) % 3) };
+    });
+    const green = droop ? ["#a3a95a", "#5b6b2a"] : ["#4ade80", "#166534"];
     return (
-        <div className="absolute" style={{ left: 1292, top: 730, width: 110, height: 140 }} title="A plant, doing its best in orbit">
-            <motion.div className="absolute inset-x-0 bottom-[56px] h-[90px] origin-bottom" animate={reduce ? undefined : { rotate: [-2, 2, -2] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}>
-                {leaves.map((r, i) => (
-                    <span
-                        key={i}
-                        className="absolute bottom-0 left-1/2 h-[70px] w-[22px] origin-bottom rounded-[50%_50%_50%_50%/70%_70%_30%_30%]"
-                        style={{ transform: `translateX(-50%) rotate(${r}deg)`, background: "linear-gradient(180deg, #4ade80, #166534)", height: 56 + (2 - Math.abs(i - 2)) * 12 }}
-                    />
-                ))}
-            </motion.div>
-            <div className="absolute bottom-0 left-1/2 h-[60px] w-[76px] -translate-x-1/2 rounded-b-[14px] rounded-t-[4px]" style={{ background: "linear-gradient(90deg, #7c2d12, #c2410c 45%, #7c2d12)", boxShadow: "0 12px 18px -8px rgba(0,0,0,0.8)" }}>
-                <div className="absolute inset-x-0 top-0 h-3 rounded-t-[4px] bg-[#9a3412]" />
-            </div>
+        <div className="relative h-[170px] w-[120px]">
+            <svg width="120" height="170" viewBox="0 0 120 170" aria-hidden className="absolute inset-0 overflow-visible">
+                <defs>
+                    <linearGradient id="leaf" x1="0" y1="1" x2="0" y2="0">
+                        <stop offset="0" stopColor={green[1]} />
+                        <stop offset="1" stopColor={green[0]} />
+                    </linearGradient>
+                    <linearGradient id="pot" x1="0" x2="1">
+                        <stop offset="0" stopColor="#7c2d12" />
+                        <stop offset="0.45" stopColor="#c2410c" />
+                        <stop offset="1" stopColor="#7c2d12" />
+                    </linearGradient>
+                </defs>
+                {/* the rim seen a little from above, and the soil inside */}
+                <ellipse cx="60" cy="124" rx="36" ry="7" fill="#9a3412" />
+                <ellipse cx="60" cy="124.5" rx="31" ry="5" fill="#3b2415" />
+                <motion.g
+                    style={{ originX: "60px", originY: "122px" }}
+                    animate={reduce ? undefined : watered ? { scaleY: [1, 1.06, 1] } : { rotate: [-1.5, 1.5, -1.5] }}
+                    transition={watered ? { duration: 0.8 } : { duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                    key={watered}
+                >
+                    {leaves.map((l, i) => (
+                        <path
+                            key={i}
+                            // a blade: wide at its base, to a point; drooping ones bend over at the tip
+                            d={`M ${-l.w / 2} 0 C ${-l.w} ${-l.len * 0.5}, ${droop ? l.w * 1.8 : -l.w * 0.4} ${-l.len * 0.9}, ${droop ? l.w * 2.4 : 0} ${-l.len} C ${droop ? l.w * 1.4 : l.w * 0.4} ${-l.len * 0.9}, ${l.w} ${-l.len * 0.5}, ${l.w / 2} 0 Z`}
+                            fill="url(#leaf)"
+                            stroke="rgba(0,0,0,0.15)"
+                            strokeWidth="0.6"
+                            transform={`translate(${60 + l.t * 12} 122) rotate(${l.angle}) scale(${l.t < 0 && droop ? -1 : 1} 1)`}
+                        />
+                    ))}
+                </motion.g>
+                {/* the pot's front, and the near half of its rim, in front of the leaves */}
+                <path d="M 24 124 L 34 166 C 34 169, 86 169, 86 166 L 96 124 C 96 132, 24 132, 24 124 Z" fill="url(#pot)" />
+                <path d="M 24 124 C 24 132, 96 132, 96 124" fill="none" stroke="#b45309" strokeWidth="2.5" />
+                <path d="M 30 140 C 30 144, 90 144, 90 140" fill="none" stroke="rgba(0,0,0,0.2)" strokeWidth="2" />
+            </svg>
         </div>
     );
 }
