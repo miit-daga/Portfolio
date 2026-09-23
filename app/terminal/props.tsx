@@ -389,8 +389,8 @@ const APPS: { id: App; icon: string; label: string; bg: string }[] = [
 // up off the stand, bigger, so it can be used
 export const Phone = forwardRef<
     HTMLDivElement,
-    { notes: Note[]; airdrop: number; music: boolean; onMusic: (on: boolean) => void; onSigned: (name: string, message: string) => void }
->(function Phone({ notes, airdrop, music, onMusic, onSigned }, ref) {
+    { notes: Note[]; airdrop: number; music: boolean; onMusic: (on: boolean) => void; onSigned: (name: string, message: string) => void; onDismiss: (id: number) => void }
+>(function Phone({ notes, airdrop, music, onMusic, onSigned, onDismiss }, ref) {
     const [now, setNow] = useState<ReturnType<typeof kolkataNow> | null>(null);
     const [app, setApp] = useState<App | null>(null);
     useEffect(() => {
@@ -445,20 +445,7 @@ export const Phone = forwardRef<
                             <div className="mt-2 space-y-1 px-1.5">
                                 <AnimatePresence initial={false}>
                                     {notes.slice(0, 3).map((n) => (
-                                        <motion.div
-                                            key={n.id}
-                                            layout
-                                            className="rounded-[8px] bg-white/15 px-1.5 py-1 backdrop-blur-md"
-                                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, scale: 0.9 }}
-                                        >
-                                            <p className="flex items-center gap-1 text-[6.5px] font-semibold uppercase tracking-wide text-neutral-300">
-                                                <span>{n.icon}</span>
-                                                {n.app}
-                                            </p>
-                                            <p className="line-clamp-2 text-[7.5px] leading-tight text-white">{n.text}</p>
-                                        </motion.div>
+                                        <NoteCard key={n.id} note={n} onDismiss={onDismiss} />
                                     ))}
                                 </AnimatePresence>
                             </div>
@@ -526,6 +513,36 @@ export const Phone = forwardRef<
         </>
     );
 });
+
+// A notification on the lock screen: swipe it either way and it goes; a short
+// swipe springs back
+function NoteCard({ note, onDismiss }: { note: Note; onDismiss: (id: number) => void }) {
+    const [gone, setGone] = useState<-1 | 1 | null>(null);
+    return (
+        <motion.div
+            layout
+            drag={gone ? false : "x"}
+            dragSnapToOrigin
+            dragElastic={0.6}
+            onDragEnd={(_, info) => {
+                if (Math.abs(info.offset.x) > 36 || Math.abs(info.velocity.x) > 300) setGone(info.offset.x < 0 ? -1 : 1);
+            }}
+            onAnimationComplete={() => gone && onDismiss(note.id)}
+            title="Swipe to clear"
+            className="cursor-grab touch-none rounded-[8px] bg-white/15 px-1.5 py-1 backdrop-blur-md active:cursor-grabbing"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={gone ? { x: gone * 140, opacity: 0 } : { opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={gone ? { duration: 0.2, ease: "easeIn" } : undefined}
+        >
+            <p className="flex items-center gap-1 text-[6.5px] font-semibold uppercase tracking-wide text-neutral-300">
+                <span>{note.icon}</span>
+                {note.app}
+            </p>
+            <p className="line-clamp-2 text-[7.5px] leading-tight text-white">{note.text}</p>
+        </motion.div>
+    );
+}
 
 // Messages: a note to Miit, which signs the guestbook, or an email instead
 function MessagesApp({ reply, onSigned }: { reply: string; onSigned: (name: string, message: string) => void }) {

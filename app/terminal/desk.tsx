@@ -32,7 +32,7 @@ import {
 //   USB drives          drag one from the stand to the tower's ports (or tap
 //                       it): it mounts in the terminal at /Volumes
 //   AirDrop             a download flies off the screen to the phone
-//   Phone               notifications as things happen; its dock opens
+//   Phone               notifications as things happen (swipe to clear); its dock opens
 //                       Messages (signs the guestbook), Weather, Music and a QR code
 //   Keyboard, mouse     mirror the visitor's typing, pointer, clicks and scrolling
 //   Chai                click to sip; it refills at chai-time in Kolkata
@@ -148,6 +148,20 @@ export function Desk() {
     const mouseX = useMotionValue(0);
     const mouseY = useMotionValue(0);
     const [button, setButton] = useState<"left" | "right" | null>(null);
+    // A tap-to-click (or a two-finger tap) is down and up within milliseconds,
+    // too quick to see: the mouse's button stays lit a moment either way
+    const buttonAt = useRef(0);
+    const buttonTimer = useRef(0);
+    const pressButton = useCallback((b: number) => {
+        if (b !== 0 && b !== 2) return;
+        window.clearTimeout(buttonTimer.current);
+        buttonAt.current = Date.now();
+        setButton(b === 2 ? "right" : "left");
+    }, []);
+    const releaseButton = useCallback(() => {
+        window.clearTimeout(buttonTimer.current);
+        buttonTimer.current = window.setTimeout(() => setButton(null), Math.max(0, 220 - (Date.now() - buttonAt.current)));
+    }, []);
     const [wheel, setWheel] = useState(0);
     const [full, setFull] = useState(false);
     // Read by the listeners inside the display, which outlive renders
@@ -374,10 +388,8 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             mouseX.set((Math.min(1, Math.max(0, e.clientX / w.innerWidth)) - 0.5) * 60);
             mouseY.set((Math.min(1, Math.max(0, e.clientY / w.innerHeight)) - 0.5) * 44);
         });
-        w.addEventListener("mousedown", (e) => {
-            setButton(e.button === 2 ? "right" : "left");
-        });
-        w.addEventListener("mouseup", () => setButton(null));
+        w.addEventListener("mousedown", (e) => pressButton(e.button));
+        w.addEventListener("mouseup", releaseButton);
         w.addEventListener("wheel", () => setWheel((n) => n + 1), { passive: true });
         const overlay = d.getElementById("start-overlay");
         if (overlay) {
@@ -386,6 +398,19 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             new MutationObserver(check).observe(overlay, { attributes: true, attributeFilter: ["style"] });
         }
     };
+
+    // Clicks on the desk itself show on the mouse too, as those in the display do
+    useEffect(() => {
+        if (!big) return;
+        const down = (e: MouseEvent) => pressButton(e.button);
+        window.addEventListener("mousedown", down);
+        window.addEventListener("mouseup", releaseButton);
+        return () => {
+            window.removeEventListener("mousedown", down);
+            window.removeEventListener("mouseup", releaseButton);
+            window.clearTimeout(buttonTimer.current);
+        };
+    }, [big, pressButton, releaseButton]);
 
     // Typing while the desk itself has focus goes to the terminal
     useEffect(() => {
@@ -927,7 +952,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     fragment={fragment}
                     onFragment={takeFragment}
                 />
-                <Phone ref={phoneRef} notes={notes} airdrop={airdrop} music={music} onMusic={toggleMusic} onSigned={(name, message) => pushNote("Guestbook", `${name}: ${message}`, "✍️")} />
+                <Phone ref={phoneRef} notes={notes} airdrop={airdrop} music={music} onMusic={toggleMusic} onSigned={(name, message) => pushNote("Guestbook", `${name}: ${message}`, "✍️")} onDismiss={(id) => setNotes((ns) => ns.filter((n) => n.id !== id))} />
             </div>
 
             {/* the terminal, over the screen at its real size */}
