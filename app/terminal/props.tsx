@@ -618,7 +618,13 @@ function MessagesApp({ reply, onSigned }: { reply: string; onSigned: (name: stri
     const [text, setText] = useState("");
     const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
     const [error, setError] = useState("");
-    const [sent, setSent] = useState("");
+    // Everything sent this time, each answered; the thread keeps to its newest
+    const [sent, setSent] = useState<string[]>([]);
+    const thread = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const el = thread.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    }, [sent, state]);
     const send = async () => {
         const message = text.trim();
         if (!message || state === "sending") return;
@@ -631,7 +637,7 @@ function MessagesApp({ reply, onSigned }: { reply: string; onSigned: (name: stri
                 setState("error");
                 return;
             }
-            setSent(message);
+            setSent((s) => [...s, message]);
             setText("");
             setState("sent");
             onSigned(data?.entry?.name || name.trim() || "Anonymous", message);
@@ -644,24 +650,26 @@ function MessagesApp({ reply, onSigned }: { reply: string; onSigned: (name: stri
         <div className="flex h-full flex-col pb-[12px] pt-[33px] text-[7px] text-white">
             <div className="flex items-center gap-1 border-b border-white/10 px-2 pb-1">
                 <span className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-gradient-to-br from-teal-300 to-indigo-500 text-[7px] font-bold">M</span>
-                <div className="leading-tight">
+                <div className="min-w-0 leading-tight">
                     <p className="text-[7.5px] font-semibold">Miit</p>
-                    <p className="text-[5.5px] text-neutral-400">{reply}</p>
+                    <p className="truncate text-[5.5px] text-neutral-400">{reply}</p>
                 </div>
             </div>
-            <div className="flex-1 space-y-1 overflow-hidden px-1.5 pt-1.5">
+            {/* the thread scrolls, and keeps to its newest message */}
+            <div ref={thread} className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain px-1.5 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <p className="max-w-[80%] rounded-[8px] rounded-bl-[2px] bg-white/15 px-1.5 py-1 leading-tight">Hey! Leave me a note. It goes on the guestbook on my site.</p>
-                {state === "sent" && (
-                    <>
-                        <p className="ml-auto max-w-[80%] break-words rounded-[8px] rounded-br-[2px] bg-sky-500 px-1.5 py-1 leading-tight">{sent}</p>
-                        <p className="text-right text-[5.5px] text-neutral-400">Delivered · signed the guestbook</p>
+                {sent.map((m, i) => (
+                    <div key={i} className="space-y-1">
+                        <p className="ml-auto w-fit max-w-[80%] break-words rounded-[8px] rounded-br-[2px] bg-sky-500 px-1.5 py-1 leading-tight">{m}</p>
+                        <p className="text-right text-[5.5px] text-neutral-400">Delivered · on the guestbook</p>
                         <p className="max-w-[80%] rounded-[8px] rounded-bl-[2px] bg-white/15 px-1.5 py-1 leading-tight">Thank you! ✨</p>
-                    </>
-                )}
+                    </div>
+                ))}
                 {state === "error" && <p className="text-center text-[6px] text-rose-300">{error}</p>}
             </div>
-            <div className="space-y-[3px] px-1.5">
-                <input value={name} onChange={(e) => setName(e.target.value.slice(0, 24))} placeholder="Your name (optional)" aria-label="Your name" className="w-full rounded-full bg-white/10 px-1.5 py-[2px] text-[6.5px] text-white outline-none placeholder:text-neutral-500 focus:bg-white/15" />
+            <div className="space-y-[3px] px-1.5 pt-1">
+                {/* once a note is sent, the name is set: the field makes way for the thread */}
+                {sent.length === 0 && <input value={name} onChange={(e) => setName(e.target.value.slice(0, 24))} placeholder="Your name (optional)" aria-label="Your name" className="w-full rounded-full bg-white/10 px-1.5 py-[2px] text-[6.5px] text-white outline-none placeholder:text-neutral-500 focus:bg-white/15" />}
                 <div className="flex items-center gap-[3px]">
                     <input
                         value={text}
