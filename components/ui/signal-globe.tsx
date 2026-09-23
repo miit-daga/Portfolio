@@ -23,11 +23,12 @@ import { LAND_COLS, LAND_MASK, LAND_ROWS, LAND_STEP } from "@/constants/land-mas
 //               GeoNames, CC BY 4.0, credited under the globe)
 //   Ping        click: a pulse runs to Kolkata and back while the browser
 //               times a real round trip to this site's nearest server
-//   ISS         hover it for live altitude and speed; click to follow it
+//   ISS         hover it for live altitude and speed; click to follow it, and
+//               watch it live: Sen's 4K cameras on the station, embedded
 //   Home        double-click to zoom in on Kolkata: the last three hours from
-//               a weather satellite, looping (live, every 15 minutes), or
-//               today's sharper view from NASA; the weather there, the time
-//               and the reply line
+//               Meteosat, looping (live, every 15 minutes), ISRO's own
+//               INSAT-3DS (every 30), or today's sharper view from NASA; the
+//               weather there, the time and the reply line
 const BASE = { lat: 22.57, lon: 88.36 }; // Kolkata
 const LIGHTSPEED_KM_S = 299792;
 
@@ -206,6 +207,7 @@ export const SignalGlobe = () => {
     const [hover, setHover] = useState<Hover | null>(null);
     const [ping, setPing] = useState<{ ms: number | null } | null>(null);
     const [following, setFollowing] = useState(false);
+    const [issLive, setIssLive] = useState(false);
     const [home, setHome] = useState(false);
     const [weather, setWeather] = useState<{ temp: number; word: string; humidity: number } | null>(null);
 
@@ -303,6 +305,13 @@ export const SignalGlobe = () => {
             })
             .catch(() => {});
     }, [home, weather]);
+
+    useEffect(() => {
+        if (!issLive) return;
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && setIssLive(false);
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [issLive]);
 
     // Escape zooms back out
     useEffect(() => {
@@ -744,7 +753,7 @@ export const SignalGlobe = () => {
                 x: p.sx,
                 y: p.sy,
                 title: "International Space Station",
-                sub: `${Math.round(s.alt)} km up · ${Math.round(s.vel).toLocaleString()} km/h · ${describeLocation(s.lat, s.lon)} · click to follow`,
+                sub: `${Math.round(s.alt)} km up · ${Math.round(s.vel).toLocaleString()} km/h · ${describeLocation(s.lat, s.lon)} · click to follow it and watch live`,
             });
             return;
         }
@@ -862,6 +871,9 @@ export const SignalGlobe = () => {
                     )}
                 </AnimatePresence>
 
+                {/* The view from the ISS, live */}
+                <AnimatePresence>{issLive && <IssLive onClose={() => setIssLive(false)} />}</AnimatePresence>
+
                 {/* Zoomed in on Kolkata */}
                 <AnimatePresence>{home && <HomeCard onClose={() => goHome(false)} weather={weather} clock={clock} />}</AnimatePresence>
             </div>
@@ -884,15 +896,9 @@ export const SignalGlobe = () => {
                     {following && issRef.current && (
                         <p className="text-amber-200/80">
                             tracking the iss &middot; click it to let go &middot;{" "}
-                            <a
-                                href="https://www.nasa.gov/live/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title="NASA's live page: Space Station Views is the ISS's own camera, looking down at Earth"
-                                className="underline decoration-dotted underline-offset-2 hover:text-amber-100"
-                            >
-                                its live camera ↗
-                            </a>
+                            <button type="button" onClick={() => setIssLive(true)} className="uppercase underline decoration-dotted underline-offset-2 hover:text-amber-100">
+                                watch it live
+                            </button>
                         </p>
                     )}
                     {clock && !following && (
@@ -1046,6 +1052,95 @@ const tileXY = (lat: number, lon: number, z: number) => {
     return { x: ((lon + 180) / 360) * n * 256, y: ((1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2) * n * 256 };
 };
 
+// ISRO's view: INSAT-3DS sits over the Indian Ocean at 82°E, so India is near
+// the middle of its disc. Its full-disk colour image is 2002 x 2242 with the
+// disc centred at (1000, 1250); Kolkata falls at about (1098, 821), placed
+// from the lat/lon grid printed on the image. Shown cropped around the city.
+const INSAT = { w: 2002, kx: 1098, ky: 821, window: 520 };
+
+function IsroView() {
+    const [img, setImg] = useState<{ url: string; time: string } | null | "failed">(null);
+    const [loaded, setLoaded] = useState(false);
+    useEffect(() => {
+        fetch("/api/insat")
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((d) => setImg(d?.url ? d : "failed"))
+            .catch(() => setImg("failed"));
+    }, []);
+    const k = IMG / INSAT.window;
+    if (img === "failed") return <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">ISRO is not answering</p>;
+    return (
+        <>
+            {img && (
+                <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                        src={img.url}
+                        alt=""
+                        onLoad={() => setLoaded(true)}
+                        className="absolute max-w-none transition-opacity duration-300"
+                        style={{ width: INSAT.w * k, left: -(INSAT.kx - INSAT.window / 2) * k, top: -(INSAT.ky - INSAT.window / 2) * k, opacity: loaded ? 1 : 0 }}
+                    />
+                    <span className="absolute bottom-1.5 left-2 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
+                        INSAT-3DS · ISRO · {kolkataClock(new Date(img.time))}
+                    </span>
+                </>
+            )}
+            {!loaded && <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">asking ISRO…</p>}
+        </>
+    );
+}
+
+// Live video from the ISS: Sen's 4K cameras on the station, streaming 24/7
+const ISS_STREAM = "fO9e9jnhYK8";
+
+function IssLive({ onClose }: { onClose: () => void }) {
+    return (
+        <motion.div
+            className="absolute inset-0 z-30 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+        >
+            <motion.div
+                className="w-[272px] overflow-hidden rounded-2xl border border-amber-200/25 bg-black/90 p-2 font-mono shadow-[0_0_40px_rgba(0,0,0,0.6)]"
+                initial={{ scale: 0.92, y: 8 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.94, y: 6 }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="mb-1.5 flex items-center justify-between px-0.5">
+                    <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-neutral-300">
+                        <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" />
+                        live from the iss
+                    </p>
+                    <button type="button" onClick={onClose} aria-label="Close the live view" className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white">
+                        <IconX className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+                <div className="overflow-hidden rounded-lg bg-black" style={{ width: 256, height: 144 }}>
+                    <iframe
+                        src={`https://www.youtube-nocookie.com/embed/${ISS_STREAM}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`}
+                        title="Live 4K view of Earth from the International Space Station"
+                        width={256}
+                        height={144}
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                        className="block"
+                    />
+                </div>
+                <p className="mt-1.5 px-0.5 text-[9px] leading-snug text-neutral-500">
+                    Sen&apos;s 4K cameras on the station, streaming around the clock. When it is night below, it goes dark.{" "}
+                    <a href={`https://www.youtube.com/watch?v=${ISS_STREAM}`} target="_blank" rel="noopener noreferrer" className="text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-neutral-200">
+                        YouTube ↗
+                    </a>
+                </p>
+            </motion.div>
+        </motion.div>
+    );
+}
+
 function HomeCard({
     onClose,
     weather,
@@ -1057,7 +1152,7 @@ function HomeCard({
 }) {
     const [date, setDate] = useState(passDate);
     const [failed, setFailed] = useState(false);
-    const [tab, setTab] = useState<"live" | "today">("live");
+    const [tab, setTab] = useState<"live" | "isro" | "today">("live");
     const reduce = useReducedMotion();
     const c = tileXY(BASE.lat, BASE.lon, TILE_Z);
     const left = c.x - VIEW / 2;
@@ -1096,6 +1191,7 @@ function HomeCard({
                 {/* The view from orbit, centred on the city: live and moving, or today's sharp one */}
                 <div className="relative overflow-hidden rounded-lg bg-slate-900" style={{ width: IMG, height: IMG }}>
                     {tab === "live" && <LiveLoop reduce={reduce} />}
+                    {tab === "isro" && <IsroView />}
                     {tab === "today" && !failed && (
                         <div className="absolute left-0 top-0 origin-top-left" style={{ width: VIEW, height: VIEW, transform: `scale(${scale})` }}>
                             {tiles.map((t) => (
@@ -1130,7 +1226,7 @@ function HomeCard({
                     )}
                     {/* live, or today's sharper pass */}
                     <span className="absolute right-1.5 top-1.5 flex rounded-full bg-black/60 p-0.5 text-[8.5px] tracking-wide">
-                        {(["live", "today"] as const).map((k) => (
+                        {(["live", "isro", "today"] as const).map((k) => (
                             <button
                                 key={k}
                                 type="button"
