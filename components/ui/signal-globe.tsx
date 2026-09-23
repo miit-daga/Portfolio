@@ -1091,10 +1091,63 @@ function IsroView() {
     );
 }
 
-// Live video from the ISS: Sen's 4K cameras on the station, streaming 24/7
-const ISS_STREAM = "fO9e9jnhYK8";
+// Live video from the ISS. Sen's 4K cameras by default, NASA's own stream as
+// the fallback (both found live by /api/iss-stream, since their IDs change),
+// and a recorded spacewalk for when it is night up there
+const SPACEWALK = "3F0XlKxaqbk"; // WorldCam: Terry Virts' 2015 GoPro spacewalk, looped with music
+
+type Feed = "sen" | "nasa" | "spacewalk";
+const FEED_LABEL: Record<Feed, string> = { sen: "Sen 4K", nasa: "NASA", spacewalk: "spacewalk" };
 
 function IssLive({ onClose }: { onClose: () => void }) {
+    const [ids, setIds] = useState<{ sen: string | null; nasa: string | null } | null>(null);
+    const [feed, setFeed] = useState<Feed | null>(null);
+    // Whether the station is in Earth's shadow, and for how much longer
+    const [night, setNight] = useState<{ dark: boolean; minutes: number | null } | null>(null);
+
+    useEffect(() => {
+        fetch("/api/iss-stream")
+            .then((r) => r.json())
+            .then((d: { sen: string | null; nasa: string | null }) => {
+                setIds(d);
+                setFeed((f) => f ?? (d.sen ? "sen" : d.nasa ? "nasa" : "spacewalk"));
+            })
+            .catch(() => {
+                setIds({ sen: null, nasa: null });
+                setFeed("spacewalk");
+            });
+    }, []);
+
+    useEffect(() => {
+        let alive = true;
+        const check = async () => {
+            try {
+                const now = await fetch("https://api.wheretheiss.at/v1/satellites/25544").then((r) => r.json());
+                if (!alive) return;
+                if (now.visibility !== "eclipsed") return setNight({ dark: false, minutes: null });
+                // When it comes back into daylight: its positions over the next 40 minutes
+                const t0 = Math.round(Date.now() / 1000);
+                const ts = Array.from({ length: 10 }, (_, i) => t0 + (i + 1) * 240).join(",");
+                const ahead: { timestamp: number; visibility: string }[] = await fetch(
+                    `https://api.wheretheiss.at/v1/satellites/25544/positions?timestamps=${ts}`,
+                ).then((r) => r.json());
+                const dawn = ahead.find((p) => p.visibility !== "eclipsed");
+                if (alive) setNight({ dark: true, minutes: dawn ? Math.max(1, Math.round((dawn.timestamp - t0) / 60)) : null });
+            } catch {
+                /* the note is optional */
+            }
+        };
+        check();
+        const id = window.setInterval(check, 60000);
+        return () => {
+            alive = false;
+            window.clearInterval(id);
+        };
+    }, []);
+
+    const idFor = (f: Feed) => (f === "spacewalk" ? SPACEWALK : ids?.[f] ?? null);
+    const current = feed ? idFor(feed) : null;
+
     return (
         <motion.div
             className="absolute inset-0 z-30 flex items-center justify-center"
@@ -1112,29 +1165,59 @@ function IssLive({ onClose }: { onClose: () => void }) {
             >
                 <div className="mb-1.5 flex items-center justify-between px-0.5">
                     <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-neutral-300">
-                        <span className="h-1.5 w-1.5 rounded-full bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" />
-                        live from the iss
+                        <span className={cn("h-1.5 w-1.5 rounded-full", feed === "spacewalk" ? "bg-neutral-500" : "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]")} />
+                        {feed === "spacewalk" ? "recorded · 2015" : "live from the iss"}
                     </p>
                     <button type="button" onClick={onClose} aria-label="Close the live view" className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white">
                         <IconX className="h-3.5 w-3.5" />
                     </button>
                 </div>
-                <div className="overflow-hidden rounded-lg bg-black" style={{ width: 256, height: 144 }}>
-                    <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${ISS_STREAM}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`}
-                        title="Live 4K view of Earth from the International Space Station"
-                        width={256}
-                        height={144}
-                        allow="autoplay; encrypted-media; picture-in-picture"
-                        allowFullScreen
-                        className="block"
-                    />
+                <div className="relative overflow-hidden rounded-lg bg-black" style={{ width: 256, height: 144 }}>
+                    {current ? (
+                        <iframe
+                            key={current}
+                            src={`https://www.youtube-nocookie.com/embed/${current}?autoplay=1&mute=1&playsinline=1&rel=0&modestbranding=1`}
+                            title={feed === "spacewalk" ? "A recorded spacewalk outside the ISS" : "Live view of Earth from the International Space Station"}
+                            width={256}
+                            height={144}
+                            allow="autoplay; encrypted-media; picture-in-picture"
+                            allowFullScreen
+                            className="block"
+                        />
+                    ) : (
+                        <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">finding the live feed…</p>
+                    )}
+                </div>
+                {/* Which feed */}
+                <div className="mt-1.5 flex gap-1 px-0.5">
+                    {(["sen", "nasa", "spacewalk"] as const).map((f) => (
+                        <button
+                            key={f}
+                            type="button"
+                            disabled={!idFor(f)}
+                            onClick={() => setFeed(f)}
+                            className={cn(
+                                "rounded-full border px-2 py-0.5 text-[9px] tracking-wide transition-colors disabled:opacity-30",
+                                feed === f ? "border-amber-200/40 bg-amber-200/10 text-amber-100" : "border-white/10 text-neutral-400 hover:text-neutral-200",
+                            )}
+                        >
+                            {FEED_LABEL[f]}
+                        </button>
+                    ))}
                 </div>
                 <p className="mt-1.5 px-0.5 text-[9px] leading-snug text-neutral-500">
-                    Sen&apos;s 4K cameras on the station, streaming around the clock. When it is night below, it goes dark.{" "}
-                    <a href={`https://www.youtube.com/watch?v=${ISS_STREAM}`} target="_blank" rel="noopener noreferrer" className="text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-neutral-200">
-                        YouTube ↗
-                    </a>
+                    {feed === "spacewalk"
+                        ? "Terry Virts' spacewalk, filmed on a GoPro in 2015 and replayed with music."
+                        : night?.dark
+                          ? `The station is on the night side of Earth, so the view is dark${night.minutes ? `: daylight again in about ${night.minutes} min` : ""}.`
+                          : feed === "nasa"
+                            ? "NASA's own cameras on the station, live."
+                            : "Sen's 4K cameras on the station, live around the clock."}{" "}
+                    {current && (
+                        <a href={`https://www.youtube.com/watch?v=${current}`} target="_blank" rel="noopener noreferrer" className="text-neutral-400 underline decoration-dotted underline-offset-2 hover:text-neutral-200">
+                            YouTube ↗
+                        </a>
+                    )}
                 </p>
             </motion.div>
         </motion.div>
@@ -1233,7 +1316,7 @@ function HomeCard({
                                 onClick={() => setTab(k)}
                                 className={cn("rounded-full px-1.5 py-0.5 transition-colors", tab === k ? "bg-white/15 text-neutral-100" : "text-neutral-400 hover:text-neutral-200")}
                             >
-                                {k}
+                                {k === "isro" ? "ISRO" : k}
                             </button>
                         ))}
                     </span>
