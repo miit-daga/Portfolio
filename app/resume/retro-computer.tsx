@@ -270,10 +270,11 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                     className="rounded-[14px] p-2 sm:rounded-[20px] sm:p-4"
                     style={{ background: "linear-gradient(180deg, #d8ceb4, #e9e1cc 30%, #e2d9c1)", boxShadow: "inset 0 3px 8px rgba(0,0,0,0.18), inset 0 -2px 4px rgba(255,255,255,0.6)" }}
                 >
-                    {/* the dark surround and the bulging glass */}
+                    {/* the dark surround and the bulging glass. On large screens the glass is
+                        short enough for the printer and the disks below to fit the window */}
                     <div className="rounded-[18px] bg-[#222] p-2 sm:rounded-[30px] sm:p-3.5" style={{ boxShadow: "inset 0 0 0 2px #111, 0 1px 0 rgba(255,255,255,0.5)" }}>
                         <div
-                            className="relative h-[64dvh] overflow-hidden rounded-[14px] sm:h-[min(62dvh,640px)] sm:rounded-[26px]"
+                            className="relative h-[64dvh] overflow-hidden rounded-[14px] sm:h-[min(62dvh,640px)] sm:rounded-[26px] lg:h-[min(62dvh,640px,max(280px,calc(100dvh-360px)))]"
                             style={{
                                 background: phosphor === "paper" ? "#0b0d10" : "#030503",
                                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.9)",
