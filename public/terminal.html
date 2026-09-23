@@ -187,7 +187,7 @@
         // drives through window.deskMount.
         const DESK = window.parent !== window && new URLSearchParams(location.search).get('screen') === '1';
         // Commands that only the desk answers
-        const DESK_WORDS = ['duck', 'quack', 'selfie', 'camera', 'webcam', 'photo', 'cheese', 'desk', 'airdrop'];
+        const DESK_WORDS = ['duck', 'quack', 'selfie', 'camera', 'webcam', 'photo', 'cheese', 'desk', 'airdrop', 'refill'];
         function deskSay(type, detail = {}) {
             if (!DESK) return;
             try { window.parent.postMessage({ source: 'mdos', type, ...detail }, location.origin); } catch (e) {}
@@ -3332,7 +3332,7 @@
         }
 
         // Commands that exist but are deliberately absent from the public list.
-        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'quack', 'camera', 'webcam', 'photo', 'cheese', 'airdrop']);
+        const HIDDEN_COMMANDS = new Set(['jettison', 'unalias', 'mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'quack', 'camera', 'webcam', 'photo', 'cheese', 'airdrop', 'refill']);
         function isKnownCommand(text) {
             const base = (text || '').trim().split(/\s+/)[0].toLowerCase();
             if (!base) return false;
@@ -5845,6 +5845,15 @@
                 endTurn();
                 return;
             }
+            if (cmd === 'refill') {
+                // the mug on the desk: brewed and poured there (desk.tsx)
+                await typeRaw('<span style="color:#d6a86a">☕ Putting the kettle on...</span>');
+                await typeSpinner('Brewing chai', 1400);
+                deskSay('refill');
+                await typeLine('Poured. A fresh cup on the desk, and careful, it is hot.', 14);
+                endTurn();
+                return;
+            }
             if (cmd === 'airdrop' || cmd.startsWith('airdrop ')) {
                 // Things sent from the phone; most open with the terminal's own
                 // commands, which end the turn themselves
@@ -6125,6 +6134,7 @@
             for (const line of [
                 row('selfie', 'an ASCII selfie from the webcam on the display (or click the webcam)'),
                 row('duck', 'explain your bug to the rubber duck (or click the duck)'),
+                row('refill', 'a fresh cup of chai in the mug on the desk'),
                 row('ls /Volumes', 'the USB drives plugged into the tower'),
                 row('scp resume.pdf .', 'download the resume; it AirDrops to the phone too'),
                 row('mount <drive>', 'mount a drive plugged in from the stand'),
@@ -6137,7 +6147,7 @@
         // The desk's commands complete like the rest (inside the desk only), and
         // eject completes with whatever is mounted
         if (DESK) {
-            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'airdrop');
+            MOCK_DATA.commands.push('mount', 'eject', 'fullscreen', 'duck', 'selfie', 'desk', 'airdrop', 'refill');
             ARG_TARGETS.airdrop = () => Object.keys(AIRDROP);
             ARG_TARGETS.eject = () => [...mounted].map((l) => l.toLowerCase());
             ARG_TARGETS.mount = () => [...connected].filter((l) => !mounted.has(l)).map((l) => l.toLowerCase());

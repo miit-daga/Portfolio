@@ -119,7 +119,16 @@ export function Desk() {
     const [notes, setNotes] = useState<Note[]>([]);
     const [music, setMusic] = useState(false);
     // Chai: sips left of 4; the mug, dragged or pouring
-    const hot = useChaiTime();
+    const chaiTime = useChaiTime();
+    // A cup brewed with the terminal's refill stays hot a while, chai-time or not
+    const [freshUntil, setFreshUntil] = useState(0);
+    const [, setTick] = useState(0);
+    useEffect(() => {
+        if (!freshUntil) return;
+        const id = window.setTimeout(() => setTick((t) => t + 1), Math.max(0, freshUntil - Date.now()) + 50);
+        return () => window.clearTimeout(id);
+    }, [freshUntil]);
+    const hot = chaiTime || Date.now() < freshUntil;
     const [chai, setChai] = useState(4);
     const [chaiLoaded, setChaiLoaded] = useState(false);
     const [mugDrag, setMugDrag] = useState<{ dx: number; dy: number } | null>(null);
@@ -298,6 +307,12 @@ export function Desk() {
             else if (d.type === "download") airDrop(SAVED_AS[d.filename || ""] || d.filename || "Resume-Miit_Daga.pdf");
             else if (d.type === "notify") pushNote(d.app || "Terminal", d.text || "", "✍️");
             else if (d.type === "fullscreen") setFull((f) => !f);
+            else if (d.type === "refill") {
+                playPour();
+                setChai(4);
+                setFreshUntil(Date.now() + 20 * 60000);
+                pushNote("Chai", "Fresh cup poured from the terminal. Careful, it is hot", "☕");
+            }
             else if (d.type === "quack") {
                 playQuack();
                 setQuack((q) => q + 1);
@@ -632,7 +647,8 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
     // Away for an hour or more at chai-time, though, and there is a new one
     useEffect(() => {
         try {
-            const saved = JSON.parse(localStorage.getItem(CHAI_KEY) || "null") as { level: number; at: number } | null;
+            const saved = JSON.parse(localStorage.getItem(CHAI_KEY) || "null") as { level: number; at: number; freshUntil?: number } | null;
+            if (saved?.freshUntil && saved.freshUntil > Date.now()) setFreshUntil(saved.freshUntil);
             if (saved && Number.isFinite(saved.level)) {
                 const stale = Date.now() - saved.at > 3600000;
                 setChai(stale && isChaiTime() ? 4 : Math.max(0, Math.min(4, saved.level)));
@@ -645,32 +661,32 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
     useEffect(() => {
         if (!chaiLoaded) return;
         try {
-            localStorage.setItem(CHAI_KEY, JSON.stringify({ level: chai, at: Date.now() }));
+            localStorage.setItem(CHAI_KEY, JSON.stringify({ level: chai, at: Date.now(), freshUntil }));
         } catch {
             /* ignore */
         }
-    }, [chai, chaiLoaded]);
+    }, [chai, chaiLoaded, freshUntil]);
     // Empty at chai-time: a fresh cup, a few seconds later
     useEffect(() => {
-        if (chai > 0 || !hot) return;
+        if (chai > 0 || !chaiTime) return;
         const id = window.setTimeout(() => {
             playPour();
             setChai(4);
             pushNote("Chai", "Fresh cup poured. It is chai-time in Kolkata", "☕");
         }, 4000);
         return () => window.clearTimeout(id);
-    }, [chai, hot, pushNote]);
+    }, [chai, chaiTime, pushNote]);
     // A sip; empty, it waits for chai-time
     const sip = () => {
         if (chai <= 0) {
-            pushNote("Chai", hot ? "Pouring a fresh cup…" : "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
+            pushNote("Chai", chaiTime ? "Pouring a fresh cup…" : "Empty. Type refill in the terminal, or wait for chai-time in Kolkata", "☕");
             return;
         }
         playSip();
         const left = chai - 1;
         setChai(left);
         if (!hot && left === 3) pushNote("Chai", "Stone cold. Miit forgot this one hours ago", "🧊");
-        if (left === 0 && !hot) pushNote("Chai", "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
+        if (left === 0 && !chaiTime) pushNote("Chai", "Empty. Type refill in the terminal, or wait for chai-time in Kolkata", "☕");
     };
     // Click the mug to sip. Drag the glass of water onto the plant to water it;
     // the mug, the plant turns down
@@ -969,7 +985,7 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     role="button"
                     tabIndex={0}
                     aria-label={chai > 0 ? "The mug of chai. Click to sip" : "An empty mug"}
-                    title={chai > 0 ? (hot ? "Chai · click to sip" : "Chai, long gone cold · click to sip") : hot ? "Empty · refilling" : "Empty · brew later"}
+                    title={chai > 0 ? (hot ? "Chai · click to sip" : "Chai, long gone cold · click to sip") : chaiTime ? "Empty · refilling" : "Empty · type refill in the terminal"}
                     onPointerDown={mugDown}
                     onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && sip()}
                     className="absolute z-20 cursor-grab touch-none active:cursor-grabbing"
