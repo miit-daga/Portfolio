@@ -15,6 +15,78 @@ type PublicationItem = {
   status?: string;
   /** Animated diagram of the paper's idea, shown above the abstract. */
   visual?: VisualAbstractKind;
+  /** A 20-second plain-English version, shown first. */
+  tldr?: string;
+  /** Ready-to-paste references, from the DOI's own metadata. */
+  cite?: { bibtex: string; apa: string };
+};
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Older browsers, or clipboard permission refused
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
+// "Cite": BibTeX and APA, each copied with one tap. Clickable on top of the
+// card's DOI overlay, like the abstract toggle
+const CiteRow = ({ cite }: { cite: { bibtex: string; apa: string } }) => {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState<"bibtex" | "apa" | null>(null);
+  const copy = async (e: React.MouseEvent, kind: "bibtex" | "apa") => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (await copyText(cite[kind])) {
+      setCopied(kind);
+      window.setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1800);
+    }
+  };
+  const chip =
+    "pointer-events-auto inline-flex min-h-8 items-center gap-1 rounded-full border px-3 py-1 font-mono text-[11px] tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400";
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+        className={cn(chip, open ? "border-violet-300/60 bg-violet-500/20 text-white" : "border-white/15 bg-white/5 text-neutral-300 hover:border-violet-300/50 hover:text-white")}
+      >
+        Cite
+      </button>
+      <AnimatePresence>
+        {open &&
+          (["bibtex", "apa"] as const).map((k, i) => (
+            <motion.button
+              key={k}
+              type="button"
+              onClick={(e) => copy(e, k)}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0, transition: { delay: i * 0.05 } }}
+              exit={{ opacity: 0, x: -6 }}
+              title={`Copy the ${k === "bibtex" ? "BibTeX entry" : "APA reference"}`}
+              className={cn(chip, copied === k ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-200" : "border-violet-400/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20")}
+            >
+              {copied === k ? "copied ✓" : k === "bibtex" ? "BibTeX" : "APA"}
+            </motion.button>
+          ))}
+      </AnimatePresence>
+    </span>
+  );
 };
 
 // The venue is the single strongest credibility signal on the card, and it used
@@ -166,6 +238,8 @@ const TiltCard = ({
   // With a visual abstract the prose collapses to a teaser behind a toggle
   const [expanded, setExpanded] = useState(false);
   const collapsible = !!item.visual;
+  // The plain-English version first; the abstract a tap away
+  const [plain, setPlain] = useState(!!item.tldr);
 
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -243,7 +317,31 @@ const TiltCard = ({
 
           <CardTitle className="pr-12">{item.title}</CardTitle>
           {item.visual && <VisualAbstract kind={item.visual} />}
-          {collapsible ? (
+          {item.tldr && (
+            <div className="pointer-events-auto mt-4 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 font-mono text-[10.5px] tracking-wide">
+              {([["plain", "in 20 seconds"], ["abstract", "abstract"]] as const).map(([k, label]) => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={(k === "plain") === plain}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    setPlain(k === "plain");
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400",
+                    (k === "plain") === plain ? "bg-violet-500/20 text-violet-100" : "text-neutral-400 hover:text-neutral-200"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {item.tldr && plain ? (
+            <CardDescription className="mt-3 text-zinc-300">{item.tldr}</CardDescription>
+          ) : collapsible ? (
             // The collapsed teaser is itself a target: clicking it opens the
             // abstract instead of falling through to the DOI overlay, which is
             // what a click just missing the toggle used to do
@@ -274,8 +372,11 @@ const TiltCard = ({
           {/* Footer: DOI link affordance or filed-status chip */}
           <div className="mt-6">
             {hasValidLink ? (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-300 transition-colors group-hover:text-violet-200">
-                View DOI <IconArrowUpRight className="h-3.5 w-3.5" />
+              <span className="flex flex-wrap items-center gap-3">
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-300 transition-colors group-hover:text-violet-200">
+                  View DOI <IconArrowUpRight className="h-3.5 w-3.5" />
+                </span>
+                {item.cite && <CiteRow cite={item.cite} />}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
