@@ -497,6 +497,8 @@ export const IdleAlien = () => {
                             }
                         }}
                         ref={containerRef}
+                        // The hero's name leans away from him (hero-name.tsx)
+                        data-idle-alien
                         onPointerDown={onCatch}
                         // Catchable until he is gone; a click on him is not
                         // "activity", so it cannot startle him first
