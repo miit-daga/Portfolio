@@ -10,13 +10,23 @@ export type KolkataMood = {
   reply: string;
 };
 
+// "probably asleep" is also what the astronaut and the idle alien check for
+// night, so keep that label on the small hours
 const HOURS: ({ until: number } & KolkataMood)[] = [
-  { until: 7, label: "probably asleep", color: "#818cf8", reply: "expect a reply by morning" },
+  { until: 6, label: "probably asleep", color: "#818cf8", reply: "expect a reply by morning" },
+  { until: 8, label: "waking up slowly", color: "#fcd34d", reply: "replies after the first coffee" },
   { until: 10, label: "morning coffee", color: "#fbbf24", reply: "replies after the first coffee" },
-  { until: 19, label: "probably coding", color: "#34d399", reply: "replies usually within a few hours" },
+  { until: 13, label: "deep in code", color: "#34d399", reply: "replies usually within a few hours" },
+  { until: 14, label: "lunch break", color: "#fb923c", reply: "replies after lunch" },
+  { until: 17, label: "probably coding", color: "#34d399", reply: "replies usually within a few hours" },
+  { until: 18, label: "evening chai", color: "#f59e0b", reply: "replies usually within a few hours" },
+  { until: 20, label: "wrapping up the day", color: "#38bdf8", reply: "replies likely tonight" },
   { until: 23, label: "on a side project", color: "#2dd4bf", reply: "replies likely tonight" },
   { until: 24, label: "late-night commits", color: "#a78bfa", reply: "expect a reply by morning" },
 ];
+
+// Saturdays and Sundays, through the day
+const WEEKEND: KolkataMood = { label: "weekend mode", color: "#f472b6", reply: "replies may take a little longer" };
 
 /** ?kolkata=<0-23> previews an hour in Kolkata (the sleeping astronaut, the alien's torch). */
 function previewHour(): number | null {
@@ -35,6 +45,8 @@ export function kolkataNow(date: Date = new Date()): { hour: number; time: strin
     preview !== null
       ? `${preview % 12 || 12}:00 ${preview < 12 ? "AM" : "PM"}`
       : new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }).format(date);
-  const mood = HOURS.find((h) => hour < h.until) ?? HOURS[0];
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", weekday: "short" }).format(date);
+  const weekend = (weekday === "Sat" || weekday === "Sun") && hour >= 10 && hour < 20;
+  const mood = weekend ? WEEKEND : HOURS.find((h) => hour < h.until) ?? HOURS[0];
   return { hour, time, mood };
 }

@@ -48,7 +48,7 @@ export default function ResumePage() {
             </header>
 
             <section className="relative z-10 mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 pb-6 md:px-6">
-                <div className="relative flex-1 overflow-hidden rounded-2xl border border-white/10 bg-neutral-950 shadow-[0_0_40px_rgba(45,212,191,0.08)]">
+                <div className="relative min-h-[75dvh] flex-1 overflow-hidden rounded-2xl border border-white/10 bg-neutral-950 shadow-[0_0_40px_rgba(45,212,191,0.08)]">
                     {/* Shows until the preview paints over it */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
                         <span className="h-8 w-8 animate-spin rounded-full border-2 border-teal-400/30 border-t-teal-300 motion-reduce:animate-none" />
@@ -60,7 +60,10 @@ export default function ResumePage() {
                     <iframe
                         src={RESUME_PREVIEW_URL}
                         title="Miit Daga resume"
-                        className="relative block h-full min-h-[75dvh] w-full"
+                        // Fills the whole panel: sized by h-full alone it stopped at
+                        // 75dvh while the panel grew, leaving a dark band that
+                        // cut the resume off
+                        className="absolute inset-0 block h-full w-full"
                         allow="autoplay"
                         loading="eager"
                     />
