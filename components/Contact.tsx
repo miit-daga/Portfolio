@@ -192,8 +192,9 @@ export function Contact() {
                 </div>
             </div>
 
-            {/* Footer */}
-            <div className="border-t border-white/10 mt-20 pt-8 pb-4 flex flex-col items-center gap-4">
+            {/* Footer. On phones it ends well below the Big Crunch keys, so the
+                back-to-top rocket (fixed, bottom right) does not sit on them */}
+            <div className="border-t border-white/10 mt-20 pt-8 pb-28 md:pb-4 flex flex-col items-center gap-4">
                 {/* Clocks and callsign, the visit so far, and the Big Crunch keys (footer-console.tsx) */}
                 <MissionStatus accent={CONTACT.hex} />
                 <VisitLog />

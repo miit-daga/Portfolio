@@ -46,12 +46,13 @@ export const MobileNotice = () => {
                     </p>
                     <p className="mt-2 text-sm leading-relaxed text-neutral-200">
                         You&apos;re seeing the travel-size cosmos. 📱 On a desktop this place
-                        also has a command palette, an asteroid defense mode, a stardust
-                        cursor, and one very illegal keyboard code.
+                        also has a command palette, an asteroid defense mode and a stardust
+                        cursor.
                     </p>
                     <p className="mt-2 text-xs leading-relaxed text-neutral-500">
                         Don&apos;t worry: the hidden shards (and one nosy alien) work right
-                        here. Happy hunting.
+                        here, and so does one very illegal keyboard code. Its keys are at
+                        the very bottom; just tap them. Happy hunting.
                     </p>
                     <button
                         onClick={dismiss}
