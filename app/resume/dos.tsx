@@ -248,6 +248,8 @@ export function DosPrompt({
     const [input, setInput] = useState("");
     const [history, setHistory] = useState<string[]>([]);
     const [hIdx, setHIdx] = useState(-1);
+    // A question waiting for its answer (FORMAT's Y/N), which the next line answers
+    const [asking, setAsking] = useState<{ q: string; drive: string } | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const endRef = useRef<HTMLDivElement>(null);
 
@@ -263,7 +265,31 @@ export function DosPrompt({
         window.setTimeout(() => onDisk(false), 350);
     };
 
+    const later = (ms: number, ...t: string[]) =>
+        window.setTimeout(() => setLines((l) => [...l, ...t.map((x) => ({ text: x }))].slice(-200)), ms);
+
+    // FORMAT's question, answered on the next line
+    const answer = (raw: string) => {
+        const a = raw.trim().toUpperCase();
+        const q = asking!;
+        const out: Line[] = [{ text: `${q.q}${raw}`, kind: "cmd" }];
+        if (a === "N" || a === "NO") {
+            setAsking(null);
+            out.push({ text: "Format cancelled." }, { text: "" });
+        } else if (a === "Y" || a === "YES") {
+            setAsking(null);
+            out.push({ text: "" }, { text: `Formatting ${q.drive} 20M` });
+            onDisk(true);
+            [10, 25, 40].forEach((pct, i) => later(450 * (i + 1), `${pct} percent completed.`));
+            window.setTimeout(() => onDisk(false), 1800);
+            later(1900, "", "Format terminated.", `Drive ${q.drive} holds the only copy of this resume,`, "and MIIT-DOS is not letting it go. Nice try.", "");
+        }
+        // Anything else, and DOS asks again
+        setLines((l) => [...l, ...out].slice(-200));
+    };
+
     const run = (raw: string) => {
+        if (asking) return answer(raw);
         const text = raw.trim();
         const out: Line[] = [{ text: `C:\\>${raw}`, kind: "cmd" }];
         const [word, ...rest] = text.split(/\s+/);
@@ -353,19 +379,22 @@ export function DosPrompt({
                 "    └───ALIENS (hidden)",
             );
         } else if (cmd === "format") {
-            say(
-                `WARNING, ALL DATA ON NON-REMOVABLE DISK DRIVE ${arg || "C:"} WILL BE LOST!`,
-                "Proceed with Format (Y/N)? N",
-                "",
-                "Nice try. That drive holds the only copy of this resume.",
-            );
+            // The machine has one hard disk, C:, and an empty floppy drive, A:
+            const drive = arg.replace(/:$/, "");
+            if (!arg) out.push({ text: "Required parameter missing", kind: "err" });
+            else if (drive === "A") out.push({ text: "Not ready reading drive A", kind: "err" }, { text: "(There is no disk in the floppy drive.)" });
+            else if (drive !== "C") out.push({ text: "Invalid drive specification", kind: "err" });
+            else {
+                say("WARNING, ALL DATA ON NON-REMOVABLE DISK", "DRIVE C: WILL BE LOST!");
+                setLines((l) => [...l, ...out].slice(-200));
+                setAsking({ q: "Proceed with Format (Y/N)? ", drive: "C:" });
+                return;
+            }
         } else if (cmd === "dial" || cmd === "atdt") {
             playModem();
             onDisk(true);
             window.setTimeout(() => onDisk(false), 3800);
             say("ATDT +91 7003816564");
-            const later = (ms: number, ...t: string[]) =>
-                window.setTimeout(() => setLines((l) => [...l, ...t.map((x) => ({ text: x }))].slice(-200)), ms);
             later(1400, "RINGING");
             later(2600, "CONNECT 2400");
             later(3900, "", "Welcome to KOLKATA STATION.", "  Email   miitcodes27@gmail.com", "  Phone   +91 7003816564", "  Link    linkedin.com/in/miit-daga", "", "NO CARRIER", "");
@@ -428,7 +457,7 @@ export function DosPrompt({
                     setInput("");
                 }}
             >
-                <label htmlFor="dos-input">C:\&gt;</label>
+                <label htmlFor="dos-input" className="whitespace-pre">{asking ? asking.q : "C:\\>"}</label>
                 <input
                     id="dos-input"
                     ref={inputRef}
