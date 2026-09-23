@@ -14,7 +14,8 @@ import { IconAddressBook, IconCamera, IconDownload, IconPhotoUp, IconTicket, Ico
 //                   the camera. It is drawn on the pass in their browser and
 //                   never leaves the device: nothing is sent anywhere.
 
-const VCARD = [
+// Built on demand, with the photo folded in once it has loaded
+const VCARD_LINES = [
     "BEGIN:VCARD",
     "VERSION:3.0",
     "N:Daga;Miit;;;",
@@ -23,14 +24,57 @@ const VCARD = [
     "EMAIL;TYPE=INTERNET:miitcodes27@gmail.com",
     "TEL;TYPE=CELL:+917003816564",
     "URL:https://miitdaga.dev",
+    // Labelled links show on Android and elsewhere; X-SOCIALPROFILE is read
+    // only by Apple's Contacts, so both are given
+    "item1.URL:https://www.linkedin.com/in/miit-daga",
+    "item1.X-ABLabel:LinkedIn",
+    "item2.URL:https://github.com/miit-daga",
+    "item2.X-ABLabel:GitHub",
+    "item3.URL:https://miitdaga.dev/resume",
+    "item3.X-ABLabel:Resume",
     "X-SOCIALPROFILE;TYPE=linkedin:https://www.linkedin.com/in/miit-daga",
     "X-SOCIALPROFILE;TYPE=github:https://github.com/miit-daga",
-    "ADR;TYPE=HOME:;;;Kolkata;;;India",
-    "END:VCARD",
-].join("\r\n");
+    // City and country only, not tagged as a home address
+    "ADR:;;;Kolkata;;;India",
+    "NOTE:Saved from miitdaga.dev. Software Development Engineer\\, backend development.",
+];
 
-export function saveContact() {
-    const url = URL.createObjectURL(new Blob([VCARD], { type: "text/vcard" }));
+// The face on the contact: the crew card's headshot, 240px (public/contact-photo.jpg)
+let photoB64: string | null = null;
+let photoLoading: Promise<void> | null = null;
+export function preloadContactPhoto() {
+    photoLoading ??= fetch("/contact-photo.jpg")
+        .then((r) => (r.ok ? r.blob() : Promise.reject()))
+        .then(
+            (blob) =>
+                new Promise<void>((resolve) => {
+                    const fr = new FileReader();
+                    fr.onload = () => {
+                        photoB64 = String(fr.result).split(",")[1] ?? null;
+                        resolve();
+                    };
+                    fr.onerror = () => resolve();
+                    fr.readAsDataURL(blob);
+                }),
+        )
+        .catch(() => {});
+    return photoLoading;
+}
+
+function buildVCard() {
+    const lines = [...VCARD_LINES];
+    if (photoB64) {
+        // Long lines are folded at 75 characters, continuations starting with a space
+        const photo = `PHOTO;ENCODING=b;TYPE=JPEG:${photoB64}`;
+        const folded = photo.match(/.{1,74}/g)?.join("\r\n ") ?? photo;
+        lines.push(folded);
+    }
+    lines.push("END:VCARD");
+    return lines.join("\r\n");
+}
+
+function download(vcard: string) {
+    const url = URL.createObjectURL(new Blob([vcard], { type: "text/vcard" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = "Miit-Daga.vcf";
@@ -38,6 +82,14 @@ export function saveContact() {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function saveContact() {
+    // Usually the photo is already in (preloaded with the contact section);
+    // if not, wait for it briefly rather than save a card without a face
+    if (photoB64) return download(buildVCard());
+    const giveUp = new Promise<void>((r) => setTimeout(r, 1500));
+    Promise.race([preloadContactPhoto(), giveUp]).then(() => download(buildVCard()));
 }
 
 // --- Visitor pass ---------------------------------------------------------
@@ -266,6 +318,11 @@ const actionClass =
     "inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-2 font-mono text-[11px] uppercase tracking-[0.18em] text-neutral-300 transition-colors hover:border-amber-300/50 hover:bg-amber-400/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300";
 
 export const ContactActions = () => {
+    // So "Save contact" can include the photo without a wait
+    useEffect(() => {
+        preloadContactPhoto();
+    }, []);
+
     const [pass, setPass] = useState<{ url: string; callsign: string } | null>(null);
     const [busy, setBusy] = useState(false);
     const [mounted, setMounted] = useState(false);

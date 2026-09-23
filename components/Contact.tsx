@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useMailCourier } from "./ui/mail-courier";
+import { BigCrunchKeys, MissionStatus, VisitLog } from "./ui/footer-console";
 
 // The scenes at the foot of the page (UFO, crew card with its QR library,
 // globe, pass printer) load in their own chunks after first paint. The
@@ -193,26 +194,13 @@ export function Contact() {
 
             {/* Footer */}
             <div className="border-t border-white/10 mt-20 pt-8 pb-4 flex flex-col items-center gap-4">
-                <MissionStatus />
+                {/* Clocks and callsign, the visit so far, and the Big Crunch keys (footer-console.tsx) */}
+                <MissionStatus accent={CONTACT.hex} />
+                <VisitLog />
                 <p className="text-neutral-500 text-sm">
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
-
-                <div
-                    className="hidden md:flex group flex-col md:flex-row items-center gap-2 opacity-30 hover:opacity-100 transition-opacity duration-500 cursor-help"
-                    title="Enter this code on your keyboard!"
-                >
-                    <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest group-hover:text-amber-400 transition-colors">
-                        Initiate Big Crunch:
-                    </span>
-                    <div className="flex gap-1.5">
-                        <Kbd>↑</Kbd><Kbd>↑</Kbd>
-                        <Kbd>↓</Kbd><Kbd>↓</Kbd>
-                        <Kbd>←</Kbd><Kbd>→</Kbd>
-                        <Kbd>←</Kbd><Kbd>→</Kbd>
-                        <Kbd>B</Kbd><Kbd>A</Kbd>
-                    </div>
-                </div>
+                <BigCrunchKeys />
             </div>
 
             {courier.node}
@@ -275,53 +263,3 @@ export function Contact() {
         </div>
     );
 }
-
-const CALLSIGNS = ["NOVA", "ORION", "VEGA", "LYRA", "QUASAR", "PULSAR", "ANDROMEDA", "CYGNUS", "DRACO", "PHOENIX"];
-
-// Mission-control status strip: live local time + a session callsign
-const MissionStatus = () => {
-    const [time, setTime] = useState<string | null>(null);
-    const [callsign, setCallsign] = useState("");
-
-    useEffect(() => {
-        try {
-            let cs = sessionStorage.getItem("visitor-callsign");
-            if (!cs) {
-                cs = `${CALLSIGNS[Math.floor(Math.random() * CALLSIGNS.length)]}-${10 + Math.floor(Math.random() * 90)}`;
-                sessionStorage.setItem("visitor-callsign", cs);
-            }
-            setCallsign(cs);
-        } catch {
-            setCallsign("NOVA-7");
-        }
-        const tick = () => setTime(new Date().toLocaleTimeString([], { hour12: false }));
-        tick();
-        const id = setInterval(tick, 1000);
-        return () => clearInterval(id);
-    }, []);
-
-    if (!time) return null;
-
-    return (
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
-            <span className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 motion-reduce:animate-none" />
-                systems nominal
-            </span>
-            <span className="text-neutral-700">|</span>
-            <span>local time {time}</span>
-            <span className="text-neutral-700">|</span>
-            <span>
-                callsign <span style={{ color: CONTACT.hex }}>{callsign}</span>
-            </span>
-        </div>
-    );
-};
-
-const Kbd = ({ children }: { children: React.ReactNode }) => {
-    return (
-        <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 rounded bg-white/10 border border-white/20 text-[10px] font-bold font-mono text-neutral-300 shadow-[0_2px_0_rgba(255,255,255,0.1)] group-hover:bg-amber-500/20 group-hover:border-amber-500/50 group-hover:text-amber-200 transition-all duration-300">
-            {children}
-        </span>
-    );
-};
