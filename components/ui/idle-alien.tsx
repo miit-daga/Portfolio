@@ -1,9 +1,10 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useCollectibles, FRAGMENT_IDS, playPickup } from "./collectibles";
 import { kolkataNow } from "@/lib/kolkata";
 import { Ufo } from "./ufo";
+import { AlienFront, AlienProfile, frontPose, stridePose, type FrontMood } from "./alien-rig";
 
 // After 10s of inactivity an alien walks in from the right edge (in profile,
 // legs actually stepping), strolls to the centre of the screen, turns to face
@@ -22,7 +23,8 @@ import { Ufo } from "./ufo";
 //   command counts sightings and catches (localStorage).
 //   Left alone long enough, the UFO from the contact section beams him up.
 //
-// Artwork: public/alien-front.svg / alien-profile.svg, inlined and rigged.
+// Artwork: public/alien-front.svg / alien-profile.svg, rigged at the joints in
+// alien-rig.tsx, which also works out the walk, the wave and the expressions.
 const IDLE_MS = 10000;
 // Browsing untouched this long, and his ride comes
 const BEAM_AFTER_MS = 40000;
@@ -90,6 +92,33 @@ const NIGHT_LINES = ["Shh. He's asleep.", "*yawn* Night shift again.", "Tiptoe. 
 // A visitor he has seen on an earlier visit
 const RETURN_LINES = ["You again?", "Oh. It's you. Hi again.", "Back already? I haven't finished browsing."];
 
+// Kolkata's night: the torch in his left hand, drawn in that hand's
+// coordinates so it moves with it. Drawn large: at 54px wide the alien
+// shrinks it 5x
+const TORCH = (
+    <g>
+        <defs>
+            <linearGradient id="ia-torchBeam" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stopColor="#fef08a" stopOpacity="0.5" />
+                <stop offset="1" stopColor="#fde68a" stopOpacity="0.03" />
+            </linearGradient>
+            <radialGradient id="ia-torchPool" cx="0.5" cy="0.5" r="0.5">
+                <stop offset="0" stopColor="#fef08a" stopOpacity="0.32" />
+                <stop offset="1" stopColor="#fde68a" stopOpacity="0" />
+            </radialGradient>
+        </defs>
+        {/* a soft cone and a faint pool; bright enough to read, not a spotlight */}
+        <path d="M 70 450 L 90 450 L 150 512 L 10 512 Z" fill="url(#ia-torchBeam)" />
+        <ellipse cx="80" cy="506" rx="72" ry="9" fill="url(#ia-torchPool)" />
+        {/* the torch, held upright, sticking out below the fingers */}
+        <rect x="70" y="402" width="20" height="48" rx="6" fill="#94a3b8" />
+        <rect x="70" y="402" width="20" height="9" rx="4" fill="#cbd5e1" />
+        <rect x="68" y="440" width="24" height="11" rx="4" fill="#64748b" />
+        <ellipse cx="80" cy="451" rx="11" ry="4" fill="#fefce8" />
+        <ellipse cx="80" cy="453" rx="17" ry="6" fill="#fef08a" opacity="0.45" />
+    </g>
+);
+
 const SECTION_IDS = ["about-me", "workex", "education", "skills-achievements", "projects", "publications", "contact"];
 
 type Phase = "hidden" | "walkin" | "turnF" | "idle" | "startled" | "turnS" | "flee" | "caught" | "leave" | "beam";
@@ -140,7 +169,8 @@ export const IdleAlien = () => {
     // Seen on an earlier visit, and not yet greeted this session
     const returning = useRef(false);
     const [night, setNight] = useState(false);
-    const [waving, setWaving] = useState(false);
+    // The wave playing, in seconds, or null
+    const [waving, setWaving] = useState<number | null>(null);
     const [beamStep, setBeamStep] = useState(0);
     const [shard, setShard] = useState<{ from: { x: number; y: number }; to: { x: number; y: number }; key: number } | null>(null);
 
@@ -212,8 +242,8 @@ export const IdleAlien = () => {
     }, [phase]);
 
     const wave = useCallback((ms = 1600) => {
-        setWaving(true);
-        window.setTimeout(() => setWaving(false), ms);
+        setWaving(ms / 1000);
+        window.setTimeout(() => setWaving(null), ms);
     }, []);
 
     // Muttering while browsing: show a line, pause, show the next (shuffle
@@ -382,18 +412,6 @@ export const IdleAlien = () => {
         return () => timers.forEach(clearTimeout);
     }, [phase]);
 
-    // Sprite walk cycle: frames 1 -> 2 -> 3 -> 2 while striding
-    const [stepTick, setStepTick] = useState(0);
-    const stridingNow = phase === "walkin" || phase === "flee" || phase === "leave";
-    useEffect(() => {
-        if (!stridingNow) return;
-        const ms = phaseRef.current === "flee" ? 70 : night ? 210 : 150;
-        const id = window.setInterval(() => setStepTick((t) => t + 1), ms);
-        return () => clearInterval(id);
-    }, [stridingNow, phase, night]);
-
-    if (reduce) return null;
-
     const walking = phase === "walkin";
     // Leaving after a catch walks the same way out, just not in a panic
     const fleeing = phase === "flee" || phase === "leave";
@@ -401,6 +419,13 @@ export const IdleAlien = () => {
     const frontVisible = phase === "turnF" || phase === "idle" || phase === "startled" || phase === "turnS" || phase === "caught" || phase === "beam";
     const legDur = phase === "flee" ? 0.28 : night ? 0.8 : 0.6;
     const striding = walking || fleeing;
+    const gait = phase === "flee" ? "sprint" : night ? "tiptoe" : "walk";
+    const mood: FrontMood = phase === "idle" || phase === "startled" || phase === "caught" || phase === "beam" ? phase : "still";
+
+    const profilePose = useMemo(() => (striding ? stridePose(legDur, gait) : {}), [striding, legDur, gait]);
+    const facePose = useMemo(() => frontPose(mood, waving), [mood, waving]);
+
+    if (reduce) return null;
 
     const containerAnimate =
         phase === "walkin"
@@ -562,193 +587,21 @@ export const IdleAlien = () => {
                             }
                         >
                             <svg viewBox="0 0 256 512" width="54" height="108" style={{ overflow: "visible", display: "block" }}>
-                                <defs>
-                                    <radialGradient id="ia-headSkin" cx="38%" cy="25%" r="90%">
-                                        <stop offset="0%" stopColor="#C2D4C8" />
-                                        <stop offset="55%" stopColor="#7E988A" />
-                                        <stop offset="100%" stopColor="#465A4F" />
-                                    </radialGradient>
-                                    <linearGradient id="ia-bodySkin" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor="#C2D4C8" />
-                                        <stop offset="40%" stopColor="#7E988A" />
-                                        <stop offset="80%" stopColor="#465A4F" />
-                                        <stop offset="100%" stopColor="#64888D" />
-                                    </linearGradient>
-                                    <linearGradient id="ia-profileSkin" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor="#C2D4C8" />
-                                        <stop offset="50%" stopColor="#7E988A" />
-                                        <stop offset="100%" stopColor="#465A4F" />
-                                    </linearGradient>
-                                    <linearGradient id="ia-backSkin" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor="#5C7A68" />
-                                        <stop offset="50%" stopColor="#3A4A41" />
-                                        <stop offset="100%" stopColor="#24302A" />
-                                    </linearGradient>
-                                    <radialGradient id="ia-eyeGloss" cx="40%" cy="40%" r="60%">
-                                        <stop offset="0%" stopColor="#1A2520" />
-                                        <stop offset="100%" stopColor="#050806" />
-                                    </radialGradient>
-                                    <linearGradient id="ia-innerShadow" x1="0%" y1="0%" x2="0%" y2="100%">
-                                        <stop offset="0%" stopColor="#3A4A41" stopOpacity="0.8" />
-                                        <stop offset="100%" stopColor="#7E988A" stopOpacity="0" />
-                                    </linearGradient>
-                                </defs>
-
                                 {/* ground shadow */}
-                                <ellipse cx="128" cy="500" rx="58" ry="9" fill="rgba(0,0,0,0.4)" />
+                                <ellipse cx="128" cy="503" rx="58" ry="9" fill="rgba(0,0,0,0.4)" />
 
-                                {/* ================= PROFILE POSE (walking / fleeing) =================
-                                    Sprite walk cycle from public/alien-walk-{1,2,3}.svg:
-                                    head + torso are identical across frames (registration), only the
-                                    legs and near arm swap. Sequence 1 -> 2 -> 3 -> 2. */}
-                                {(() => {
-                                    const frameIdx = stridingNow ? [0, 1, 2, 1][stepTick % 4] : 1;
-                                    const show = (i: number) => ({ display: frameIdx === i ? undefined : "none" });
-                                    return (
-                                        <motion.g
-                                            animate={{ opacity: turnFade(profileVisible, phase === "turnS") }}
-                                            transition={turnFadeT}
-                                            style={fleeing || phase === "turnS" ? { transform: "scaleX(-1)", transformOrigin: "128px 256px" } : undefined}
-                                        >
-                                            {/* back leg + far arm (behind torso), one set per frame.
-                                                The far arm counter-swings the near arm. */}
-                                            <g style={show(0)}>
-                                                <path d="M 125 360 C 135 400, 155 440, 175 480 C 180 490, 165 495, 160 485 C 140 445, 120 400, 115 365 Z" fill="url(#ia-backSkin)" />
-                                                <path d="M 125 245 C 115 270, 85 300, 65 335 C 60 345, 70 350, 75 340 C 95 305, 135 270, 135 250 C 135 245, 130 240, 125 245 Z" fill="url(#ia-backSkin)" />
-                                            </g>
-                                            <g style={show(1)}>
-                                                <path d="M 125 360 C 125 400, 125 440, 130 485 C 135 495, 115 495, 110 485 C 105 445, 105 400, 115 365 Z" fill="url(#ia-backSkin)" />
-                                                <path d="M 123 245 C 123 270, 133 310, 138 355 C 143 365, 133 370, 128 360 C 123 320, 113 270, 113 250 Z" fill="url(#ia-backSkin)" />
-                                            </g>
-                                            <g style={show(2)}>
-                                                <path d="M 125 360 C 115 400, 90 440, 70 480 C 65 490, 80 495, 85 485 C 105 445, 130 400, 140 365 Z" fill="url(#ia-backSkin)" />
-                                                <path d="M 123 245 C 138 270, 158 310, 173 355 C 178 365, 168 370, 163 360 C 148 320, 128 270, 113 250 Z" fill="url(#ia-backSkin)" />
-                                            </g>
+                                {/* In profile: walking in, fleeing, strolling off */}
+                                <motion.g
+                                    animate={{ opacity: turnFade(profileVisible, phase === "turnS") }}
+                                    transition={turnFadeT}
+                                    style={fleeing || phase === "turnS" ? { transform: "scaleX(-1)", transformOrigin: "128px 256px" } : undefined}
+                                >
+                                    <AlienProfile pose={profilePose} />
+                                </motion.g>
 
-                                            {/* torso (static across frames) */}
-                                            <path d="M 105 230 C 95 260, 100 320, 105 365 C 115 375, 135 370, 135 360 C 145 310, 135 260, 125 230 Z" fill="url(#ia-profileSkin)" />
-
-                                            {/* front leg + near arm, one set per frame */}
-                                            <g style={show(0)}>
-                                                <path d="M 115 360 C 105 400, 80 440, 60 480 C 55 490, 70 495, 75 485 C 95 445, 120 400, 130 365 Z" fill="url(#ia-profileSkin)" />
-                                                <path d="M 115 245 C 130 270, 150 310, 165 355 C 170 365, 160 370, 155 360 C 140 320, 120 270, 105 250 Z" fill="url(#ia-profileSkin)" />
-                                            </g>
-                                            <g style={show(1)}>
-                                                <path d="M 115 360 C 90 370, 80 400, 85 420 C 95 445, 105 460, 115 465 C 125 470, 130 460, 120 455 C 110 450, 100 435, 95 420 C 95 400, 105 380, 130 365 Z" fill="url(#ia-profileSkin)" />
-                                                <path d="M 115 245 C 115 270, 125 310, 130 355 C 135 365, 125 370, 120 360 C 115 320, 105 270, 105 250 Z" fill="url(#ia-profileSkin)" />
-                                            </g>
-                                            <g style={show(2)}>
-                                                <path d="M 115 360 C 125 400, 145 440, 165 480 C 170 490, 155 495, 150 485 C 130 445, 110 400, 105 365 Z" fill="url(#ia-profileSkin)" />
-                                                <path d="M 115 245 C 90 260, 60 280, 40 310 C 35 320, 45 325, 50 315 C 70 285, 100 265, 125 250 Z" fill="url(#ia-profileSkin)" />
-                                            </g>
-
-                                            {/* profile head (static across frames) */}
-                                            <g>
-                                                <path d="M 120 220 C 110 170, 175 160, 205 120 C 230 85, 195 40, 140 30 C 95 20, 65 60, 55 90 C 45 120, 40 140, 40 150 C 40 160, 50 170, 45 175 C 40 180, 40 190, 50 195 C 60 200, 80 220, 100 220 Z" fill="url(#ia-profileSkin)" />
-                                                <path d="M 45 145 C 55 135, 80 145, 90 160 C 70 165, 55 155, 45 145 Z" fill="url(#ia-eyeGloss)" />
-                                                <path d="M 45 145 C 55 135, 80 145, 90 160 C 70 165, 55 155, 45 145 Z" fill="none" stroke="#24302A" strokeWidth="1.5" opacity="0.6" />
-                                                <ellipse cx="55" cy="146" rx="2" ry="4" fill="#FFFFFF" transform="rotate(-15 55 146)" />
-                                                <ellipse cx="53" cy="151" rx="1" ry="2" fill="#FFFFFF" opacity="0.4" transform="rotate(-15 53 151)" />
-                                                <path d="M 45 190 Q 50 193 55 190" stroke="#3A4A41" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.5" />
-                                            </g>
-                                        </motion.g>
-                                    );
-                                })()}
-
-                                {/* ================= FRONT POSE (browsing) ================= */}
+                                {/* Facing you: browsing, startled, caught, beamed up */}
                                 <motion.g animate={{ opacity: turnFade(frontVisible, phase === "turnF") }} transition={turnFadeT}>
-                                    {/* legs */}
-                                    <g>
-                                        <path d="M 105 360 C 105 400, 95 450, 90 485 C 88 495, 108 495, 105 485 C 110 450, 120 400, 120 365 C 115 365, 110 360, 105 360 Z" fill="url(#ia-bodySkin)" />
-                                        <path d="M 120 365 C 120 400, 110 450, 105 485 C 108 450, 120 400, 120 365 Z" fill="#2E3C34" opacity="0.4" />
-                                    </g>
-                                    <g>
-                                        <path d="M 151 360 C 151 400, 161 450, 166 485 C 168 495, 148 495, 151 485 C 146 450, 136 400, 136 365 C 141 365, 146 360, 151 360 Z" fill="url(#ia-bodySkin)" />
-                                        <path d="M 136 365 C 136 400, 146 450, 151 485 C 148 450, 136 400, 136 365 Z" fill="#2E3C34" opacity="0.4" />
-                                    </g>
-                                    {/* torso + neck */}
-                                    <path d="M 115 210 L 141 210 L 138 245 L 118 245 Z" fill="url(#ia-bodySkin)" />
-                                    <path d="M 105 230 C 85 230, 75 245, 80 270 C 90 310, 105 340, 105 365 C 105 380, 151 380, 151 365 C 151 340, 166 310, 176 270 C 181 245, 171 230, 151 230 Z" fill="url(#ia-bodySkin)" />
-                                    <path d="M 105 365 C 105 380, 151 380, 151 365 C 151 340, 166 310, 176 270 C 171 310, 156 340, 151 365 Z" fill="url(#ia-innerShadow)" opacity="0.5" />
-                                    {/* arms: the left holds a torch at night, the right waves */}
-                                    <path d="M 85 255 C 65 285, 60 325, 72 405 C 74 415, 82 415, 80 405 C 72 330, 80 290, 95 265 C 95 260, 90 250, 85 255 Z" fill="url(#ia-bodySkin)" />
-                                    {night && (
-                                        <g>
-                                            <defs>
-                                                <linearGradient id="ia-torchBeam" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="0" stopColor="#fef08a" stopOpacity="0.9" />
-                                                    <stop offset="1" stopColor="#fde68a" stopOpacity="0.05" />
-                                                </linearGradient>
-                                                <radialGradient id="ia-torchPool" cx="0.5" cy="0.5" r="0.5">
-                                                    <stop offset="0" stopColor="#fef08a" stopOpacity="0.7" />
-                                                    <stop offset="1" stopColor="#fde68a" stopOpacity="0" />
-                                                </radialGradient>
-                                            </defs>
-                                            {/* Drawn large: at 54px wide the alien shrinks this 5x */}
-                                            <path d="M 58 432 L 88 432 L 175 508 L -30 508 Z" fill="url(#ia-torchBeam)" />
-                                            <ellipse cx="72" cy="503" rx="100" ry="14" fill="url(#ia-torchPool)" />
-                                            <rect x="58" y="392" width="30" height="42" rx="7" fill="#334155" />
-                                            <rect x="58" y="392" width="30" height="10" rx="5" fill="#64748b" />
-                                            <ellipse cx="73" cy="433" rx="15" ry="5" fill="#fefce8" />
-                                            <ellipse cx="73" cy="436" rx="22" ry="8" fill="#fef08a" opacity="0.5" />
-                                        </g>
-                                    )}
-                                    <motion.g
-                                        style={{ transformOrigin: "171px 255px" }}
-                                        animate={waving ? { rotate: [0, -150, -120, -150, -120, -150, 0] } : { rotate: 0 }}
-                                        transition={waving ? { duration: 1.6, ease: "easeInOut" } : { duration: 0.3 }}
-                                    >
-                                        <path d="M 171 255 C 191 285, 196 325, 184 405 C 182 415, 174 415, 176 405 C 184 330, 176 290, 161 265 C 161 260, 166 250, 171 255 Z" fill="url(#ia-bodySkin)" />
-                                    </motion.g>
-
-                                    {/* head: turns this way and that while browsing */}
-                                    <motion.g
-                                        style={{ transformOrigin: "128px 215px" }}
-                                        animate={phase === "idle" ? { rotate: [0, -7, -7, 0, 7, 7, 0] } : { rotate: 0 }}
-                                        transition={
-                                            phase === "idle"
-                                                ? { duration: 6.5, times: [0, 0.14, 0.32, 0.48, 0.62, 0.86, 1], repeat: Infinity, ease: "easeInOut" }
-                                                : { duration: 0.15 }
-                                        }
-                                    >
-                                        <path d="M 128 20 C 170 20, 195 60, 195 120 C 195 180, 150 220, 128 230 C 106 220, 61 180, 61 120 C 61 60, 86 20, 128 20 Z" fill="url(#ia-headSkin)" />
-
-                                        {/* eyes: wander with the gaze, snap wide when startled, blink */}
-                                        <motion.g
-                                            style={{ transformOrigin: "128px 150px" }}
-                                            animate={{ scaleY: [1, 1, 0.08, 1, 1] }}
-                                            transition={{ duration: 4.4, times: [0, 0.46, 0.5, 0.54, 1], repeat: Infinity }}
-                                        >
-                                            <motion.g
-                                                style={{ transformOrigin: "128px 150px" }}
-                                                animate={
-                                                    phase === "idle"
-                                                        ? { x: [0, -7, -7, 0, 7, 7, 0], scale: 1 }
-                                                        : phase === "startled"
-                                                            ? { x: 0, scale: 1.18 }
-                                                            : { x: 0, scale: 1 }
-                                                }
-                                                transition={
-                                                    phase === "idle"
-                                                        ? { duration: 6.5, times: [0, 0.14, 0.32, 0.48, 0.62, 0.86, 1], repeat: Infinity, ease: "easeInOut" }
-                                                        : { duration: 0.15 }
-                                                }
-                                            >
-                                                <path d="M 65 130 C 85 115, 105 140, 110 175 C 95 185, 70 160, 65 130 Z" fill="url(#ia-eyeGloss)" />
-                                                <path d="M 65 130 C 85 115, 105 140, 110 175 C 95 185, 70 160, 65 130 Z" fill="none" stroke="#3A4A41" strokeWidth="2" opacity="0.6" />
-                                                <ellipse cx="82" cy="142" rx="4" ry="2" fill="#FFFFFF" transform="rotate(-25 82 142)" />
-                                                <ellipse cx="78" cy="146" rx="1.5" ry="1" fill="#FFFFFF" opacity="0.4" transform="rotate(-25 78 146)" />
-                                                <path d="M 191 130 C 171 115, 151 140, 146 175 C 161 185, 186 160, 191 130 Z" fill="url(#ia-eyeGloss)" />
-                                                <path d="M 191 130 C 171 115, 151 140, 146 175 C 161 185, 186 160, 191 130 Z" fill="none" stroke="#3A4A41" strokeWidth="2" opacity="0.6" />
-                                                <ellipse cx="174" cy="142" rx="4" ry="2" fill="#FFFFFF" transform="rotate(25 174 142)" />
-                                                <ellipse cx="178" cy="146" rx="1.5" ry="1" fill="#FFFFFF" opacity="0.4" transform="rotate(25 178 146)" />
-                                            </motion.g>
-                                        </motion.g>
-
-                                        {/* nostrils + mouth */}
-                                        <path d="M 124 190 L 126 195 M 132 190 L 130 195" stroke="#3A4A41" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.5" />
-                                        <path d="M 121 210 Q 128 213 135 210" stroke="#3A4A41" strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.5" />
-                                    </motion.g>
+                                    <AlienFront pose={facePose} handL={night ? TORCH : undefined} />
                                 </motion.g>
                             </svg>
                         </motion.div>
