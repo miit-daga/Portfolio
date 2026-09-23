@@ -799,3 +799,33 @@ export function Plant({ stage, droop, watered }: { stage: number; droop: boolean
         </div>
     );
 }
+
+/** A glass of water, for the plant: clear, from the front, with its surface a little from above. */
+export function WaterGlass({ full }: { full: boolean }) {
+    // full, the water nearly reaches the rim; poured out, a last drop at the bottom
+    const top = full ? 12 : 52;
+    return (
+        <svg width="36" height="62" viewBox="0 0 36 62" aria-hidden className="block overflow-visible drop-shadow-[0_8px_6px_rgba(0,0,0,0.45)]">
+            <defs>
+                <linearGradient id="glassWater" x1="0" x2="1">
+                    <stop offset="0" stopColor="#7dd3fc" stopOpacity="0.55" />
+                    <stop offset="0.5" stopColor="#bae6fd" stopOpacity="0.35" />
+                    <stop offset="1" stopColor="#38bdf8" stopOpacity="0.55" />
+                </linearGradient>
+                <clipPath id="glassInside">
+                    <path d="M 4 6 L 7.5 57 C 7.5 59.5, 28.5 59.5, 28.5 57 L 32 6 Z" />
+                </clipPath>
+            </defs>
+            {/* the water, and its surface */}
+            <g clipPath="url(#glassInside)">
+                <rect x="0" y={top} width="36" height={62 - top} fill="url(#glassWater)" />
+                <ellipse cx="18" cy={top} rx="15" ry="3" fill="#e0f2fe" opacity="0.6" />
+            </g>
+            {/* the glass itself: faint, with bright edges */}
+            <path d="M 4 6 L 7.5 57 C 7.5 59.5, 28.5 59.5, 28.5 57 L 32 6 Z" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.55)" strokeWidth="1" />
+            <ellipse cx="18" cy="6" rx="14" ry="3" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="1" />
+            <path d="M 8 10 L 10.5 52" stroke="rgba(255,255,255,0.5)" strokeWidth="1.6" strokeLinecap="round" />
+            <path d="M 8 57 C 8 59, 28 59, 28 57" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+        </svg>
+    );
+}

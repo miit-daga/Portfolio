@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue } from "framer-motion";
 import { kolkataNow } from "@/lib/kolkata";
-import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, isChaiTime, useChaiTime, type Note, type Stick } from "./props";
+import { Display, HardDrive, Keyboard, Mouse, Mug, Phone, Plant, SCREEN, StickArt, Tower, WaterGlass, isChaiTime, useChaiTime, type Note, type Stick } from "./props";
 import { Drawer, Duck, Life, Webcam, asciiFrame, closeCamera, openCamera, type Camera } from "./desk-extras";
 import {
     playAirDrop,
@@ -37,7 +37,7 @@ import {
 //   Keyboard, mouse     mirror the visitor's typing, pointer, clicks and scrolling
 //   Chai                click to sip; it refills at chai-time in Kolkata
 //   Plant               grows a little each visit, droops after a week away;
-//                       drag the mug onto it to water it
+//                       drag the glass of water onto it to water it (it turns down chai)
 //   Duck, webcam        explain a bug to the duck; the webcam takes an ASCII selfie
 //   Drawer              a floppy, a sticky note and a cosmic fragment
 //
@@ -64,10 +64,12 @@ type TermWindow = Window & {
 // SURFACE.front, tilted back about that edge. Seen from the chair, its far
 // edge is 150 up the screen and 8% narrower
 const SURFACE = { x: 10, w: 1420, d: 284, front: 790, tilt: 55, perspective: 2678 };
-// Where the mug and plant stand, and where the mug pours when dropped on the plant
+// Where the mug, the glass of water and the plant stand, and where the glass
+// pours when it is dropped on the plant
 const MUG = { x: 352, y: 692 };
+const GLASS = { x: 424, y: 624 };
 const PLANT = { x: 1282, y: 616 };
-const POUR = { x: 1236, y: 634 };
+const POUR = { x: 1262, y: 636 };
 const PLANT_KEY = "desk-plant";
 const CHAI_KEY = "desk-chai";
 const FRAGMENT_KEY = "desk-fragment";
@@ -116,6 +118,9 @@ export function Desk() {
     const [chaiLoaded, setChaiLoaded] = useState(false);
     const [mugDrag, setMugDrag] = useState<{ dx: number; dy: number } | null>(null);
     const [pouring, setPouring] = useState(false);
+    // The plant's water, in a glass: dragged, pouring, or poured out (it is refilled)
+    const [glassDrag, setGlassDrag] = useState<{ dx: number; dy: number } | null>(null);
+    const [glassFull, setGlassFull] = useState(true);
     const plantRef = useRef<HTMLDivElement>(null);
     // What the plant says, in a bubble beside it; and whether the mug is over it
     const [plantSays, setPlantSays] = useState<{ text: string; n: number } | null>(null);
@@ -540,8 +545,10 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
     const water = () => {
         setPouring(true);
         playPour();
-        setChai((c) => c - 1);
+        window.setTimeout(() => setGlassFull(false), 700);
         window.setTimeout(() => setPouring(false), 1300);
+        // someone refills it
+        window.setTimeout(() => setGlassFull(true), 8000);
         let grew = false;
         try {
             const data = JSON.parse(localStorage.getItem(PLANT_KEY) || "null") ?? { visits: 1, last: Date.now(), waterings: 0, wateredOn: "", droop: false };
@@ -558,8 +565,8 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             setPlant((p) => ({ ...p, droop: false, watered: p.watered + 1 }));
         }
         window.setTimeout(() => {
-            pushNote("Plant", grew ? "Watered with chai. It seems to like it, and it grew a little" : "Watered already today. It is happy", "🪴");
-            plantSay(grew ? "Ahh, chai. I grew a little 🌱" : "Already watered today. Thank you!");
+            pushNote("Plant", grew ? "Watered. It grew a little" : "Watered already today. It is happy", "🪴");
+            plantSay(grew ? "Ahh, water. I grew a little 🌱" : "Already watered today. Thank you!");
         }, 900);
     };
     // The chai's level is kept between visits: a reload is not a fresh cup.
@@ -606,13 +613,13 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
         if (!hot && left === 3) pushNote("Chai", "Stone cold. Miit forgot this one hours ago", "🧊");
         if (left === 0 && !hot) pushNote("Chai", "Empty. Brew later: chai-time in Kolkata is morning and evening", "☕");
     };
-    // Click the mug to sip; drag it onto the plant to water it
+    // Click the mug to sip. Drag the glass of water onto the plant to water it;
+    // the mug, the plant turns down
     const overThePlant = (x: number, y: number) => {
         const r = plantRef.current?.getBoundingClientRect();
         return !!r && x > r.left - 30 && x < r.right + 30 && y > r.top - 30 && y < r.bottom + 20;
     };
     const mugDown = (e: React.PointerEvent) => {
-        if (pouring) return;
         const x0 = e.clientX;
         const y0 = e.clientY;
         let moved = false;
@@ -632,11 +639,36 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
             setOverPlant(false);
             if (!moved) return sip();
             if (overThePlant(ev.clientX, ev.clientY)) {
-                if (chai > 0) water();
-                else {
-                    pushNote("Plant", "The mug is empty. Nothing to water it with", "🪴");
-                    plantSay("That mug is empty…");
-                }
+                setRustle((r) => r + 1);
+                plantSay("Chai?! I'm a plant 😭 Water, please: the glass behind the mug");
+            }
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+    };
+    const glassDown = (e: React.PointerEvent) => {
+        if (pouring) return;
+        const x0 = e.clientX;
+        const y0 = e.clientY;
+        let moved = false;
+        const move = (ev: PointerEvent) => {
+            const dx = (ev.clientX - x0) / view.s;
+            const dy = (ev.clientY - y0) / view.s;
+            if (Math.hypot(dx, dy) > 5) moved = true;
+            if (moved) {
+                setGlassDrag({ dx, dy });
+                setOverPlant(overThePlant(ev.clientX, ev.clientY));
+            }
+        };
+        const up = (ev: PointerEvent) => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            setGlassDrag(null);
+            setOverPlant(false);
+            if (!moved) return plantSay(glassFull ? "Water! Drag the glass over to me 💧" : "Being refilled. Back in a moment");
+            if (overThePlant(ev.clientX, ev.clientY)) {
+                if (glassFull) water();
+                else plantSay("That glass is empty… it is being refilled");
             }
         };
         window.addEventListener("pointermove", move);
@@ -770,19 +802,19 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     ref={plantRef}
                     role="button"
                     tabIndex={0}
-                    aria-label="The plant. Drag the mug onto it to water it"
+                    aria-label="The plant. Drag the glass of water onto it to water it"
                     className="absolute cursor-pointer"
                     style={{ left: PLANT.x, top: PLANT.y }}
-                    title="Drag the mug onto the plant to water it"
+                    title="Drag the glass of water onto the plant to water it"
                     onClick={() => {
                         setRustle((r) => r + 1);
-                        plantSay(plant.droop ? "Thirsty… drag the mug onto me ☕" : `Visit ${plant.visits}, and still growing. Drag the mug onto me to water me`);
+                        plantSay(plant.droop ? "Thirsty… drag the glass of water onto me 💧" : `Visit ${plant.visits}, and still growing. Drag the glass of water onto me`);
                     }}
-                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && plantSay("Drag the mug onto me to water me ☕")}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && plantSay("Drag the glass of water onto me 💧")}
                 >
                     {/* lit up as a drop target while the mug is being carried */}
                     <AnimatePresence>
-                        {mugDrag && (
+                        {glassDrag && (
                             <motion.span
                                 aria-hidden
                                 className="pointer-events-none absolute left-[-5px] top-[100px] block h-[80px] w-[130px] rounded-full"
@@ -797,15 +829,15 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                         <Plant stage={plant.stage} droop={plant.droop} watered={plant.watered} />
                     </motion.div>
                     <AnimatePresence>
-                        {(plantSays || mugDrag) && (
+                        {(plantSays || glassDrag || (mugDrag && overPlant)) && (
                             <motion.span
-                                key={mugDrag ? "drop" : plantSays?.n}
+                                key={glassDrag ? "drop" : mugDrag ? "chai" : plantSays?.n}
                                 className="pointer-events-none absolute bottom-[172px] right-[-10px] block w-max max-w-[190px] rounded-[12px] rounded-br-[3px] bg-white px-3 py-1.5 text-[12px] leading-snug text-neutral-900 shadow-[0_10px_24px_-8px_rgba(0,0,0,0.8)]"
                                 initial={{ opacity: 0, y: 8, scale: 0.9 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 4 }}
                             >
-                                {mugDrag ? (overPlant ? "Let go to water me 💧" : "Over here! 🌱") : plantSays?.text}
+                                {glassDrag ? (overPlant ? "Let go to water me 💧" : "Over here! 🌱") : mugDrag ? "Is that… chai? 😳" : plantSays?.text}
                             </motion.span>
                         )}
                     </AnimatePresence>
@@ -844,26 +876,26 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                     </div>
                 </div>
 
-                {/* chai: click to sip, drag onto the plant to water it */}
+                {/* the plant's glass of water: drag it onto the plant */}
                 <motion.div
                     role="button"
                     tabIndex={0}
-                    aria-label={chai > 0 ? "The mug of chai. Click to sip, or drag it onto the plant" : "An empty mug"}
-                    title={chai > 0 ? (hot ? "Chai · click to sip, or drag onto the plant to water it" : "Chai, long gone cold · click to sip") : hot ? "Empty · refilling" : "Empty · brew later"}
-                    onPointerDown={mugDown}
-                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && sip()}
+                    aria-label={glassFull ? "A glass of water. Drag it onto the plant to water it" : "An empty glass, being refilled"}
+                    title={glassFull ? "Water, for the plant: drag it over" : "Being refilled"}
+                    onPointerDown={glassDown}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && glassFull && water()}
                     className="absolute z-20 cursor-grab touch-none active:cursor-grabbing"
-                    style={{ left: MUG.x, top: MUG.y }}
-                    animate={pouring ? { x: POUR.x - MUG.x, y: POUR.y - MUG.y, rotate: 48 } : mugDrag ? { x: mugDrag.dx, y: mugDrag.dy, rotate: 0 } : { x: 0, y: 0, rotate: 0 }}
-                    transition={mugDrag ? { duration: 0 } : { type: "spring", stiffness: 220, damping: 24 }}
+                    style={{ left: GLASS.x, top: GLASS.y }}
+                    animate={pouring ? { x: POUR.x - GLASS.x, y: POUR.y - GLASS.y, rotate: 62 } : glassDrag ? { x: glassDrag.dx, y: glassDrag.dy, rotate: 0 } : { x: 0, y: 0, rotate: 0 }}
+                    transition={glassDrag ? { duration: 0 } : { type: "spring", stiffness: 220, damping: 24 }}
                 >
-                    <Mug level={chai} hot={hot} pouring={pouring} />
+                    <WaterGlass full={glassFull} />
                     {/* the pour */}
                     <AnimatePresence>
                         {pouring && (
                             <motion.span
-                                className="pointer-events-none absolute block w-[4px] origin-top rounded-full bg-[#b87a44]"
-                                style={{ left: 62, top: 14, height: 70, rotate: -48 }}
+                                className="pointer-events-none absolute block w-[4px] origin-top rounded-full bg-sky-300/80"
+                                style={{ left: 32, top: 6, height: 64, rotate: -62 }}
                                 initial={{ scaleY: 0, opacity: 0 }}
                                 animate={{ scaleY: 1, opacity: 0.9 }}
                                 exit={{ scaleY: 0, opacity: 0 }}
@@ -871,6 +903,22 @@ body > div[style*="9000"] canvas { max-height: calc(100vh - 130px) !important; m
                             />
                         )}
                     </AnimatePresence>
+                </motion.div>
+
+                {/* chai: click to sip */}
+                <motion.div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={chai > 0 ? "The mug of chai. Click to sip" : "An empty mug"}
+                    title={chai > 0 ? (hot ? "Chai · click to sip" : "Chai, long gone cold · click to sip") : hot ? "Empty · refilling" : "Empty · brew later"}
+                    onPointerDown={mugDown}
+                    onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && sip()}
+                    className="absolute z-20 cursor-grab touch-none active:cursor-grabbing"
+                    style={{ left: MUG.x, top: MUG.y }}
+                    animate={mugDrag ? { x: mugDrag.dx, y: mugDrag.dy } : { x: 0, y: 0 }}
+                    transition={mugDrag ? { duration: 0 } : { type: "spring", stiffness: 220, damping: 24 }}
+                >
+                    <Mug level={chai} hot={hot} pouring={false} />
                 </motion.div>
 
                 <Drawer
