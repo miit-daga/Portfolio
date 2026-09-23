@@ -67,7 +67,7 @@ const SURFACE = { x: 10, w: 1420, d: 284, front: 790, tilt: 55, perspective: 267
 // Where the mug, the glass of water and the plant stand, and where the glass
 // pours when it is dropped on the plant
 const MUG = { x: 352, y: 692 };
-const GLASS = { x: 424, y: 624 };
+const GLASS = { x: 326, y: 618 };
 const PLANT = { x: 1282, y: 616 };
 const POUR = { x: 1262, y: 636 };
 const PLANT_KEY = "desk-plant";
