@@ -140,3 +140,125 @@ export function playDiskTick() {
     if (!a) return;
     click(a, a.currentTime + 0.005, 0.12);
 }
+
+/** A dot-matrix printer: lines of rasping print-head chatter, each followed by a paper feed. */
+export function playPrinter(lines = 7, lineSeconds = 0.26) {
+    const a = audio();
+    if (!a) return;
+    let t = a.currentTime + 0.05;
+    for (let i = 0; i < lines; i++) {
+        // the head: a buzz chopped into dots
+        const head = a.createOscillator();
+        head.type = "square";
+        head.frequency.value = i % 2 ? 330 : 290;
+        const chop = a.createOscillator();
+        chop.type = "square";
+        chop.frequency.value = 55 + (i % 3) * 8;
+        const chopGain = a.createGain();
+        chopGain.gain.value = 0.5;
+        const g = a.createGain();
+        g.gain.value = 0;
+        chop.connect(chopGain).connect(g.gain);
+        const bp = a.createBiquadFilter();
+        bp.type = "bandpass";
+        bp.frequency.value = 1800;
+        bp.Q.value = 0.8;
+        const out = a.createGain();
+        env(a, out, t, 0.09, 0.01, lineSeconds - 0.04, 0.02);
+        head.connect(g).connect(bp).connect(out).connect(a.destination);
+        head.start(t);
+        chop.start(t);
+        head.stop(t + lineSeconds);
+        chop.stop(t + lineSeconds);
+        // the paper advancing a line
+        const feed = noise(a, 0.08);
+        const lp = a.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 900;
+        const fg = a.createGain();
+        env(a, fg, t + lineSeconds, 0.08, 0.005, 0.03, 0.04);
+        feed.connect(lp).connect(fg).connect(a.destination);
+        feed.start(t + lineSeconds);
+        feed.stop(t + lineSeconds + 0.09);
+        t += lineSeconds + 0.09;
+    }
+}
+
+/** Degauss: the tube's coil firing, a deep "thwum" that shudders and fades. */
+export function playDegauss() {
+    const a = audio();
+    if (!a) return;
+    const t = a.currentTime + 0.02;
+    click(a, t, 0.4);
+    const o = a.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(60, t);
+    o.frequency.exponentialRampToValueAtTime(42, t + 1.2);
+    const lp = a.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.value = 300;
+    const wob = a.createOscillator();
+    wob.frequency.value = 9;
+    const wobGain = a.createGain();
+    wobGain.gain.value = 0.18;
+    const g = a.createGain();
+    env(a, g, t, 0.45, 0.02, 0.15, 1.0);
+    wob.connect(wobGain).connect(g.gain);
+    o.connect(lp).connect(g).connect(a.destination);
+    o.start(t);
+    wob.start(t);
+    o.stop(t + 1.3);
+    wob.stop(t + 1.3);
+}
+
+/** A dial-up modem: dial tones, the ring, then the handshake's squeal and hiss. About 4 seconds. */
+export function playModem() {
+    const a = audio();
+    if (!a) return;
+    let t = a.currentTime + 0.05;
+    const tone = (f1: number, f2: number, start: number, dur: number, level = 0.08) => {
+        [f1, f2].forEach((f) => {
+            const o = a.createOscillator();
+            o.frequency.value = f;
+            const g = a.createGain();
+            env(a, g, start, level, 0.005, dur - 0.02, 0.015);
+            o.connect(g).connect(a.destination);
+            o.start(start);
+            o.stop(start + dur + 0.02);
+        });
+    };
+    // DTMF digits of a short number
+    const keys: [number, number][] = [[697, 1209], [770, 1336], [852, 1477], [941, 1336], [697, 1336], [770, 1209]];
+    keys.forEach(([f1, f2]) => {
+        tone(f1, f2, t, 0.08);
+        t += 0.12;
+    });
+    t += 0.15;
+    // ring back
+    tone(440, 480, t, 0.6, 0.05);
+    t += 0.8;
+    // answer tone, then the squeal sweeping, then static
+    tone(2100, 2100, t, 0.5, 0.05);
+    t += 0.5;
+    const sq = a.createOscillator();
+    sq.type = "triangle";
+    sq.frequency.setValueAtTime(1200, t);
+    sq.frequency.linearRampToValueAtTime(2400, t + 0.3);
+    sq.frequency.linearRampToValueAtTime(980, t + 0.6);
+    const sg = a.createGain();
+    env(a, sg, t, 0.06, 0.02, 0.5, 0.1);
+    sq.connect(sg).connect(a.destination);
+    sq.start(t);
+    sq.stop(t + 0.65);
+    t += 0.6;
+    const hiss = noise(a, 1.1);
+    const bp = a.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1800;
+    bp.Q.value = 0.5;
+    const hg = a.createGain();
+    env(a, hg, t, 0.07, 0.05, 0.8, 0.2);
+    hiss.connect(bp).connect(hg).connect(a.destination);
+    hiss.start(t);
+    hiss.stop(t + 1.1);
+}

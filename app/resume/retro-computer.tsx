@@ -1,9 +1,11 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { PdfScreen, type Phosphor, type Tube } from "./pdf-screen";
 import { DosBoot, DosPrompt, FKeyBar, HelpBox, dosColours, type FKey } from "./dos";
-import { playDiskTick, playPowerOff, playPowerOn } from "./crt-sound";
+import { playDegauss, playDiskTick, playPowerOff, playPowerOn, playPrinter } from "./crt-sound";
+import { JumpMenu, Printer, Starfield } from "./extras";
+import type { Section } from "./pdf-screen";
 
 // The resume on a beige 1980s CRT monitor, floating in zero-g: a speaker
 // grille, vents and a mission sticker, on its stand. The screen is the resume
@@ -17,8 +19,12 @@ import { playDiskTick, playPowerOff, playPowerOn } from "./crt-sound";
 // The yellow push-button beside them switches the monitor off and on again.
 //
 // It runs MIIT-DOS (dos.tsx): a DOS start-up, a function-key bar along the
-// bottom of the screen (F1 help, F2 download, F3 phosphor, F4 tube, F10 quit),
+// bottom of the screen (1 help, 2 print, 3 phosphor, 4 tube, 5 jump, 10 quit),
 // and a C:\> prompt to quit to.
+//
+// Also: a dot-matrix printer that prints the resume before it downloads, a
+// jump menu of its sections (5), zoom (+ and -, or the pill on the screen), a
+// degauss button, and a starfield screensaver after a minute idle.
 
 const TUBES: Tube[] = ["off", "soft", "full"];
 const PHOSPHORS: Phosphor[] = ["paper", "green", "amber"];
@@ -98,24 +104,82 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
     const phIdx = PHOSPHORS.indexOf(phosphor);
     const nextTube = () => setTube(TUBES[(tubeIdx + 1) % 3]);
     const nextPhosphor = () => setPhosphor(PHOSPHORS[(phIdx + 1) % 3]);
+    const [zoom, setZoom] = useState(1);
+    const ZOOMS = [0.8, 1, 1.25, 1.5, 2];
+    const zoomBy = (d: number) => setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + d))]);
+    const [sections, setSections] = useState<Section[]>([]);
+    const [jumpOpen, setJumpOpen] = useState(false);
+    const [jump, setJump] = useState<{ label: string; n: number } | null>(null);
+    const [printing, setPrinting] = useState(0);
+    const [degauss, setDegauss] = useState(0);
+    const [saver, setSaver] = useState(false);
+
+    // Downloads print first, on screens wide enough to show the printer
+    const PRINT_SECONDS = 2.6;
+    const printStart = useRef(0);
     const downloadPdf = () => {
-        window.location.href = download;
+        const withPrinter = window.matchMedia("(min-width: 640px)").matches && !reduce;
+        if (!withPrinter) {
+            window.location.href = download;
+            return;
+        }
+        if (performance.now() - printStart.current < PRINT_SECONDS * 1000 + 800) return;
+        printStart.current = performance.now();
+        playPrinter(8, PRINT_SECONDS / 8 - 0.09);
+        setPrinting((n) => n + 1);
+    };
+    const openJump = () => {
+        setMode("resume");
+        setHelp(false);
+        setJumpOpen(true);
+    };
+    const doDegauss = () => {
+        playDegauss();
+        setDegauss((n) => n + 1);
+    };
+
+    // The screensaver: a minute with no sign of the visitor, and the stars come out
+    const lastActive = useRef(Date.now());
+    const saverGrace = useRef(0);
+    useEffect(() => {
+        if (reduce) return;
+        const wake = () => {
+            if (performance.now() < saverGrace.current) return;
+            lastActive.current = Date.now();
+            setSaver(false);
+        };
+        const events = ["pointermove", "pointerdown", "keydown", "wheel", "touchstart"] as const;
+        events.forEach((e) => window.addEventListener(e, wake, { passive: true }));
+        const id = window.setInterval(() => {
+            if (Date.now() - lastActive.current > 60000) setSaver(true);
+        }, 3000);
+        return () => {
+            events.forEach((e) => window.removeEventListener(e, wake));
+            window.clearInterval(id);
+        };
+    }, [reduce]);
+    const startSaver = () => {
+        saverGrace.current = performance.now() + 900;
+        setSaver(true);
     };
 
     const fkeys: FKey[] =
         mode === "resume"
             ? [
                   { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
-                  { n: "2", label: "Download", key: "F2", run: downloadPdf },
+                  { n: "2", label: "Print", key: "F2", run: downloadPdf },
                   { n: "3", label: "Phosphor", key: "F3", run: nextPhosphor },
                   { n: "4", label: "Tube", key: "F4", run: nextTube },
+                  // F5 is the browser's reload, so Jump is on 5 only
+                  { n: "5", label: "Jump", key: "", run: openJump },
                   { n: "10", label: "Quit", key: "F10", run: () => setMode("prompt") },
               ]
             : [
                   { n: "1", label: "Help", key: "F1", run: () => setHelp((h) => !h) },
-                  { n: "2", label: "Download", key: "F2", run: downloadPdf },
+                  { n: "2", label: "Print", key: "F2", run: downloadPdf },
                   { n: "3", label: "Phosphor", key: "F3", run: nextPhosphor },
                   { n: "4", label: "Tube", key: "F4", run: nextTube },
+                  { n: "5", label: "Jump", key: "", run: openJump },
                   { n: "10", label: "Resume", key: "F10", run: () => setMode("resume") },
               ];
 
@@ -129,9 +193,13 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
             if (e.metaKey || e.ctrlKey || e.altKey) return;
             const t = e.target as HTMLElement | null;
             const typing = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
-            const digit = !typing && mode === "resume" && /^[0-4]$/.test(e.key) ? (e.key === "0" ? "10" : e.key) : null;
-            const hit = fkeys.find((k) => k.key === e.key || (digit !== null && k.n === digit));
-            if (hit) {
+            if (jumpOpen || saver) return;
+            const digit = !typing && mode === "resume" && /^[0-5]$/.test(e.key) ? (e.key === "0" ? "10" : e.key) : null;
+            const hit = fkeys.find((k) => (k.key && k.key === e.key) || (digit !== null && k.n === digit));
+            if (!typing && mode === "resume" && (e.key === "+" || e.key === "=" || e.key === "-")) {
+                e.preventDefault();
+                zoomBy(e.key === "-" ? -1 : 1);
+            } else if (hit) {
                 e.preventDefault();
                 hit.run();
             } else if (e.key === "Escape" && help) setHelp(false);
@@ -168,19 +236,90 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                                 boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.9)",
                             }}
                         >
+                            {/* Everything on the tube, which a degauss shakes and tints */}
+                            <motion.div
+                                key={degauss}
+                                className="absolute inset-0"
+                                animate={
+                                    degauss && !reduce
+                                        ? {
+                                              skewX: [0, 3, -2.5, 1.6, -0.8, 0],
+                                              scale: [1, 1.025, 0.99, 1.012, 1],
+                                              filter: ["hue-rotate(0deg) saturate(1)", "hue-rotate(110deg) saturate(2.2)", "hue-rotate(-70deg) saturate(1.8)", "hue-rotate(35deg) saturate(1.3)", "hue-rotate(0deg) saturate(1)"],
+                                          }
+                                        : undefined
+                                }
+                                transition={{ duration: 1.1, ease: "easeOut" }}
+                            >
                             {/* The resume, above the function-key bar */}
                             {power && (
                                 <div className="absolute inset-x-0 top-0 bottom-[26px]" style={{ visibility: mode === "resume" ? "visible" : "hidden" }}>
-                                    <PdfScreen src={pdf} fallback={fallback} phosphor={phosphor} tube={tube} onReady={() => setReady(true)} />
+                                    <PdfScreen
+                                        src={pdf}
+                                        fallback={fallback}
+                                        phosphor={phosphor}
+                                        tube={tube}
+                                        zoom={zoom}
+                                        jump={jump}
+                                        onSections={setSections}
+                                        onReady={() => setReady(true)}
+                                    />
+                                    {/* zoom */}
+                                    {booted && (
+                                        <div className="absolute right-3 top-3 z-10 flex items-center overflow-hidden rounded-full border border-white/15 bg-black/70 font-mono text-[10px] text-neutral-300 opacity-60 backdrop-blur-sm transition-opacity hover:opacity-100">
+                                            <button type="button" onClick={() => zoomBy(-1)} disabled={zoom === ZOOMS[0]} aria-label="Zoom out" className="px-2.5 py-1 hover:bg-white/10 disabled:opacity-30">
+                                                −
+                                            </button>
+                                            <span className="w-10 text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+                                            <button type="button" onClick={() => zoomBy(1)} disabled={zoom === ZOOMS[ZOOMS.length - 1]} aria-label="Zoom in" className="px-2.5 py-1 hover:bg-white/10 disabled:opacity-30">
+                                                +
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {power && booted && mode === "prompt" && (
                                 <div className="absolute inset-x-0 top-0 bottom-[26px]">
-                                    <DosPrompt phosphor={phosphor} onResume={() => setMode("resume")} onDownload={downloadPdf} onDisk={setDisk} />
+                                    <DosPrompt
+                                        phosphor={phosphor}
+                                        onResume={() => setMode("resume")}
+                                        onDownload={downloadPdf}
+                                        onDisk={setDisk}
+                                        onDegauss={doDegauss}
+                                        onStarfield={startSaver}
+                                        onJump={openJump}
+                                    />
                                 </div>
                             )}
                             {power && booted && <FKeyBar keys={fkeys} phosphor={phosphor} />}
                             <AnimatePresence>{power && booted && help && <HelpBox phosphor={phosphor} atPrompt={mode === "prompt"} onClose={() => setHelp(false)} />}</AnimatePresence>
+                            <AnimatePresence>
+                                {power && booted && jumpOpen && (
+                                    <JumpMenu
+                                        sections={sections}
+                                        phosphor={phosphor}
+                                        onClose={() => setJumpOpen(false)}
+                                        onPick={(sec) => {
+                                            setJumpOpen(false);
+                                            setJump((j) => ({ label: sec.label, n: (j?.n ?? 0) + 1 }));
+                                        }}
+                                    />
+                                )}
+                            </AnimatePresence>
+                            {/* the degauss's colour wash */}
+                            {degauss > 0 && !reduce && (
+                                <motion.div
+                                    key={`wash-${degauss}`}
+                                    aria-hidden
+                                    className="pointer-events-none absolute inset-0 z-20 mix-blend-color"
+                                    style={{ background: "conic-gradient(from 0deg, #ff0080, #ffcc00, #00ff99, #00aaff, #aa00ff, #ff0080)" }}
+                                    initial={{ opacity: 0.55, rotate: 0, scale: 1.4 }}
+                                    animate={{ opacity: 0, rotate: 140 }}
+                                    transition={{ duration: 1.2, ease: "easeOut" }}
+                                />
+                            )}
+                            </motion.div>
+                            <AnimatePresence>{power && booted && saver && <Starfield phosphor={phosphor} />}</AnimatePresence>
 
                             {/* ---- the tube's effects ---- */}
                             <AnimatePresence>
@@ -312,6 +451,14 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                     <div className="ml-auto flex items-center gap-3 sm:ml-0 sm:gap-5">
                         <Dial label="tube" value={tube} angle={ANGLE[tubeIdx]} onTurn={() => setTube(TUBES[(tubeIdx + 1) % 3])} />
                         <Dial label="phosphor" value={phosphor} angle={ANGLE[phIdx]} onTurn={() => setPhosphor(PHOSPHORS[(phIdx + 1) % 3])} />
+                        {/* degauss: a small grey push-button, as on the real thing */}
+                        <button type="button" onClick={doDegauss} disabled={!power} aria-label="Degauss the tube" className="group flex flex-col items-center gap-1 focus-visible:outline-none disabled:opacity-50">
+                            <span
+                                className="block h-5 w-5 rounded-full transition-transform duration-75 group-active:translate-y-px group-focus-visible:ring-2 group-focus-visible:ring-emerald-500/70 sm:h-6 sm:w-6"
+                                style={{ background: "radial-gradient(circle at 35% 30%, #d6d3d1, #78716c 75%)", boxShadow: "0 2px 0 #57534e, 0 0 0 2px #b8ad90, inset 0 1px 0 rgba(255,255,255,0.7)" }}
+                            />
+                            <span className="font-mono text-[7px] uppercase leading-none tracking-[0.15em] text-stone-500 sm:text-[8px]">degauss</span>
+                        </button>
                         {/* The power switch: a yellow push-button, with its light */}
                         <button
                             type="button"
@@ -360,9 +507,20 @@ export function RetroComputer({ pdf, fallback, download }: { pdf: string; fallba
                 />
             </div>
 
-            {/* ---- the stand ---- */}
-            <div aria-hidden className="relative hidden h-8 w-[34%] sm:block" style={{ background: "linear-gradient(180deg, #c7bca0, #dcd2b8)", clipPath: "polygon(12% 0, 88% 0, 100% 100%, 0 100%)" }} />
-            <div aria-hidden className="hidden h-3 w-[46%] rounded-b-lg sm:block" style={{ background: "linear-gradient(180deg, #e2d9c1, #cbbf9f)", boxShadow: "0 10px 20px -8px rgba(0,0,0,0.7)" }} />
+            {/* ---- the stand, with the printer beside it ---- */}
+            <div className="relative hidden w-full flex-col items-center sm:flex">
+                <div aria-hidden className="relative h-8 w-[34%]" style={{ background: "linear-gradient(180deg, #c7bca0, #dcd2b8)", clipPath: "polygon(12% 0, 88% 0, 100% 100%, 0 100%)" }} />
+                <div aria-hidden className="h-3 w-[46%] rounded-b-lg" style={{ background: "linear-gradient(180deg, #e2d9c1, #cbbf9f)", boxShadow: "0 10px 20px -8px rgba(0,0,0,0.7)" }} />
+                <div className="absolute bottom-[-6px] left-[5%] z-10">
+                    <Printer
+                        printing={printing}
+                        seconds={PRINT_SECONDS}
+                        onDone={() => {
+                            window.location.href = download;
+                        }}
+                    />
+                </div>
+            </div>
 
 
         </motion.div>

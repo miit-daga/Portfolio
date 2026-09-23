@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { Phosphor } from "./pdf-screen";
-import { playPostBeep } from "./crt-sound";
+import { playModem, playPostBeep } from "./crt-sound";
 
 // The resume computer's operating system: MIIT-DOS (retro-computer.tsx).
 //   DosBoot    power-on self test, memory count, drives, then C:\> RESUME.EXE
@@ -131,9 +131,11 @@ export function HelpBox({ phosphor, onClose, atPrompt }: { phosphor: Phosphor; o
     const c = dosColours(phosphor);
     const rows = [
         ["1", "this help"],
-        ["2", "download the resume (PDF)"],
+        ["2", "print it, then download the PDF"],
         ["3", "phosphor: paper, green, amber"],
         ["4", "tube: off, soft, full"],
+        ["5", "jump to a section"],
+        ["+ -", "zoom in and out"],
         ["0", atPrompt ? "back to the resume" : "quit to the C:\\> prompt"],
     ];
     return (
@@ -158,7 +160,7 @@ export function HelpBox({ phosphor, onClose, atPrompt }: { phosphor: Phosphor; o
                     </p>
                     {rows.map(([k, d]) => (
                         <p key={k} className="flex gap-3">
-                            <span className="w-8 shrink-0" style={{ color: phosphor === "paper" ? "#ffff55" : c.text }}>
+                            <span className="w-9 shrink-0" style={{ color: phosphor === "paper" ? "#ffff55" : c.text }}>
                                 {k}
                             </span>
                             <span>{d}</span>
@@ -219,11 +221,17 @@ export function DosPrompt({
     onResume,
     onDownload,
     onDisk,
+    onDegauss,
+    onStarfield,
+    onJump,
 }: {
     phosphor: Phosphor;
     onResume: () => void;
     onDownload: () => void;
     onDisk: (busy: boolean) => void;
+    onDegauss: () => void;
+    onStarfield: () => void;
+    onJump: () => void;
 }) {
     const c = dosColours(phosphor);
     const [lines, setLines] = useState<Line[]>([{ text: "MIIT-DOS Version 3.30" }, { text: "Type HELP for a list of commands." }, { text: "" }]);
@@ -259,8 +267,14 @@ export function DosPrompt({
             say(
                 "DIR               list the files",
                 "TYPE <file>       show a file, e.g. TYPE CONTACT.TXT",
+                "TREE, MEM         the drive's folders, the memory",
                 "RESUME            back to the resume",
-                "DOWNLOAD          download the resume (PDF)",
+                "JUMP              back to the resume, at a section",
+                "PRINT             print the resume, then download it",
+                "HIRE              write to Miit",
+                "DIAL              dial Kolkata station",
+                "DEGAUSS           clear the tube's colours",
+                "STARFIELD         the screensaver",
                 "TERMINAL          open the full terminal (new tab)",
                 "VER, DATE, TIME   the usual",
                 "CLS               clear the screen",
@@ -292,9 +306,68 @@ export function DosPrompt({
         } else if (cmd === "resume" || cmd === "resume.exe" || cmd === "exit" || cmd === "win") {
             onResume();
             return;
-        } else if (cmd === "download") {
+        } else if (cmd === "download" || cmd === "print") {
             onDownload();
-            say("Downloading RESUME.PDF ...");
+            say(cmd === "print" ? "Printing RESUME.PDF to LPT1 ..." : "Downloading RESUME.PDF ...");
+        } else if (cmd === "jump" || cmd === "menu") {
+            onJump();
+            return;
+        } else if (cmd === "hire") {
+            say("Opening a message to miitcodes27@gmail.com ...");
+            window.location.href = "mailto:miitcodes27@gmail.com?subject=" + encodeURIComponent("Found you on MIIT-DOS") + "&body=" + encodeURIComponent("Hi Miit,\n\n");
+        } else if (cmd === "mem") {
+            say(
+                "Memory Type        Total   Used    Free",
+                "----------------  ------  ------  ------",
+                "Conventional        640K     73K    567K",
+                "  of which: coffee   48K",
+                "Upper                 0K      0K      0K",
+                "",
+                "Largest executable program size   567K (580,608 bytes)",
+                "MIIT-DOS is resident in the high memory area.",
+            );
+        } else if (cmd === "tree") {
+            disk();
+            say(
+                "Folder PATH listing for volume MIIT-1",
+                "C:.",
+                "├───RESUME",
+                "│   ├───WORK",
+                "│   ├───EDUCATION",
+                "│   └───PUBLICATIONS",
+                "├───PROJECTS",
+                "│   ├───DISMAN",
+                "│   ├───FITAI",
+                "│   └───DRIFTGUARD",
+                "└───SPACE",
+                "    └───ALIENS (hidden)",
+            );
+        } else if (cmd === "format") {
+            say(
+                `WARNING, ALL DATA ON NON-REMOVABLE DISK DRIVE ${arg || "C:"} WILL BE LOST!`,
+                "Proceed with Format (Y/N)? N",
+                "",
+                "Nice try. That drive holds the only copy of this resume.",
+            );
+        } else if (cmd === "dial" || cmd === "atdt") {
+            playModem();
+            onDisk(true);
+            window.setTimeout(() => onDisk(false), 3800);
+            say("ATDT +91 7003816564");
+            const later = (ms: number, ...t: string[]) =>
+                window.setTimeout(() => setLines((l) => [...l, ...t.map((x) => ({ text: x }))].slice(-200)), ms);
+            later(1400, "RINGING");
+            later(2600, "CONNECT 2400");
+            later(3900, "", "Welcome to KOLKATA STATION.", "  Email   miitcodes27@gmail.com", "  Phone   +91 7003816564", "  Link    linkedin.com/in/miit-daga", "", "NO CARRIER", "");
+            out.push({ text: "" });
+            setLines((l) => [...l, ...out].slice(-200));
+            return;
+        } else if (cmd === "degauss") {
+            onDegauss();
+            say("*thwum*");
+        } else if (cmd === "starfield" || cmd === "ss") {
+            onStarfield();
+            return;
         } else if (cmd === "terminal") {
             window.open("/terminal.html", "_blank", "noopener");
             say("Opening the full terminal in a new tab ...");

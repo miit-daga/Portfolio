@@ -26,19 +26,32 @@ const FRINGE = " drop-shadow(0.7px 0 0 rgba(255,40,40,0.35)) drop-shadow(-0.7px 
 
 type Link = { left: number; top: number; width: number; height: number; url: string };
 type Page = { width: number; height: number; links: Link[] };
+/** A heading found in the resume, and where it is on screen (px from the top of the scroll area). */
+export type Section = { label: string; top: number };
+
+// A section heading: a whole line in capitals, words and "&" only
+const isHeading = (line: string) => /^[A-Z][A-Z &]{3,}[A-Z]$/.test(line) && line.replace(/[^A-Z]/g, "").length >= 5;
 
 export function PdfScreen({
     src,
     fallback,
     phosphor,
     tube,
+    zoom = 1,
+    jump,
     onReady,
+    onSections,
 }: {
     src: string;
     fallback: string;
     phosphor: Phosphor;
     tube: Tube;
+    /** 1 fits the page to the screen's width */
+    zoom?: number;
+    /** Scroll to this section; `n` changes for each request */
+    jump?: { label: string; n: number } | null;
     onReady: () => void;
+    onSections?: (s: Section[]) => void;
 }) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
@@ -94,7 +107,9 @@ export function PdfScreen({
         (async () => {
             try {
                 const next: Page[] = [];
-                const target = Math.min(width - 24, 900);
+                const found: Section[] = [];
+                let offset = 16; // the column's top padding
+                const target = Math.round(Math.min(width - 24, 900) * zoom);
                 for (let n = 1; n <= doc.numPages; n++) {
                     const page = await doc.getPage(n);
                     const base = page.getViewport({ scale: 1 });
@@ -120,9 +135,27 @@ export function PdfScreen({
                             return { left: Math.min(x1, x2), top: Math.min(y1, y2), width: Math.abs(x2 - x1), height: Math.abs(y2 - y1), url: a.url };
                         });
                     next.push({ width: vp.width, height: vp.height, links });
+                    // The headings: text on the same line joined up, whole lines in capitals
+                    const tc = await page.getTextContent();
+                    const lines = new Map<number, { x: number; str: string }[]>();
+                    for (const item of tc.items as { str?: string; transform?: number[] }[]) {
+                        if (!item.str?.trim() || !item.transform) continue;
+                        const y = Math.round(item.transform[5]);
+                        const row = lines.get(y) ?? [];
+                        row.push({ x: item.transform[4], str: item.str });
+                        lines.set(y, row);
+                    }
+                    const [, , , td, , tf] = vp.transform as number[];
+                    for (const [y, row] of lines) {
+                        const text = row.sort((a, b) => a.x - b.x).map((r) => r.str).join(" ").replace(/\s+/g, " ").trim();
+                        if (isHeading(text)) found.push({ label: text, top: offset + td * y + tf - 14 });
+                    }
+                    offset += vp.height + 16;
                 }
                 if (!cancelled) {
                     setPages(next);
+                    sectionsRef.current = found.sort((a, b) => a.top - b.top);
+                    onSections?.(sectionsRef.current);
                     onReady();
                 }
             } catch {
@@ -133,7 +166,18 @@ export function PdfScreen({
             cancelled = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [width, pages.length]);
+    }, [width, pages.length, zoom]);
+
+    // Scroll to a section when asked
+    const lastJump = useRef(0);
+    const sectionsRef = useRef<Section[]>([]);
+    useEffect(() => {
+        const el = wrapRef.current;
+        if (!el || !jump || jump.n === lastJump.current) return;
+        lastJump.current = jump.n;
+        const hit = sectionsRef.current.find((s) => s.label === jump.label);
+        if (hit) el.scrollTo({ top: Math.max(0, hit.top), behavior: "smooth" });
+    }, [jump]);
 
     if (failed) {
         return <iframe src={fallback} title="Miit Daga resume" className="absolute inset-0 block h-full w-full bg-white" onLoad={onReady} />;
@@ -142,8 +186,8 @@ export function PdfScreen({
     const filter = PHOSPHOR_FILTER[phosphor] === "none" && tube !== "full" ? "none" : `${PHOSPHOR_FILTER[phosphor] === "none" ? "" : PHOSPHOR_FILTER[phosphor]}${tube === "full" ? BLOOM[phosphor] + FRINGE : ""}`.trim();
 
     return (
-        <div ref={wrapRef} className="resume-scroll absolute inset-0 overflow-y-auto overflow-x-hidden overscroll-contain">
-            <div className="flex flex-col items-center gap-4 px-3 py-4">
+        <div ref={wrapRef} className={`resume-scroll absolute inset-0 overflow-y-auto overscroll-contain ${zoom > 1 ? "overflow-x-auto" : "overflow-x-hidden"}`}>
+            <div className="flex min-w-max flex-col items-center gap-4 px-3 py-4">
                 {pages.map((p, i) => (
                     <div key={i} className="relative shadow-[0_0_24px_rgba(0,0,0,0.5)]" style={{ width: p.width || undefined, height: p.height || undefined }}>
                         <canvas
