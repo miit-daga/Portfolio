@@ -1,5 +1,5 @@
 "use client";
-import { forwardRef, useEffect, useState } from "react";
+import { forwardRef, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion, useTransform, type MotionValue } from "framer-motion";
 import { QRCodeSVG } from "qrcode.react";
 import { kolkataNow } from "@/lib/kolkata";
@@ -400,13 +400,32 @@ export const Phone = forwardRef<
         return () => window.clearInterval(id);
     }, []);
     const date = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kolkata", weekday: "long", day: "numeric", month: "long" }).format(new Date());
+    // Out of an app: the back button, the home bar, Esc, or a click off the phone
+    const phoneRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        if (!app) return;
+        const onKey = (e: KeyboardEvent) => e.key === "Escape" && setApp(null);
+        const onDown = (e: PointerEvent) => {
+            if (phoneRef.current && !phoneRef.current.contains(e.target as Node)) setApp(null);
+        };
+        window.addEventListener("keydown", onKey);
+        window.addEventListener("pointerdown", onDown);
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            window.removeEventListener("pointerdown", onDown);
+        };
+    }, [app]);
     return (
         <>
             {/* the stand */}
             <div className="absolute rounded-[4px]" style={{ left: PHONE.x + 26, top: PHONE.y + PHONE.h - 14, width: 60, height: 32, background: ALU_SIDE, clipPath: "polygon(30% 0, 70% 0, 100% 100%, 0 100%)" }} />
             <div className="absolute rounded-[5px]" style={{ left: PHONE.x + 6, top: PHONE.y + PHONE.h + 14, width: 100, height: 8, background: ALU, boxShadow: "0 8px 16px -6px rgba(0,0,0,0.8)" }} />
             <motion.div
-                ref={ref}
+                ref={(el) => {
+                    phoneRef.current = el;
+                    if (typeof ref === "function") ref(el);
+                    else if (ref) ref.current = el;
+                }}
                 className="absolute z-20 overflow-hidden rounded-[20px] p-[4px]"
                 style={{ left: PHONE.x, top: PHONE.y, width: PHONE.w, height: PHONE.h, originX: 0, originY: 1, background: "linear-gradient(160deg, #3f3f46, #18181b)", boxShadow: "0 24px 40px -18px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(255,255,255,0.12)" }}
                 animate={app ? { scale: 1.9, y: -14 } : { scale: 1, y: 0 }}
@@ -472,11 +491,23 @@ export const Phone = forwardRef<
                     {app === "messages" && <MessagesApp reply={now?.mood.reply ?? ""} onSigned={onSigned} />}
                     {app === "weather" && <WeatherApp />}
                     {app === "music" && <MusicApp on={music} onToggle={() => onMusic(!music)} />}
-                    {/* the home bar: back to the lock screen */}
+                    {/* back, top left; and the home bar */}
                     {app && (
-                        <button type="button" onClick={() => setApp(null)} aria-label="Back to the lock screen" title="Home" className="absolute inset-x-0 bottom-0 z-10 flex h-[12px] items-center justify-center">
-                            <span className="block h-[3px] w-[36px] rounded-full bg-white/70" />
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => setApp(null)}
+                                aria-label="Close the app"
+                                title="Back (Esc)"
+                                className="absolute left-[5px] top-[4px] z-20 flex h-[12px] items-center gap-[1px] rounded-full bg-black/40 pl-[3px] pr-[5px] text-[7px] font-medium text-sky-300 backdrop-blur hover:bg-black/60 hover:text-sky-200"
+                            >
+                                <span className="text-[9px] leading-none">‹</span>
+                                Back
+                            </button>
+                            <button type="button" onClick={() => setApp(null)} aria-label="Back to the lock screen" title="Home (Esc)" className="group absolute inset-x-0 bottom-0 z-10 flex h-[12px] items-center justify-center">
+                                <span className="block h-[3px] w-[36px] rounded-full bg-white/70 transition-all group-hover:w-[44px] group-hover:bg-white" />
+                            </button>
+                        </>
                     )}
                     {/* AirDrop's rings, when something arrives */}
                     <AnimatePresence>
