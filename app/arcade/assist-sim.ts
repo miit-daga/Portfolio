@@ -240,7 +240,7 @@ export const LEVELS: Level[] = [
         ],
         start: 0,
         target: 3,
-        capture: 4.5, // (right by Neptune, not just anywhere near)
+        capture: 5.5, // (close by Neptune, but a ring you can see, clear of its glow)
         par: 3,
     },
     {
