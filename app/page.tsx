@@ -51,6 +51,8 @@ const ConstellationPuzzle = dynamic(
 
 const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
+  // Set as the entry starts: the site renders behind the Big Bang and is revealed by it
+  const [revealing, setRevealing] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // COSMIC EVENT STATE
@@ -224,12 +226,12 @@ const Home = () => {
 
       <AnimatePresence>
         {showEnterScreen && (
-          <EnterScreen onAnimationComplete={handleEnterComplete} />
+          <EnterScreen onAnimationComplete={handleEnterComplete} onReveal={() => setRevealing(true)} />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {!showEnterScreen && (
+        {(!showEnterScreen || revealing) && (
           // Pass isImploding to background to control stars
           <AnimatedBackground isImploding={isImploding}>
 
