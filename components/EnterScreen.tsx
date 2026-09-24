@@ -28,14 +28,18 @@ const SPARKS = Array.from({ length: 34 }, (_, i) => {
     return { a, d: 0.35 + ((i * 53) % 40) / 100, s: 2 + ((i * 29) % 4), c: i % 3 === 0 ? "#a5b4fc" : i % 3 === 1 ? "#99f6e4" : "#ffffff", delay: ((i * 17) % 10) / 100 }
 })
 
-// A rush as everything is drawn in, then the bang: a deep boom, and a shimmer
-// as the light clears. Made here, on the click that starts it
+// A rush as everything is drawn in, cut dead just before the bang so it lands
+// on silence; then the bang itself, in layers: a crack, a punch pitched where
+// laptop speakers can play it, a rumble falling away and a long tail as if in
+// a vast space, all driven through saturation and a compressor for weight.
+// Made here, on the click that starts it
 function playBigBang() {
     try {
         const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
         if (!AC) return
         const a = new AC()
         const t = a.currentTime + 0.02
+        const b = t + BANG_AT / 1000
         const noise = (dur: number) => {
             const buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate)
             const d = buf.getChannelData(0)
@@ -44,56 +48,159 @@ function playBigBang() {
             src.buffer = buf
             return src
         }
-        // the rush, rising
-        const rush = noise(COLLAPSE_MS / 1000 + 0.3)
+        const env = (g: GainNode, at: number, peak: number, attack: number, decay: number) => {
+            g.gain.setValueAtTime(0.0001, at)
+            g.gain.exponentialRampToValueAtTime(peak, at + attack)
+            g.gain.exponentialRampToValueAtTime(0.0001, at + attack + decay)
+        }
+
+        // the master: saturation, then a compressor, for loudness without clipping
+        const shaper = a.createWaveShaper()
+        const curve = new Float32Array(1024)
+        for (let i = 0; i < curve.length; i++) {
+            const x = (i / (curve.length - 1)) * 2 - 1
+            curve[i] = Math.tanh(x * 2.2)
+        }
+        shaper.curve = curve
+        const comp = a.createDynamicsCompressor()
+        comp.threshold.value = -18
+        comp.knee.value = 8
+        comp.ratio.value = 6
+        comp.attack.value = 0.002
+        comp.release.value = 0.4
+        const master = a.createGain()
+        master.gain.value = 1.55
+        shaper.connect(comp).connect(master).connect(a.destination)
+        // a vast space: a convolver on a decaying noise tail
+        const room = a.createConvolver()
+        const irLen = Math.floor(a.sampleRate * 3.2)
+        const ir = a.createBuffer(2, irLen, a.sampleRate)
+        for (let c = 0; c < 2; c++) {
+            const d = ir.getChannelData(c)
+            for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3)
+        }
+        room.buffer = ir
+        const wet = a.createGain()
+        wet.gain.value = 0.55
+        room.connect(wet).connect(comp)
+
+        // the rush: rising, faster and brighter, then cut before the bang
+        const rushEnd = b - 0.09
+        const rush = noise(BANG_AT / 1000)
         const bp = a.createBiquadFilter()
         bp.type = "bandpass"
-        bp.Q.value = 1.4
-        bp.frequency.setValueAtTime(180, t)
-        bp.frequency.exponentialRampToValueAtTime(2400, t + COLLAPSE_MS / 1000)
+        bp.Q.value = 1.2
+        bp.frequency.setValueAtTime(150, t)
+        bp.frequency.exponentialRampToValueAtTime(3500, rushEnd)
         const rg = a.createGain()
         rg.gain.setValueAtTime(0.0001, t)
-        rg.gain.exponentialRampToValueAtTime(0.12, t + COLLAPSE_MS / 1000 - 0.05)
-        rg.gain.exponentialRampToValueAtTime(0.0001, t + COLLAPSE_MS / 1000 + 0.15)
-        rush.connect(bp).connect(rg).connect(a.destination)
+        rg.gain.exponentialRampToValueAtTime(0.18, rushEnd - 0.02)
+        rg.gain.linearRampToValueAtTime(0.0001, rushEnd)
+        rush.connect(bp).connect(rg).connect(shaper)
         rush.start(t)
-        // the boom
-        const b = t + BANG_AT / 1000
-        const o = a.createOscillator()
-        o.frequency.setValueAtTime(120, b)
-        o.frequency.exponentialRampToValueAtTime(28, b + 1.4)
-        const og = a.createGain()
-        og.gain.setValueAtTime(0.0001, b)
-        og.gain.exponentialRampToValueAtTime(0.5, b + 0.02)
-        og.gain.exponentialRampToValueAtTime(0.0001, b + 1.6)
-        o.connect(og).connect(a.destination)
-        o.start(b)
-        o.stop(b + 1.7)
-        const crack = noise(1.2)
-        const lp = a.createBiquadFilter()
-        lp.type = "lowpass"
-        lp.frequency.setValueAtTime(2600, b)
-        lp.frequency.exponentialRampToValueAtTime(200, b + 1)
+        rush.stop(rushEnd + 0.02)
+        const rise = a.createOscillator()
+        rise.type = "sawtooth"
+        rise.frequency.setValueAtTime(60, t + 0.2)
+        rise.frequency.exponentialRampToValueAtTime(420, rushEnd)
+        const riseLp = a.createBiquadFilter()
+        riseLp.type = "lowpass"
+        riseLp.frequency.value = 900
+        const riseG = a.createGain()
+        riseG.gain.setValueAtTime(0.0001, t + 0.2)
+        riseG.gain.exponentialRampToValueAtTime(0.07, rushEnd - 0.02)
+        riseG.gain.linearRampToValueAtTime(0.0001, rushEnd)
+        rise.connect(riseLp).connect(riseG).connect(shaper)
+        rise.start(t + 0.2)
+        rise.stop(rushEnd + 0.02)
+
+        // the crack: a very short, very loud burst of everything
+        const crack = noise(0.08)
+        const crackHp = a.createBiquadFilter()
+        crackHp.type = "highpass"
+        crackHp.frequency.value = 500
         const cg = a.createGain()
-        cg.gain.setValueAtTime(0.0001, b)
-        cg.gain.exponentialRampToValueAtTime(0.3, b + 0.01)
-        cg.gain.exponentialRampToValueAtTime(0.0001, b + 1.1)
-        crack.connect(lp).connect(cg).connect(a.destination)
+        env(cg, b, 1.2, 0.002, 0.07)
+        crack.connect(crackHp).connect(cg)
+        cg.connect(shaper)
+        cg.connect(room)
         crack.start(b)
-        // the shimmer
+
+        // the punch: a pitched thump from 170 Hz down, where small speakers still reach
+        const punch = a.createOscillator()
+        punch.type = "triangle"
+        punch.frequency.setValueAtTime(170, b)
+        punch.frequency.exponentialRampToValueAtTime(45, b + 0.5)
+        const pg = a.createGain()
+        env(pg, b, 1.0, 0.004, 0.9)
+        punch.connect(pg)
+        pg.connect(shaper)
+        pg.connect(room)
+        punch.start(b)
+        punch.stop(b + 1)
+        // the body: a burst in the mids, where laptop speakers are loudest
+        const body = noise(0.7)
+        const bodyBp = a.createBiquadFilter()
+        bodyBp.type = "bandpass"
+        bodyBp.Q.value = 0.9
+        bodyBp.frequency.setValueAtTime(700, b)
+        bodyBp.frequency.exponentialRampToValueAtTime(220, b + 0.6)
+        const bg = a.createGain()
+        env(bg, b, 1.1, 0.003, 0.6)
+        body.connect(bodyBp).connect(bg)
+        bg.connect(shaper)
+        bg.connect(room)
+        body.start(b)
+        const growl = a.createOscillator()
+        growl.type = "square"
+        growl.frequency.setValueAtTime(110, b)
+        growl.frequency.exponentialRampToValueAtTime(48, b + 0.7)
+        const growlLp = a.createBiquadFilter()
+        growlLp.type = "lowpass"
+        growlLp.frequency.value = 1200
+        const gg = a.createGain()
+        env(gg, b, 0.35, 0.005, 0.8)
+        growl.connect(growlLp).connect(gg).connect(shaper)
+        growl.start(b)
+        growl.stop(b + 0.9)
+        // and the sub under it, for anyone with speakers that can
+        const sub = a.createOscillator()
+        sub.frequency.setValueAtTime(70, b)
+        sub.frequency.exponentialRampToValueAtTime(26, b + 1.8)
+        const sg = a.createGain()
+        env(sg, b, 0.9, 0.01, 2)
+        sub.connect(sg).connect(shaper)
+        sub.start(b)
+        sub.stop(b + 2.1)
+
+        // the rumble: noise that starts bright and falls into a low roll
+        const rumble = noise(3)
+        const rlp = a.createBiquadFilter()
+        rlp.type = "lowpass"
+        rlp.Q.value = 0.8
+        rlp.frequency.setValueAtTime(5000, b)
+        rlp.frequency.exponentialRampToValueAtTime(90, b + 2.6)
+        const rug = a.createGain()
+        env(rug, b, 0.8, 0.01, 2.8)
+        rumble.connect(rlp).connect(rug)
+        rug.connect(shaper)
+        rug.connect(room)
+        rumble.start(b)
+
+        // the shimmer, as the light clears
         ;[1318, 1760, 2637].forEach((f, i) => {
             const so = a.createOscillator()
             so.frequency.value = f
-            const sg = a.createGain()
-            const at = b + 0.25 + i * 0.08
-            sg.gain.setValueAtTime(0.0001, at)
-            sg.gain.exponentialRampToValueAtTime(0.025, at + 0.05)
-            sg.gain.exponentialRampToValueAtTime(0.0001, at + 1.2)
-            so.connect(sg).connect(a.destination)
+            const shg = a.createGain()
+            const at = b + 0.35 + i * 0.09
+            env(shg, at, 0.05, 0.05, 1.3)
+            so.connect(shg)
+            shg.connect(comp)
+            shg.connect(room)
             so.start(at)
-            so.stop(at + 1.3)
+            so.stop(at + 1.5)
         })
-        window.setTimeout(() => a.close().catch(() => {}), ENTER_MS + 1500)
+        window.setTimeout(() => a.close().catch(() => {}), ENTER_MS + 5000)
     } catch {
         /* no sound, still a Big Bang */
     }
