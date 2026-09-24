@@ -4,9 +4,12 @@
 // against JPL Horizons). The distances are squeezed to fit, each planet on its
 // own ring in order out from the Sun.
 //
-// The target turns with the days. The layout is flown by the solver over a
-// spread of angles and powers, and the masses (never the positions) are eased
-// until it can be won, but not too easily (0.5% to 5% of those shots arrive).
+// The target turns with the days. The sky and its gravity are the same every
+// day (the planets where they are, the same masses); only what the mission
+// asks changes: arriving close by, then slowly enough to be caught into orbit,
+// then a flyby of Jupiter on the way. The solver flies each in turn, easiest
+// first, and keeps the first that can be won but not easily (0.6% to 2% of a
+// spread of shots arrive).
 // Nothing in it moves, so a winning shot flown again anywhere gives the same
 // result: that is how the leaderboard's server checks the times.
 //
@@ -52,7 +55,23 @@ export function winShare(level: Level) {
 
 const fmtTime = (s: number) => (s < 3600 ? `${Math.round(s / 60)} minutes` : `${(s / 3600).toFixed(1)} hours`);
 
-function layout(key: string, date: Date, target: Planet, sunMu: number, viaJupiter: boolean, tight: boolean): Level {
+const SUN_MU = 1400;
+type Ask = { tight: boolean; under?: number; via: boolean };
+// What a day's mission can ask, from easiest to hardest
+const ASKS: Ask[] = [
+    { tight: false, via: false },
+    { tight: true, via: false },
+    { tight: true, under: 11, via: false },
+    { tight: true, under: 9, via: false },
+    { tight: true, under: 7, via: false },
+    { tight: true, under: 5.5, via: false },
+    { tight: true, under: 4.5, via: false },
+    { tight: true, under: 3.5, via: false },
+    { tight: true, under: 7, via: true },
+];
+
+function layout(key: string, date: Date, target: Planet, ask: Ask): Level {
+    const { tight, via: viaJupiter, under } = ask;
     const at = (p: Planet): [number, number] => {
         const l = (longitude(p, date) * Math.PI) / 180;
         return [Math.cos(l) * RING[p], Math.sin(l) * RING[p]];
@@ -61,21 +80,24 @@ function layout(key: string, date: Date, target: Planet, sunMu: number, viaJupit
     const earth = planets[PLANETS.indexOf("earth")];
     const m = (moonLongitude(date) * Math.PI) / 180;
     const moon: Body = { kind: "moon", r: 0.5, mu: 12, at: [earth.at![0] + Math.cos(m) * 3, earth.at![1] + Math.sin(m) * 3] };
-    const sun: Body = { kind: "sun", r: 3.2, mu: sunMu, at: [0, 0] };
+    const sun: Body = { kind: "sun", r: 3.2, mu: SUN_MU, at: [0, 0] };
     const bodies = [earth, ...planets.filter((b) => b !== earth), moon, sun];
     const km = distanceKm("earth", target, date);
     const via = viaJupiter ? ", flying past Jupiter on the way" : "";
+    const slow = under ? ` Arrive under ${(under * 2.2).toFixed(1)} km/s against it, to be caught into orbit.` : "";
     return {
         name: "Today's sky",
-        brief: `The planets where they really are on ${key}, each in its true direction from the Sun (distances squeezed to fit). Reach ${NAME[target]}${via}.`,
+        brief: `The planets where they really are on ${key}, each in its true direction from the Sun (distances squeezed to fit). Reach ${NAME[target]}${via}.${slow}`,
         fact: `Today ${NAME[target]} is ${Math.round(km / 1e6).toLocaleString("en")} million km from Earth: its light takes ${fmtTime(km / 299_792.458)} to reach us.`,
         bodies,
         start: 0,
         target: bodies.findIndex((b) => b.kind === target),
         flyby: viaJupiter ? [bodies.findIndex((b) => b.kind === "jupiter")] : undefined,
         par: viaJupiter ? 5 : 4,
-        // (a close target made harder: arrive right by it)
-        capture: tight ? LOOK[target].r + 1.4 : undefined,
+        // (asked to arrive right by it)
+        // (for Saturn, its rings' edge: its rings are solid)
+        capture: tight ? (target === "saturn" ? LOOK.saturn.r * 2.3 + 0.8 : LOOK[target].r + 1.4) : undefined,
+        arrive: under ? { under, as: "orbit", craft: "The probe" } : undefined,
         guides: PLANETS.map((p) => ({ around: [0, 0] as [number, number], R: RING[p] })),
     };
 }
@@ -87,28 +109,30 @@ export function dailyMission(key: string): Level {
     if (hit) return hit;
     const date = new Date(`${key}T00:00:00Z`);
     const n = Math.floor(date.getTime() / 86_400_000);
-    const began = Date.now();
-    let best: { level: Level; share: number } | null = null;
-    // the day's target first (then the next ones round, if its sky won't do),
-    // each tried from hardest to easiest: a tight arrival and a strong Sun first
-    search: for (let k = 0; k < TARGETS.length; k++) {
+    let level: Level | null = null;
+    // the day's planet (or, if its sky can't be won at all today, the next)
+    for (let k = 0; k < TARGETS.length && !level; k++) {
         const target = TARGETS[(n + k) % TARGETS.length];
-        const outer = target === "saturn" || target === "uranus" || target === "neptune";
-        for (const via of outer && n % 2 === 0 ? [true, false] : [false])
-            for (const tight of [false, true])
-                for (const sunMu of [2600, 1800, 1400, 1000, 700, 400]) {
-                    const level = layout(key, date, target, sunMu, via, tight);
-                    const share = winShare(level);
-                    if (share >= 0.005 && share <= 0.05) {
-                        best = { level, share };
-                        break search;
-                    }
-                    if (share > 0 && (!best || Math.abs(Math.log(share / 0.02)) < Math.abs(Math.log(best.share / 0.02)))) best = { level, share };
-                    // (a few seconds at most: the closest so far will do)
-                    if (Date.now() - began > 5000) break search;
-                }
+        let easier: { level: Level; share: number } | null = null;
+        for (const ask of ASKS) {
+            if (ask.via && target === "jupiter") continue;
+            const l = layout(key, date, target, ask);
+            const share = winShare(l);
+            if (share >= 0.006 && share <= 0.02) {
+                level = l;
+                break;
+            }
+            if (share < 0.006) {
+                // gone too hard: the one before, if it was winnable, or this if it is
+                level = easier && easier.share <= 0.03 ? easier.level : share > 0 ? l : easier?.level ?? null;
+                break;
+            }
+            easier = { level: l, share };
+        }
+        // (even the hardest ask is still easy: that's the day's)
+        level ??= easier?.level ?? null;
     }
-    const level = best?.level ?? layout(key, date, TARGETS[n % TARGETS.length], 400, false, false);
+    level ??= layout(key, date, TARGETS[n % TARGETS.length], ASKS[0]);
     made.set(key, level);
     return level;
 }
