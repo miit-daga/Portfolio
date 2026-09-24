@@ -366,6 +366,7 @@ export const FloatingNav = ({
     const meta = "eyebrow" in acc ? acc : null;
     const isTerminal = navItem.name === "Terminal";
     const isArcade = navItem.name === "Arcade";
+    const isFirst = navItem.link === navItems.find((i) => i.link.startsWith("#"))?.link;
     const newTab = isTerminal || isArcade;
     return (
       <MagneticWrapper key={navItem.link} strength={0.2}>
@@ -436,7 +437,12 @@ export const FloatingNav = ({
           <AnimatePresence>
             {preview === navItem.link && (
               <motion.span
-                className="pointer-events-none absolute left-1/2 top-full z-20 mt-3 block w-max max-w-[260px] -translate-x-1/2"
+                // Centred under its item (framer's own x, since its transform
+                // would override a translate class); at the bar's two ends, the
+                // first hangs from its left edge and the arcade from its right,
+                // as Resume's does, so neither runs off a narrow screen
+                className={cn("pointer-events-none absolute top-full z-20 mt-3 block w-max max-w-[260px]", isArcade ? "right-0" : isFirst ? "left-0" : "left-1/2")}
+                style={isArcade || isFirst ? undefined : { x: "-50%" }}
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
