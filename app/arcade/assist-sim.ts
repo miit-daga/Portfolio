@@ -21,6 +21,10 @@ export type Level = {
     start: number; // Earth, in bodies
     target: number;
     flyby?: number[]; // bodies to pass close to on the way
+    capture?: number; // how close counts as arriving, where a mission wants it closer than usual
+    // arriving no faster than this against the target: a lander setting down
+    // (faster is a crash), or an orbiter being caught (faster flies past)
+    arrive?: { under: number; as: "land" | "orbit"; craft: string };
     par: number; // launches for three stars
 };
 
@@ -38,6 +42,12 @@ const SOFT = 0.25;
 export const flybyRadius = (r: number) => r * 3.2 + 1.5;
 export const captureRadius = (r: number) => r * 1.8 + 2;
 export const passRadius = (b: Body) => b.pass ?? flybyRadius(b.r);
+// Saturn's rings are solid: a probe that crosses them is lost
+export const ringsOf = (b: Body) => (b.kind === "saturn" ? { inner: b.r * 1.24, outer: b.r * 2.3 } : null);
+/** How close to the target counts as arriving (for Saturn, reaching its rings' edge). */
+export const arriveRadius = (level: Level, b: Body) => level.capture ?? (ringsOf(b) ? ringsOf(b)!.outer + 1.5 : captureRadius(b.r));
+/** Units of speed in km/s, as the game shows them. */
+export const KMS = 2.2;
 
 /** Where a body is at time t. */
 export function bodyAt(b: Body, t: number, out: [number, number] = [0, 0]): [number, number] {
@@ -49,6 +59,18 @@ export function bodyAt(b: Body, t: number, out: [number, number] = [0, 0]): [num
         out[0] = b.at![0];
         out[1] = b.at![1];
     }
+    return out;
+}
+/** How fast a body is moving at time t. */
+export function bodyVel(b: Body, t: number, out: [number, number] = [0, 0]): [number, number] {
+    if (!b.orbit) {
+        out[0] = out[1] = 0;
+        return out;
+    }
+    const w = (Math.PI * 2) / (b.orbit.period * SLOW);
+    const a = b.orbit.phase + t * w;
+    out[0] = -Math.sin(a) * w * b.orbit.R;
+    out[1] = Math.cos(a) * w * b.orbit.R;
     return out;
 }
 
@@ -103,9 +125,9 @@ export const LEVELS: Level[] = [
         fact: "The asteroid belt is so sparse that probes cross it without trying to dodge.",
         bodies: [
             EARTH(-42, 14),
-            { kind: "saturn", r: 3.4, mu: 2200, at: [-4, -18] },
+            { kind: "jupiter", r: 4.2, mu: 2200, at: [-4, -18] },
             { kind: "mars", r: 1.3, mu: 60, at: [40, -12] },
-            ...belt([6, 30], [16, -10], 18, 7),
+            ...belt([6, 30], [20, 6], 11, 7),
         ],
         start: 0,
         target: 2,
@@ -172,7 +194,7 @@ export const LEVELS: Level[] = [
     },
     {
         name: "Chandrayaan-3",
-        brief: "ISRO's Moon mission: catch the Moon as it goes round Earth.",
+        brief: "ISRO's Moon mission. Catch the Moon as it goes round Earth, and bring Vikram in gently: arrive under 14.3 km/s against the Moon, or it crashes.",
         fact: "Chandrayaan-3's Vikram lander touched down near the Moon's south pole on 23 August 2023, the first landing there.",
         bodies: [
             { kind: "earth", r: 1.8, mu: 700, at: [-26, -6] },
@@ -180,7 +202,8 @@ export const LEVELS: Level[] = [
         ],
         start: 0,
         target: 1,
-        par: 2,
+        arrive: { under: 6.5, as: "land", craft: "Vikram" },
+        par: 3,
     },
     {
         name: "Two giants",
@@ -212,7 +235,7 @@ export const LEVELS: Level[] = [
     },
     {
         name: "Mangalyaan",
-        brief: "ISRO's Mars Orbiter Mission. Mars starts on the far side of the Sun: swing round the Sun, or wait for Mars to come round, and aim for where it will be.",
+        brief: "ISRO's Mars Orbiter Mission. Reach Mars slowly enough to be caught into orbit, under 15.4 km/s against it; any faster and you fly past.",
         fact: "India's Mars Orbiter Mission reached Mars on 24 September 2014, the first to get there on a first attempt.",
         bodies: [
             EARTH(-52, -6),
@@ -221,6 +244,7 @@ export const LEVELS: Level[] = [
         ],
         start: 0,
         target: 2,
+        arrive: { under: 7, as: "orbit", craft: "Mangalyaan" },
         par: 4,
     },
     {
@@ -231,8 +255,8 @@ export const LEVELS: Level[] = [
             EARTH(-44, -14),
             { kind: "jupiter", r: 4, mu: 2400, at: [0, 2] },
             { kind: "mars", r: 1.3, mu: 60, at: [42, 14] },
-            ...belt([-20, 36], [-16, -8], 14, 11),
-            ...belt([16, -36], [20, 10], 14, 13),
+            ...belt([-20, 36], [-17, 6], 10, 11),
+            ...belt([16, -36], [19, -4], 10, 13),
         ],
         start: 0,
         target: 2,
@@ -258,9 +282,9 @@ export const LEVELS: Level[] = [
         bodies: [
             EARTH(-46, -24),
             { kind: "sun", r: 4.5, mu: 2000, at: [-20, 0] },
-            { kind: "jupiter", r: 3.6, mu: 1400, orbit: { around: [-20, 0], R: 15, period: 13, phase: 0.8 } },
-            { kind: "saturn", r: 3, mu: 1200, orbit: { around: [-20, 0], R: 30, period: 26, phase: 0.2 } },
-            { kind: "neptune", r: 2.3, mu: 400, at: [46, 24] },
+            { kind: "jupiter", r: 3.6, mu: 1400, orbit: { around: [-20, 0], R: 15, period: 13, phase: 0.8 }, pass: 18 },
+            { kind: "saturn", r: 3, mu: 1200, orbit: { around: [-20, 0], R: 30, period: 26, phase: 0.2 }, pass: 24 },
+            { kind: "neptune", r: 2.3, mu: 400, at: [40, 18] },
         ],
         start: 0,
         target: 4,
@@ -283,6 +307,8 @@ export type Probe = {
     flight: number; // seconds since launch
     state: Outcome;
     hit: number; // the body it crashed into
+    rings: boolean; // (into Saturn's rings)
+    tooFast: number; // the speed it last came in too fast at, against the target
     passed: boolean[]; // flybys done
     early: boolean; // reached the target before its flybys were done
     fastest: number;
@@ -302,6 +328,8 @@ export function launch(level: Level, angle: number, power: number, t: number): P
         flight: 0,
         state: "flying",
         hit: -1,
+        rings: false,
+        tooFast: 0,
         passed: level.bodies.map(() => false),
         early: false,
         fastest: v,
@@ -327,6 +355,12 @@ function accel(level: Level, x: number, y: number, t: number, out: [number, numb
 }
 
 const acc: [number, number] = [0, 0];
+const vel: [number, number] = [0, 0];
+/** The probe's speed against a body. */
+export function speedAgainst(p: Probe, b: Body) {
+    bodyVel(b, p.t, vel);
+    return Math.hypot(p.vx - vel[0], p.vy - vel[1]);
+}
 /** One fixed step (velocity Verlet, which keeps orbits honest). */
 export function step(level: Level, p: Probe) {
     if (p.state !== "flying") return;
@@ -348,13 +382,28 @@ export function step(level: Level, p: Probe) {
         const d = Math.hypot(pos[0] - p.x, pos[1] - p.y);
         // (a mission can end back at Earth: it only counts once the probe has been away)
         const leaving = i === level.start && p.flight < 2;
-        if (i === level.target && d < captureRadius(b.r) && !leaving) {
+        if (i === level.target && d < arriveRadius(level, b) && !leaving) {
             // it only counts once the flybys are done; before that, the probe flies on
-            if (need.every((k) => p.passed[k])) {
+            if (!need.every((k) => p.passed[k])) p.early = true;
+            else if (level.arrive && speedAgainst(p, b) > level.arrive.under) {
+                // too fast: a lander hits, an orbiter flies on past
+                p.tooFast = speedAgainst(p, b);
+                if (level.arrive.as === "land") {
+                    p.state = "crashed";
+                    p.hit = i;
+                    return;
+                }
+            } else {
                 p.state = "arrived";
                 return;
             }
-            p.early = true;
+        }
+        const rings = ringsOf(b);
+        if (rings && d > rings.inner && d < rings.outer) {
+            p.state = "crashed";
+            p.hit = i;
+            p.rings = true;
+            return;
         }
         if (d < b.r + 0.15 && !(i === level.start && p.flight < 0.3)) {
             p.state = "crashed";

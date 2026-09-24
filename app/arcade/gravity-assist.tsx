@@ -6,7 +6,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
-import { LEVELS, VMAX, bodyAt, captureRadius, launch, passRadius, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
+import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
 
 // Gravity Assist: send a probe from Earth to another world, bending its path
 // round the planets on the way. Drag back from anywhere to aim (the further,
@@ -17,12 +17,11 @@ import { LEVELS, VMAX, bodyAt, captureRadius, launch, passRadius, step, type Bod
 
 const PROGRESS_KEY = "arcade-assist";
 const STARS_KEY = "arcade-assist-stars"; // the total, for the arcade's card
-const KMS = 2.2; // the probe's speed, shown in km/s
 const FULL_PULL = 0.3; // a pull this much of the screen's shorter side is full power
 
 type Phase = "menu" | "aim" | "flying" | "done";
-type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number; skipped?: string };
-type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number };
+type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number; skipped?: string; rings?: boolean; tooFast?: number };
+type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number };
 
 const NAMES: Record<Kind, string> = { sun: "the Sun", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
@@ -41,7 +40,8 @@ const AIR: Partial<Record<Kind, [number, number, number, number]>> = {
     saturn: [0.95, 0.88, 0.7, 0.3],
     mars: [1, 0.65, 0.45, 0.35],
 };
-const TILT: Partial<Record<Kind, number>> = { earth: 0.41, mars: 0.44, jupiter: 0.05, saturn: 0.47, neptune: 0.49, moon: 0.03 };
+// (Saturn stands upright, so its rings lie flat in the plane of play: what you see is what you hit)
+const TILT: Partial<Record<Kind, number>> = { earth: 0.41, mars: 0.44, jupiter: 0.05, neptune: 0.49, moon: 0.03 };
 
 // the simulation's plane (x across, y up) in the scene: y becomes -z
 const toWorld = (x: number, y: number, v = new THREE.Vector3()) => v.set(x, 0, -y);
@@ -106,7 +106,7 @@ const sunFrag = /* glsl */ `
 
 export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0 });
+    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {} });
@@ -233,8 +233,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                     group.add(axis);
                     s.spin = m;
                     if (b.kind === "saturn") {
-                        const inner = b.r * 1.24;
-                        const outer = b.r * 2.3;
+                        const { inner, outer } = ringsOf(b)!;
                         const rg = new THREE.RingGeometry(inner, outer, 160, 1);
                         const uv = rg.getAttribute("uv") as THREE.BufferAttribute;
                         const p = rg.getAttribute("position") as THREE.BufferAttribute;
@@ -264,7 +263,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 // the rings of flybys still to make
                 if (bi === level.target) {
                     s.goalMat = new THREE.LineDashedMaterial({ color: 0x5eead4, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.7 });
-                    group.add(circle(captureRadius(b.r), s.goalMat));
+                    group.add(circle(arriveRadius(level, b), s.goalMat));
                 }
                 if (level.flyby?.includes(bi)) {
                     s.ringMat = new THREE.LineDashedMaterial({ color: 0xfbbf24, dashSize: 0.6, gapSize: 0.8, transparent: true, opacity: 0.6 });
@@ -343,6 +342,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 launches,
                 power,
                 speed: probe ? Math.hypot(probe.vx, probe.vy) * KMS : power * VMAX * KMS,
+                against: probe ? speedAgainst(probe, level.bodies[level.target]) * KMS : 0,
                 result,
                 stars: stars.slice(),
                 passed: (level.flyby ?? []).map((k) => !!probe?.passed[k]),
@@ -424,14 +424,14 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 result = { kind: "arrived", body: NAMES[level.bodies[level.target].kind], stars: s, top: p.fastest * KMS };
                 sfxArrive();
             } else if (p.state === "crashed") {
-                result = { kind: "crashed", body: hit ? NAMES[hit.kind] : "", skipped };
+                result = { kind: "crashed", body: hit ? (p.rings ? "Saturn's rings" : NAMES[hit.kind]) : "", skipped, rings: p.rings, tooFast: p.tooFast ? p.tooFast * KMS : undefined };
                 bang.visible = true;
                 bangAge = 0;
                 toWorld(p.x, p.y, bang.position);
                 probeGlow.visible = false;
                 sfxHit();
             } else {
-                result = { kind: "lost", skipped };
+                result = { kind: "lost", skipped, tooFast: p.tooFast ? p.tooFast * KMS : undefined };
                 sfxOver();
             }
             phase = "done";
@@ -533,7 +533,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             };
             for (const b of level.bodies) {
                 if (b.orbit) add(b.orbit.around[0], b.orbit.around[1], b.orbit.R + b.r * 2);
-                else add(b.at![0], b.at![1], level.flyby?.includes(level.bodies.indexOf(b)) ? passRadius(b) : b.kind === "sun" ? b.r * 2 : captureRadius(b.r));
+                else add(b.at![0], b.at![1], level.flyby?.includes(level.bodies.indexOf(b)) ? passRadius(b) : b.kind === "sun" ? b.r * 2 : arriveRadius(level, b));
             }
             // on a tall screen the view turns, so the long way runs up it
             const tall = w / h < 0.9;
@@ -766,6 +766,15 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                             </p>
                         ))}
                         <p className="mt-2 text-sm tracking-normal text-white">{hud.speed.toFixed(1)} km/s</p>
+                        {L.arrive && (
+                            <p className="mt-1">
+                                vs {bare(L.bodies[L.target].kind)}{" "}
+                                <span className={hud.phase === "flying" && hud.against > L.arrive.under * KMS ? "text-rose-300" : "text-emerald-300"}>
+                                    {hud.phase === "flying" ? hud.against.toFixed(1) : "–"}
+                                </span>{" "}
+                                / {(L.arrive.under * KMS).toFixed(1)}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}
@@ -893,7 +902,22 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         ) : (
                             <>
                                 <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-rose-300">Signal lost</p>
-                                <h2 className="font-display mt-2 text-2xl font-bold">{hud.result.kind === "crashed" ? `The probe hit ${hud.result.body}` : "The probe drifted off into deep space"}</h2>
+                                <h2 className="font-display mt-2 text-2xl font-bold">
+                                    {hud.result.tooFast && L.arrive
+                                        ? L.arrive.as === "land"
+                                            ? `${L.arrive.craft} came down too fast`
+                                            : `${L.arrive.craft} was too fast for ${NAMES[L.bodies[L.target].kind]} to catch`
+                                        : hud.result.kind === "crashed"
+                                          ? `The probe hit ${hud.result.body}`
+                                          : "The probe drifted off into deep space"}
+                                </h2>
+                                {hud.result.tooFast && L.arrive && (
+                                    <p className="mt-2 text-sm text-amber-200">
+                                        It came in at {hud.result.tooFast.toFixed(1)} km/s against {NAMES[L.bodies[L.target].kind]}: it needs to be under {(L.arrive.under * KMS).toFixed(1)}. Launch
+                                        gentler, and let gravity do the work.
+                                    </p>
+                                )}
+                                {hud.result.rings && <p className="mt-2 text-sm text-amber-200">Saturn&apos;s rings are ice and rock: go round them, not through.</p>}
                                 {hud.result.skipped && (
                                     <p className="mt-2 text-sm text-amber-200">
                                         It reached {NAMES[L.bodies[L.target].kind]}, but this mission needs a flyby of {hud.result.skipped} first: pass through the amber ring.
