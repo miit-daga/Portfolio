@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { trackEvent } from "@/lib/track";
 import { NoWebGL } from "./no-webgl";
+import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
 import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints } from "./space";
@@ -244,7 +245,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         let renderer: THREE.WebGLRenderer;
         try {
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-        } catch {
+        } catch (e) {
+            reportError("stack", "no-webgl", e);
             setNoGl(true);
             return;
         }
@@ -258,10 +260,29 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         renderer.domElement.style.display = "block";
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
-        const manager = new THREE.LoadingManager(() => setLoaded(true));
+        let ready = false;
+        const manager = new THREE.LoadingManager(() => {
+            ready = true;
+            setLoaded(true);
+        });
         // (a stalled download mustn't leave it on the loading screen: after a
-        // while it opens anyway, and anything late appears when it arrives)
-        const giveUp = window.setTimeout(() => setLoaded(true), 12_000);
+        // while it opens anyway, and anything late appears when it arrives;
+        // and it's reported, with what was still loading)
+        const waiting = new Set<string>();
+        const itemStart = manager.itemStart.bind(manager);
+        const itemEnd = manager.itemEnd.bind(manager);
+        manager.itemStart = (url) => {
+            waiting.add(url.split("/").pop() ?? url);
+            itemStart(url);
+        };
+        manager.itemEnd = (url) => {
+            waiting.delete(url.split("/").pop() ?? url);
+            itemEnd(url);
+        };
+        const giveUp = window.setTimeout(() => {
+            if (!ready) reportError("stack", "stuck-loading", `still loading: ${[...waiting].join(", ") || "?"}`);
+            setLoaded(true);
+        }, 12_000);
         const loader = new THREE.TextureLoader(manager);
 
         // The sky: the real one, with the Milky Way arching up behind the station

@@ -4,6 +4,16 @@ import { useEffect, useState } from "react";
 // The tally, read with the admin key (kept for this tab only, in
 // sessionStorage, never sent anywhere but /api/tally)
 type Tally = { days: Record<string, Record<string, number>> };
+type Problems = { days: Record<string, Record<string, number>>; latest: { at: string; game: string; kind: string; message: string; browser: string }[] };
+const GAME_NAME: Record<string, string> = { assist: "Gravity Assist", run: "Asteroid Run", stack: "Stack the Station", arcade: "Arcade page" };
+const KIND_NAME: Record<string, string> = {
+    crash: "crashed",
+    "no-webgl": "no 3D graphics",
+    "load-failed": "code failed to load",
+    error: "error",
+    rejection: "error",
+    "stuck-loading": "stuck loading",
+};
 const KEY = "stats-admin-key";
 const DAYS = 14;
 
@@ -21,6 +31,7 @@ const SINGLES: [string, string][] = [
 export function Stats() {
     const [key, setKey] = useState("");
     const [tally, setTally] = useState<Tally | null>(null);
+    const [problems, setProblems] = useState<Problems | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
@@ -32,6 +43,10 @@ export function Stats() {
             const d = await r.json();
             if (!r.ok) throw new Error(d?.error || "Rejected.");
             setTally(d);
+            fetch("/api/errors", { headers: { "x-admin-key": k }, cache: "no-store" })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((p) => setProblems(p))
+                .catch(() => setProblems(null));
             try {
                 sessionStorage.setItem(KEY, k);
             } catch {
@@ -114,6 +129,49 @@ export function Stats() {
                                 <p className="mt-1 text-xs text-neutral-400">{label}</p>
                             </div>
                         ))}
+                    </section>
+
+                    {/* what went wrong, from the arcade's own reports */}
+                    <section>
+                        <h2 className="font-mono text-xs uppercase tracking-[0.2em] text-neutral-400">Problems, last 14 days</h2>
+                        {(() => {
+                            const totals = new Map<string, number>();
+                            for (const d of Object.values(problems?.days ?? {})) for (const [k, n] of Object.entries(d)) totals.set(k, (totals.get(k) ?? 0) + n);
+                            const rows = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+                            if (!problems) return <p className="mt-2 text-sm text-neutral-500">Couldn&apos;t read the reports.</p>;
+                            if (!rows.length) return <p className="mt-2 text-sm text-emerald-300/80">None reported. All clear.</p>;
+                            return (
+                                <ul className="mt-2 divide-y divide-white/5 rounded-xl border border-rose-300/20">
+                                    {rows.map(([k, n]) => {
+                                        const [game, kind, message, browser] = k.split("|");
+                                        return (
+                                            <li key={k} className="flex items-start justify-between gap-4 px-4 py-2 text-sm">
+                                                <span className="min-w-0">
+                                                    <span className="text-rose-200">{GAME_NAME[game] ?? game}: {KIND_NAME[kind] ?? kind}</span>
+                                                    <span className="block truncate font-mono text-xs text-neutral-400" title={message}>
+                                                        {message}
+                                                    </span>
+                                                    <span className="block text-xs text-neutral-500">{browser}</span>
+                                                </span>
+                                                <span className="font-mono text-neutral-300">{n}</span>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            );
+                        })()}
+                        {!!problems?.latest.length && (
+                            <details className="mt-2 text-xs text-neutral-400">
+                                <summary className="cursor-pointer">Latest {Math.min(10, problems.latest.length)}, with times</summary>
+                                <ul className="mt-1 space-y-1 font-mono">
+                                    {problems.latest.slice(0, 10).map((e, i) => (
+                                        <li key={i}>
+                                            {new Date(e.at).toLocaleString()} · {GAME_NAME[e.game] ?? e.game} · {KIND_NAME[e.kind] ?? e.kind} · {e.browser}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </details>
+                        )}
                     </section>
 
                     {GROUPS.map((g) => {

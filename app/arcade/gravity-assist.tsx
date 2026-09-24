@@ -6,6 +6,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { trackEvent } from "@/lib/track";
 import { NoWebGL } from "./no-webgl";
+import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { dailyMission, dayKey } from "./assist-daily";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
@@ -215,7 +216,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         let renderer: THREE.WebGLRenderer;
         try {
             renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-        } catch {
+        } catch (e) {
+            reportError("assist", "no-webgl", e);
             setNoGl(true);
             return;
         }
@@ -227,10 +229,29 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         renderer.domElement.style.display = "block";
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(36, 1, 1, 3000);
-        const manager = new THREE.LoadingManager(() => setLoaded(true));
+        let ready = false;
+        const manager = new THREE.LoadingManager(() => {
+            ready = true;
+            setLoaded(true);
+        });
         // (a stalled download mustn't leave it on the loading screen: after a
-        // while it opens anyway, and anything late appears when it arrives)
-        const giveUp = window.setTimeout(() => setLoaded(true), 12_000);
+        // while it opens anyway, and anything late appears when it arrives;
+        // and it's reported, with what was still loading)
+        const waiting = new Set<string>();
+        const itemStart = manager.itemStart.bind(manager);
+        const itemEnd = manager.itemEnd.bind(manager);
+        manager.itemStart = (url) => {
+            waiting.add(url.split("/").pop() ?? url);
+            itemStart(url);
+        };
+        manager.itemEnd = (url) => {
+            waiting.delete(url.split("/").pop() ?? url);
+            itemEnd(url);
+        };
+        const giveUp = window.setTimeout(() => {
+            if (!ready) reportError("assist", "stuck-loading", `still loading: ${[...waiting].join(", ") || "?"}`);
+            setLoaded(true);
+        }, 12_000);
         const loader = new THREE.TextureLoader(manager);
 
         const sky = skyTexture(renderer, loader);

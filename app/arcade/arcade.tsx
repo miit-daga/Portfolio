@@ -2,6 +2,7 @@
 import { Component, useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { trackEvent } from "@/lib/track";
+import { reportError } from "@/lib/report-error";
 
 // The arcade: two 3D games, each in its own chunk with three.js, loaded only
 // when it is opened, so nothing here costs the rest of the site anything.
@@ -12,7 +13,7 @@ import { trackEvent } from "@/lib/track";
 // file, which is gone, and the page would fail. Then it reloads, once, into
 // the new version (and forgets it did, once a game loads)
 const RELOADED = "arcade-reloaded-for-new-version";
-function freshOnFail<T>(load: () => Promise<T>) {
+function freshOnFail<T>(game: "run" | "stack" | "assist", load: () => Promise<T>) {
     return () =>
         load().then(
             (m) => {
@@ -24,6 +25,7 @@ function freshOnFail<T>(load: () => Promise<T>) {
                 return m;
             },
             (e) => {
+                reportError(game, "load-failed", e);
                 try {
                     if (!sessionStorage.getItem(RELOADED)) {
                         sessionStorage.setItem(RELOADED, "1");
@@ -37,9 +39,9 @@ function freshOnFail<T>(load: () => Promise<T>) {
             },
         );
 }
-const AsteroidRun = dynamic(freshOnFail(() => import("./asteroid-run")), { ssr: false, loading: () => <Loading /> });
-const StackStation = dynamic(freshOnFail(() => import("./stack-station")), { ssr: false, loading: () => <Loading /> });
-const GravityAssist = dynamic(freshOnFail(() => import("./gravity-assist")), { ssr: false, loading: () => <Loading /> });
+const AsteroidRun = dynamic(freshOnFail("run", () => import("./asteroid-run")), { ssr: false, loading: () => <Loading /> });
+const StackStation = dynamic(freshOnFail("stack", () => import("./stack-station")), { ssr: false, loading: () => <Loading /> });
+const GravityAssist = dynamic(freshOnFail("assist", () => import("./gravity-assist")), { ssr: false, loading: () => <Loading /> });
 
 function Loading() {
     return (
@@ -52,13 +54,14 @@ function Loading() {
 type Game = "run" | "stack" | "assist";
 
 // If a game throws, the arcade stays up: a note and a way back, not a crashed page
-class GameBoundary extends Component<{ onExit: () => void; children: ReactNode }, { failed: boolean }> {
+class GameBoundary extends Component<{ game: Game; onExit: () => void; children: ReactNode }, { failed: boolean }> {
     state = { failed: false };
     static getDerivedStateFromError() {
         return { failed: true };
     }
     componentDidCatch(error: unknown) {
         console.error("Arcade game failed:", error);
+        reportError(this.props.game, "crash", error);
     }
     render() {
         if (!this.state.failed) return this.props.children;
@@ -138,6 +141,18 @@ export function Arcade() {
         if (g) trackEvent("arcade_game_open", { game: g, via: "card" });
         window.history.replaceState(null, "", g ? `/arcade?game=${g}` : "/arcade");
     };
+    // Any other error on the page, reported for /stats (with the game open, if one is)
+    useEffect(() => {
+        const where = game ?? "arcade";
+        const onError = (e: ErrorEvent) => reportError(where, "error", e.error ?? e.message);
+        const onRejection = (e: PromiseRejectionEvent) => reportError(where, "rejection", e.reason);
+        window.addEventListener("error", onError);
+        window.addEventListener("unhandledrejection", onRejection);
+        return () => {
+            window.removeEventListener("error", onError);
+            window.removeEventListener("unhandledrejection", onRejection);
+        };
+    }, [game]);
     // Esc leaves a game for the arcade
     useEffect(() => {
         if (!game) return;
@@ -148,7 +163,7 @@ export function Arcade() {
 
     if (game)
         return (
-            <GameBoundary key={game} onExit={() => open(null)}>
+            <GameBoundary key={game} game={game} onExit={() => open(null)}>
                 {game === "run" ? <AsteroidRun onExit={() => open(null)} /> : game === "stack" ? <StackStation onExit={() => open(null)} /> : <GravityAssist onExit={() => open(null)} />}
             </GameBoundary>
         );
