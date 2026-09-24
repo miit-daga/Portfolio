@@ -11,9 +11,12 @@
 
 export type Kind = "sun" | "mercury" | "venus" | "earth" | "moon" | "mars" | "jupiter" | "saturn" | "uranus" | "neptune" | "rock" | "blackhole";
 export type Orbit = { around: [number, number]; R: number; period: number; phase: number };
-// (pass: how close counts as a flyby, where a mission wants it closer than usual)
-export type Body = { kind: Kind; r: number; mu: number; at?: [number, number]; orbit?: Orbit; pass?: number };
+// (pass: how close counts as a flyby, where a mission wants it closer than
+// usual; name: what it's called, where it isn't a planet of ours)
+export type Body = { kind: Kind; r: number; mu: number; at?: [number, number]; orbit?: Orbit; pass?: number; name?: string };
+export type Section = "solar" | "deep";
 export type Level = {
+    section?: Section; // (the solar system, unless deep space)
     name: string;
     brief: string;
     fact: string;
@@ -88,6 +91,22 @@ export function belt(from: [number, number], to: [number, number], count: number
             at: [from[0] + (to[0] - from[0]) * f + (rand() - 0.5) * 1.6, from[1] + (to[1] - from[1]) * f + (rand() - 0.5) * 1.6] as [number, number],
         };
     });
+}
+
+// A ring of rocks round a point, with a gap (angles in degrees)
+export function ringBelt(around: [number, number], R: number, count: number, gapAt: number, gapWidth: number, seed: number): Body[] {
+    let s = seed;
+    const rand = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    const out: Body[] = [];
+    for (let i = 0; i < count; i++) {
+        const a = (i / count) * 360;
+        const off = Math.abs(((a - gapAt + 540) % 360) - 180);
+        if (off < gapWidth / 2) continue;
+        const rr = R + (rand() - 0.5) * 1.4;
+        const t = (a * Math.PI) / 180;
+        out.push({ kind: "rock", r: 0.5 + rand() * 0.5, mu: 0, at: [around[0] + Math.cos(t) * rr, around[1] + Math.sin(t) * rr] });
+    }
+    return out;
 }
 
 const EARTH = (x: number, y: number): Body => ({ kind: "earth", r: 1.6, mu: 30, at: [x, y] });
@@ -293,24 +312,111 @@ export const LEVELS: Level[] = [
         par: 6,
     },
     // Deep space: beyond the solar system, where there are black holes. (The
-    // black disc is the hole's shadow, and touching it is falling in.)
+    // black disc is the hole's shadow, and touching it is falling in.) The
+    // worlds out here are nobody's planets, so they go by descriptions
     {
+        section: "deep",
         name: "Event horizon",
-        brief: "Deep space. A black hole sits between you and Neptune. Bend round it, and don't touch the dark.",
+        brief: "A black hole sits between you and a lone ice giant. Bend round it, and don't touch the dark.",
         fact: "The first picture of a black hole, M87*, was released in 2019 by the Event Horizon Telescope.",
-        bodies: [EARTH(-44, 0), { kind: "blackhole", r: 1.6, mu: 5200, at: [-2, 0] }, { kind: "neptune", r: 2.3, mu: 400, at: [40, 2] }],
+        bodies: [EARTH(-44, 0), { kind: "blackhole", r: 1.6, mu: 5200, at: [-2, 0] }, { kind: "neptune", r: 2.3, mu: 400, at: [40, 2], name: "the ice giant" }],
         start: 0,
         target: 2,
         par: 3,
     },
     {
+        section: "deep",
+        name: "Home through the dark",
+        brief: "Loop round the black hole and bring the probe home to Earth.",
+        fact: "Light takes about 27,000 years to reach us from Sagittarius A*, the black hole at the heart of our galaxy.",
+        bodies: [{ kind: "earth", r: 1.8, mu: 400, at: [-22, -6] }, { kind: "blackhole", r: 1.5, mu: 2600, at: [14, 8], pass: 9 }],
+        start: 0,
+        target: 0,
+        flyby: [1],
+        par: 6,
+    },
+    {
+        section: "deep",
+        name: "Accretion",
+        brief: "A ring of rubble circles the black hole, with a single gap. Get through to the ice giant.",
+        fact: "Gas falling into a black hole heats to millions of degrees, which is why the brightest things in the universe, quasars, surround them.",
+        bodies: [
+            EARTH(-44, 4),
+            { kind: "blackhole", r: 1.5, mu: 4400, at: [0, 0] },
+            { kind: "neptune", r: 2.3, mu: 400, at: [42, -6], name: "the ice giant" },
+            ...ringBelt([0, 0], 14, 30, 120, 40, 5),
+        ],
+        start: 0,
+        target: 2,
+        par: 5,
+    },
+    {
+        section: "deep",
+        name: "Binary",
+        brief: "Two black holes circle each other. Find a way through them to the red world.",
+        fact: "In 2015 LIGO first heard gravitational waves, from two black holes merging over a billion light years away.",
+        bodies: [
+            EARTH(-46, -18),
+            { kind: "blackhole", r: 1.4, mu: 3200, orbit: { around: [0, 0], R: 9, period: 10, phase: 0 } },
+            { kind: "blackhole", r: 1.4, mu: 3200, orbit: { around: [0, 0], R: 9, period: 10, phase: Math.PI } },
+            { kind: "mars", r: 1.3, mu: 60, at: [44, 16], name: "the red world" },
+        ],
+        start: 0,
+        target: 3,
+        par: 5,
+    },
+    {
+        section: "deep",
+        name: "Trinary",
+        brief: "Three black holes, and a way between them to the red world.",
+        fact: "Some galaxies hold three supermassive black holes near their middles, left from galaxies merging.",
+        bodies: [
+            EARTH(-46, 0),
+            { kind: "blackhole", r: 1.4, mu: 3000, at: [-14, 12] },
+            { kind: "blackhole", r: 1.4, mu: 3000, at: [-8, -14] },
+            { kind: "blackhole", r: 1.4, mu: 3000, at: [10, 4] },
+            { kind: "mars", r: 1.3, mu: 60, at: [42, -10], name: "the red world" },
+        ],
+        start: 0,
+        target: 4,
+        par: 5,
+    },
+    {
+        section: "deep",
+        name: "Photon sphere",
+        brief: "Skim the black hole closer than ever, through its tight amber ring, and out to the ice giant.",
+        fact: "At the photon sphere, half again the event horizon's size, light itself can orbit a black hole.",
+        bodies: [EARTH(-44, -14), { kind: "blackhole", r: 1.5, mu: 4200, at: [-4, 4], pass: 9 }, { kind: "neptune", r: 2.3, mu: 400, at: [30, -26], name: "the ice giant" }],
+        start: 0,
+        target: 2,
+        flyby: [1],
+        par: 4,
+    },
+    {
+        section: "deep",
+        name: "Captured world",
+        brief: "A giant planet orbits a black hole. Catch it from behind as it swings round, and ride it on to the red world.",
+        fact: "Planets have been found orbiting pulsars, the spinning cores left when stars explode.",
+        bodies: [
+            EARTH(-46, -20),
+            { kind: "blackhole", r: 1.5, mu: 3400, at: [-8, 2] },
+            { kind: "jupiter", r: 3.6, mu: 1500, orbit: { around: [-8, 2], R: 17, period: 13, phase: 1.2 }, name: "the captured giant" },
+            { kind: "mars", r: 1.3, mu: 60, at: [44, 22], name: "the red world" },
+        ],
+        start: 0,
+        target: 3,
+        flyby: [2],
+        par: 5,
+    },
+    {
+        section: "deep",
         name: "Skim the hole",
-        brief: "Deep space. Pass close by the black hole, through the amber ring, and let it throw you on to Saturn.",
+        brief: "Pass close by the black hole, through the amber ring, and let it throw you on to the ringed giant.",
         fact: "Sagittarius A*, the black hole at the centre of the Milky Way, is about 4 million times the mass of the Sun.",
         bodies: [
             EARTH(-44, 20),
             { kind: "blackhole", r: 1.6, mu: 6000, at: [-10, -8], pass: 11 },
-            { kind: "saturn", r: 3.4, mu: 900, at: [38, 18] },
+            { kind: "saturn", r: 3.4, mu: 900, at: [38, 18], name: "the ringed giant" },
             ...belt([6, 36], [14, 0], 12, 21),
         ],
         start: 0,
@@ -319,17 +425,30 @@ export const LEVELS: Level[] = [
         par: 4,
     },
     {
-        name: "Binary",
-        brief: "Deep space. Two black holes circle each other. Find a way through them to Mars.",
-        fact: "In 2015 LIGO first heard gravitational waves, from two black holes merging over a billion light years away.",
+        section: "deep",
+        name: "Swing twice",
+        brief: "Fly past both black holes, through each amber ring, then on to the red world.",
+        fact: "A spacecraft falling toward a black hole would, to someone watching from far away, seem to slow and freeze at the horizon.",
         bodies: [
-            EARTH(-46, -18),
-            { kind: "blackhole", r: 1.4, mu: 3200, orbit: { around: [0, 0], R: 9, period: 10, phase: 0 } },
-            { kind: "blackhole", r: 1.4, mu: 3200, orbit: { around: [0, 0], R: 9, period: 10, phase: Math.PI } },
-            { kind: "mars", r: 1.3, mu: 60, at: [44, 16] },
+            EARTH(-46, 20),
+            { kind: "blackhole", r: 1.4, mu: 3600, at: [-18, -10], pass: 12 },
+            { kind: "blackhole", r: 1.4, mu: 3600, at: [14, 14], pass: 12 },
+            { kind: "mars", r: 1.3, mu: 60, at: [44, -18], name: "the red world" },
         ],
         start: 0,
         target: 3,
+        flyby: [1, 2],
+        par: 6,
+    },
+    {
+        section: "deep",
+        name: "Spaghettification",
+        brief: "A heavy black hole flings everything faster. Reach the ice giant slowly enough to be caught into orbit, under 19.8 km/s against it.",
+        fact: "Near a small black hole, the pull on your feet would outstrip the pull on your head: astronomers really call this spaghettification.",
+        bodies: [EARTH(-44, -8), { kind: "blackhole", r: 1.6, mu: 7000, at: [-6, 6] }, { kind: "neptune", r: 2.3, mu: 500, at: [40, -12], name: "the ice giant" }],
+        start: 0,
+        target: 2,
+        arrive: { under: 9, as: "orbit", craft: "The probe" },
         par: 5,
     },
 ];

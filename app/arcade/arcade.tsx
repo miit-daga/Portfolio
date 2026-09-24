@@ -25,7 +25,7 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
         id: "assist",
         no: "01",
         title: "Gravity Assist",
-        blurb: "Send a probe from Earth to other worlds, bending its path round the planets on the way, and catch a moving one to be flung on faster, as Voyager was. Eighteen missions, among them ISRO's Chandrayaan-3 and Mangalyaan and three round black holes, and a mission of the day in the real sky.",
+        blurb: "Send a probe from Earth to other worlds, bending its path round the planets on the way, and catch a moving one to be flung on faster, as Voyager was. Fifteen missions in the solar system, ISRO's Chandrayaan-3 and Mangalyaan among them, ten in deep space round black holes, and a mission of the day in the real sky.",
         how: "Drag back to aim, let go to launch · the same on a phone",
         best: "Stars",
         bestKey: "arcade-assist-stars",

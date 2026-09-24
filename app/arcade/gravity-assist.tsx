@@ -15,7 +15,7 @@ import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, launch, passRadius, ringsOf, s
 // round the planets on the way. Drag back from anywhere to aim (the further,
 // the faster), and let go to launch; the dotted line shows where the first
 // stretch will go. Later missions have planets moving round the Sun, and ask
-// for flybys on the way. Eighteen missions (two of them ISRO's, three round black holes), each with up to three stars for
+// for flybys on the way. Two sections, open from the start: the solar system (15 missions, two of them ISRO's) and deep space (10, round black holes), each mission with up to three stars for
 // arriving in few launches. The physics is in assist-sim.ts.
 
 const PROGRESS_KEY = "arcade-assist";
@@ -75,7 +75,24 @@ function loadProgress(): number[] {
     }
     return LEVELS.map(() => 0);
 }
-const unlocked = (stars: number[], i: number) => i === 0 || stars[i - 1] > 0;
+// Two sections, each open from the start, its missions opening in turn
+const SECTIONS = [
+    { id: "solar", title: "Solar system" },
+    { id: "deep", title: "Deep space" },
+] as const;
+type SectionId = (typeof SECTIONS)[number]["id"];
+const sectionOf = (i: number): SectionId => LEVELS[i]?.section ?? "solar";
+const inSection = (id: SectionId) => LEVELS.map((_, i) => i).filter((i) => sectionOf(i) === id);
+/** Where mission i sits in its section (1-based), and how many the section has. */
+const placeOf = (i: number) => {
+    const list = inSection(sectionOf(i));
+    return { n: list.indexOf(i) + 1, of: list.length };
+};
+const unlocked = (stars: number[], i: number) => {
+    const list = inSection(sectionOf(i));
+    const k = list.indexOf(i);
+    return k === 0 || stars[list[k - 1]] > 0;
+};
 /** "Mars", "Jupiter and Saturn": the flybys named. */
 const listNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "");
 const bare = (k: Kind) => NAMES[k].replace(/^the /, "");
@@ -510,7 +527,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         };
         const next = () => {
             if (levelIndex === DAILY) return open(lastMission);
-            const n = Math.min(LEVELS.length - 1, levelIndex + 1);
+            // the next in this section; after its last, back to the missions
+            const list = inSection(sectionOf(levelIndex));
+            const at = list.indexOf(levelIndex);
+            if (at === list.length - 1) return open(levelIndex);
+            const n = list[at + 1];
             open(n);
             begin();
         };
@@ -658,7 +679,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 if (k === " " || k === "f") fast = true;
                 if (k === "r") retry();
             } else if (phase === "done" && (k === " " || k === "enter" || k === "r") && !e.repeat) {
-                if (result?.kind === "arrived" && k !== "r" && levelIndex < LEVELS.length - 1) next();
+                if (result?.kind === "arrived" && k !== "r") next();
                 else retry();
             } else if (phase === "menu" && (k === " " || k === "enter") && !e.repeat) begin();
         };
@@ -888,7 +909,15 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
 
     const L = hud.level === DAILY && dailyLevel ? dailyLevel : LEVELS[Math.max(0, hud.level)];
     const isDaily = hud.level === DAILY;
-    const total = hud.stars.reduce((a, b) => a + b, 0);
+    const place = placeOf(Math.max(0, hud.level));
+    const [tab, setTab] = useState<SectionId>("solar");
+    // (the menu shows the section of the mission picked)
+    useEffect(() => {
+        if (hud.level >= 0) setTab(sectionOf(hud.level));
+    }, [hud.level]);
+    const tabMissions = inSection(tab);
+    const tabStars = tabMissions.reduce((a, i) => a + hud.stars[i], 0);
+    const lastInSection = place.n === place.of;
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
             <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Gravity Assist: a 3D game" role="application" />
@@ -903,7 +932,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-4 sm:p-6">
                     <div className="max-w-md">
                         <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-violet-300/90">
-                            {isDaily ? `Mission of the day · ${today}` : `Mission ${hud.level + 1} of ${LEVELS.length}`}
+                            {isDaily ? `Mission of the day · ${today}` : `${sectionOf(hud.level) === "deep" ? "Deep space · " : ""}Mission ${place.n} of ${place.of}`}
                         </p>
                         <p className="font-display mt-1 text-xl font-bold sm:text-2xl">{L.name}</p>
                         <p className="mt-1 text-sm leading-snug text-neutral-300">{L.brief}</p>
@@ -1002,8 +1031,29 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                 {bestToday ? <span className="text-amber-300"> Your best today {fmtTime(bestToday)}.</span> : null}
                             </span>
                         </button>
+                        {/* the two sections */}
+                        <div role="tablist" aria-label="Sections" className="mt-4 grid grid-cols-2 gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1">
+                            {SECTIONS.map((sec) => (
+                                <button
+                                    key={sec.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={tab === sec.id}
+                                    onClick={() => {
+                                        setTab(sec.id);
+                                        // and pick its next mission to fly
+                                        const list = inSection(sec.id);
+                                        if (sectionOf(hud.level) !== sec.id) api.current.open(list.find((i) => hud.stars[i] === 0 && unlocked(hud.stars, i)) ?? list[0]);
+                                    }}
+                                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${tab === sec.id ? "bg-violet-400 text-neutral-950" : "text-neutral-300 hover:text-white"}`}
+                                >
+                                    {sec.title} <span className={tab === sec.id ? "text-neutral-800" : "text-neutral-500"}>· {inSection(sec.id).length}</span>
+                                </button>
+                            ))}
+                        </div>
                         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {LEVELS.map((l, i) => {
+                            {tabMissions.map((i, k) => {
+                                const l = LEVELS[i];
                                 const open = unlocked(hud.stars, i);
                                 return (
                                     <button
@@ -1015,7 +1065,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                             i === hud.level ? "border-violet-300/70 bg-violet-400/10" : "border-white/10 hover:border-white/25"
                                         } ${open ? "" : "cursor-not-allowed opacity-40"}`}
                                     >
-                                        <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">{i + 1}</span>
+                                        <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">{k + 1}</span>
                                         <span className="block truncate text-sm text-white">{l.name}</span>
                                         <span className="block text-xs tracking-widest text-amber-300" aria-label={`${hud.stars[i]} of 3 stars`}>
                                             {"★".repeat(hud.stars[i])}
@@ -1027,9 +1077,12 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         </div>
                         <div className="mt-5 flex items-center justify-between">
                             <button type="button" onClick={() => api.current.begin()} className="rounded-full bg-violet-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-violet-300">
-                                Mission {hud.level + 1}: {L.name}
+                                {sectionOf(hud.level) === "deep" ? "Deep space " : "Mission "}
+                                {place.n}: {L.name}
                             </button>
-                            <span className="font-mono text-xs text-neutral-400">★ {total}/{LEVELS.length * 3}</span>
+                            <span className="font-mono text-xs text-neutral-400">
+                                ★ {tabStars}/{tabMissions.length * 3}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -1062,7 +1115,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                     <button type="button" onClick={() => api.current.retry()} className="rounded-full border border-white/20 px-5 py-2.5 text-sm text-neutral-200 hover:border-white/40">
                                         Fly it again
                                     </button>
-                                    {hud.level < LEVELS.length - 1 && !isDaily ? (
+                                    {!lastInSection && !isDaily ? (
                                         <button type="button" onClick={() => api.current.next()} className="rounded-full bg-violet-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-violet-300">
                                             Next mission
                                         </button>
