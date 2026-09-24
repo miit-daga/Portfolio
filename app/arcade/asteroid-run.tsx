@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { trackEvent } from "@/lib/track";
+import { NoWebGL } from "./no-webgl";
 import { Board } from "./board";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
 import { alignStars, glowTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints } from "./space";
@@ -33,6 +34,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    const [noGl, setNoGl] = useState(false);
     const start = useRef<() => void>(() => {});
 
     useEffect(() => {
@@ -47,7 +49,14 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         }
 
         // ---- the scene -------------------------------------------------------
-        const renderer = new THREE.WebGLRenderer({ antialias: window.devicePixelRatio < 2, powerPreference: "high-performance" });
+        // (no 3D graphics in this browser: say so, rather than crash)
+        let renderer: THREE.WebGLRenderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ antialias: window.devicePixelRatio < 2, powerPreference: "high-performance" });
+        } catch {
+            setNoGl(true);
+            return;
+        }
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setClearColor(0x000000);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -695,6 +704,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         };
     }, []);
 
+    if (noGl) return <NoWebGL onExit={onExit} title="Asteroid Run" />;
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
             <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Asteroid Run: a 3D game" role="application" />

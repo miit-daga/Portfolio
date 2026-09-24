@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { trackEvent } from "@/lib/track";
 
@@ -20,6 +20,31 @@ function Loading() {
 }
 
 type Game = "run" | "stack" | "assist";
+
+// If a game throws, the arcade stays up: a note and a way back, not a crashed page
+class GameBoundary extends Component<{ onExit: () => void; children: ReactNode }, { failed: boolean }> {
+    state = { failed: false };
+    static getDerivedStateFromError() {
+        return { failed: true };
+    }
+    componentDidCatch(error: unknown) {
+        console.error("Arcade game failed:", error);
+    }
+    render() {
+        if (!this.state.failed) return this.props.children;
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black p-6 text-center text-white">
+                <div className="max-w-sm">
+                    <h1 className="font-display text-2xl font-bold">Something went wrong</h1>
+                    <p className="mt-2 text-sm text-neutral-400">The game stopped with an error. Try it again, or another one.</p>
+                    <button type="button" onClick={this.props.onExit} className="mt-5 rounded-full bg-teal-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-teal-300">
+                        Back to the arcade
+                    </button>
+                </div>
+            </div>
+        );
+    }
+}
 const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; best: string; bestKey: string; hue: string }[] = [
     {
         id: "assist",
@@ -91,9 +116,12 @@ export function Arcade() {
         return () => window.removeEventListener("keydown", onKey);
     }, [game]);
 
-    if (game === "run") return <AsteroidRun onExit={() => open(null)} />;
-    if (game === "stack") return <StackStation onExit={() => open(null)} />;
-    if (game === "assist") return <GravityAssist onExit={() => open(null)} />;
+    if (game)
+        return (
+            <GameBoundary key={game} onExit={() => open(null)}>
+                {game === "run" ? <AsteroidRun onExit={() => open(null)} /> : game === "stack" ? <StackStation onExit={() => open(null)} /> : <GravityAssist onExit={() => open(null)} />}
+            </GameBoundary>
+        );
 
     return (
         <section className="relative z-10 mx-auto grid w-full max-w-5xl gap-5 px-4 pb-10 md:grid-cols-2 md:px-6 lg:max-w-6xl lg:grid-cols-3">

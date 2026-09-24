@@ -5,6 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { trackEvent } from "@/lib/track";
+import { NoWebGL } from "./no-webgl";
 import { Board } from "./board";
 import { dailyMission, dayKey } from "./assist-daily";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
@@ -176,6 +177,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
+    const [noGl, setNoGl] = useState(false);
     const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void; daily: (l: Level) => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {}, daily() {} });
     // Today's sky: fetched from the server, so everyone flies the same one
     const [today] = useState(() => dayKey());
@@ -206,7 +208,14 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         let stars = loadProgress();
 
         // ---- the scene -------------------------------------------------------
-        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        // (no 3D graphics in this browser: say so, rather than crash)
+        let renderer: THREE.WebGLRenderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        } catch {
+            setNoGl(true);
+            return;
+        }
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setClearColor(0x000000);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -918,6 +927,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const tabMissions = inSection(tab);
     const tabStars = tabMissions.reduce((a, i) => a + hud.stars[i], 0);
     const lastInSection = place.n === place.of;
+    if (noGl) return <NoWebGL onExit={onExit} title="Gravity Assist" />;
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
             <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Gravity Assist: a 3D game" role="application" />
