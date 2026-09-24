@@ -53,6 +53,9 @@ const Home = () => {
   const [showEnterScreen, setShowEnterScreen] = useState(false);
   // Set as the entry starts: the site renders behind the Big Bang and is revealed by it
   const [revealing, setRevealing] = useState(false);
+  // The entry to start on: the Big Bang after a Big Crunch, otherwise the
+  // porthole; the visitor can switch either way before entering
+  const [entry, setEntry] = useState<"bang" | "porthole" | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // COSMIC EVENT STATE
@@ -70,6 +73,10 @@ const Home = () => {
     // so without this it would inherit the portal screen.
     const embedded = new URLSearchParams(window.location.search).get("embed") === "1";
     const hasEntered = sessionStorage.getItem("hasEnteredCosmos");
+    if (sessionStorage.getItem("after-big-crunch")) {
+      sessionStorage.removeItem("after-big-crunch");
+      setEntry("bang");
+    }
     if (!hasEntered && !embedded) {
       setShowEnterScreen(true);
     }
@@ -146,7 +153,8 @@ const Home = () => {
       // 3. Scroll to top instantly
       window.scrollTo(0, 0);
 
-      // 4. Force Reload to Trigger Big Bang via EnterScreen
+      // 4. Force Reload to Trigger Big Bang via EnterScreen (it starts on the Big Bang this once)
+      sessionStorage.setItem("after-big-crunch", "1");
       window.location.reload();
     }, 2500); // 2.5s duration matches the sound effect
   };
@@ -226,7 +234,7 @@ const Home = () => {
 
       <AnimatePresence>
         {showEnterScreen && (
-          <EnterScreen onAnimationComplete={handleEnterComplete} onReveal={() => setRevealing(true)} />
+          <EnterScreen onAnimationComplete={handleEnterComplete} onReveal={() => setRevealing(true)} variant={entry ?? undefined} />
         )}
       </AnimatePresence>
 

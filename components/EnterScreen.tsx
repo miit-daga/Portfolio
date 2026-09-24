@@ -8,6 +8,8 @@ interface EnterScreenProps {
     onAnimationComplete: () => void
     /** Called as the transition starts, so the site can render behind it and be revealed, not swapped in */
     onReveal?: () => void
+    /** The entry to start on (the Big Bang after a Big Crunch); otherwise the porthole */
+    variant?: "bang" | "porthole"
 }
 
 // 3D-projected starfield: gentle outward drift while idle, hyperspace streaks on enter.
@@ -27,6 +29,78 @@ const SPARKS = Array.from({ length: 34 }, (_, i) => {
     const a = (i / 34) * Math.PI * 2 + ((i * 37) % 10) / 20
     return { a, d: 0.35 + ((i * 53) % 40) / 100, s: 2 + ((i * 29) % 4), c: i % 3 === 0 ? "#a5b4fc" : i % 3 === 1 ? "#99f6e4" : "#ffffff", delay: ((i * 17) % 10) / 100 }
 })
+
+// Through the porthole: the glass becomes a window onto the site, and it grows
+// until it fills the screen, stars streaking past its rim as you go through
+const PORTHOLE_MS = 1300
+const ENTRIES = [
+    { id: "porthole", label: "Porthole", hint: "fly through the window" },
+    { id: "bang", label: "Big Bang", hint: "collapse, then bang (with sound)" },
+] as const
+
+// Quieter than the bang: a glassy chime as the window opens, an airy rush
+// rising as you fly at it, and a soft swell as you pass through
+function playPorthole() {
+    try {
+        const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+        if (!AC) return
+        const a = new AC()
+        const t = a.currentTime + 0.02
+        const dur = PORTHOLE_MS / 1000
+        const out = a.createGain()
+        out.gain.value = 0.9
+        out.connect(a.destination)
+        // the chime
+        ;[1318.5, 1975.5, 2637].forEach((f, i) => {
+            const o = a.createOscillator()
+            o.frequency.value = f
+            const g = a.createGain()
+            const at = t + i * 0.06
+            g.gain.setValueAtTime(0.0001, at)
+            g.gain.exponentialRampToValueAtTime(0.05 - i * 0.012, at + 0.02)
+            g.gain.exponentialRampToValueAtTime(0.0001, at + 1.4)
+            o.connect(g).connect(out)
+            o.start(at)
+            o.stop(at + 1.5)
+        })
+        // the rush of air, rising
+        const buf = a.createBuffer(1, Math.floor(a.sampleRate * (dur + 0.4)), a.sampleRate)
+        const d = buf.getChannelData(0)
+        for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+        const rush = a.createBufferSource()
+        rush.buffer = buf
+        const bp = a.createBiquadFilter()
+        bp.type = "bandpass"
+        bp.Q.value = 0.8
+        bp.frequency.setValueAtTime(300, t)
+        bp.frequency.exponentialRampToValueAtTime(2800, t + dur * 0.75)
+        bp.frequency.exponentialRampToValueAtTime(900, t + dur + 0.3)
+        const rg = a.createGain()
+        rg.gain.setValueAtTime(0.0001, t)
+        rg.gain.exponentialRampToValueAtTime(0.12, t + dur * 0.7)
+        rg.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.35)
+        rush.connect(bp).connect(rg).connect(out)
+        rush.start(t)
+        // the swell, passing through
+        const o = a.createOscillator()
+        o.type = "triangle"
+        o.frequency.setValueAtTime(90, t + dur * 0.6)
+        o.frequency.exponentialRampToValueAtTime(180, t + dur)
+        const lp = a.createBiquadFilter()
+        lp.type = "lowpass"
+        lp.frequency.value = 600
+        const og = a.createGain()
+        og.gain.setValueAtTime(0.0001, t + dur * 0.6)
+        og.gain.exponentialRampToValueAtTime(0.18, t + dur * 0.85)
+        og.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.6)
+        o.connect(lp).connect(og).connect(out)
+        o.start(t + dur * 0.6)
+        o.stop(t + dur + 0.7)
+        window.setTimeout(() => a.close().catch(() => {}), PORTHOLE_MS + 2500)
+    } catch {
+        /* no sound, still a window */
+    }
+}
 
 // A rush as everything is drawn in, cut dead just before the bang so it lands
 // on silence; then the bang itself, in layers: a crack, a punch pitched where
@@ -206,13 +280,25 @@ function playBigBang() {
     }
 }
 
-export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps) => {
+export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScreenProps) => {
+    // The visitor picks the entry under the portal, fresh each time
+    const [choice, setChoice] = useState<"bang" | "porthole">(variant ?? "porthole")
+    const porthole = choice === "porthole"
+    // Through the porthole: the window's centre (the button's) and its reach
+    const buttonRef = useRef<HTMLButtonElement>(null)
+    const holeX = useMotionValue(0)
+    const holeY = useMotionValue(0)
+    const holeCentre = useRef<{ x: number; y: number } | null>(null)
+    const [origin, setOrigin] = useState("50% 50%")
     const [isTransitioning, setIsTransitioning] = useState(false)
     const [banged, setBanged] = useState(false)
     // the shockwave's radius: the void is cut away inside it
     const radius = useMotionValue(0)
     const holeEdge = useTransform(radius, (r) => r + 2)
     const holeMask = useMotionTemplate`radial-gradient(circle at 50% 50%, transparent ${radius}px, #000 ${holeEdge}px)`
+    const windowMask = useMotionTemplate`radial-gradient(circle at ${holeX}px ${holeY}px, transparent ${radius}px, #000 ${holeEdge}px)`
+    const rimLeft = useTransform(holeX, (x) => x)
+    const rimTop = useTransform(holeY, (y) => y)
     const ringSize = useTransform(radius, (r) => r * 2 + 8)
     const reduce = useReducedMotion()
 
@@ -239,16 +325,33 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
             setTimeout(onAnimationComplete, 450)
             return
         }
+        if (porthole) {
+            // the window opens where the glass is, and grows past the farthest corner
+            const r = buttonRef.current?.getBoundingClientRect()
+            const x = r ? r.left + r.width / 2 : window.innerWidth / 2
+            const y = r ? r.top + r.height / 2 : window.innerHeight / 2
+            holeX.set(x)
+            holeY.set(y)
+            holeCentre.current = { x, y }
+            setOrigin(`${x}px ${y}px`)
+            const reach = Math.max(Math.hypot(x, y), Math.hypot(window.innerWidth - x, y), Math.hypot(x, window.innerHeight - y), Math.hypot(window.innerWidth - x, window.innerHeight - y)) + 40
+            radius.set(r ? r.width / 2 - 10 : 50)
+            animate(radius, reach, { duration: PORTHOLE_MS / 1000, ease: [0.7, 0, 0.2, 1] })
+            playPorthole()
+            setTimeout(onAnimationComplete, PORTHOLE_MS + 50)
+            return
+        }
         playBigBang()
         setTimeout(() => {
             setBanged(true)
             animate(radius, Math.hypot(window.innerWidth, window.innerHeight) / 2 + 40, { duration: RING_MS / 1000, ease: [0.16, 1, 0.3, 1] })
         }, BANG_AT)
         setTimeout(onAnimationComplete, ENTER_MS)
-    }, [onAnimationComplete, onReveal, reduce, radius])
+    }, [onAnimationComplete, onReveal, reduce, radius, porthole, holeX, holeY])
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.target as HTMLElement | null)?.closest?.("[data-entry-choice]")) return
             if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault()
                 handleEnterClick()
@@ -368,10 +471,46 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
             ctx.globalAlpha = 1
         }
 
+        // Through the porthole: the stars streak outward from the window as you
+        // fly at it, fastest mid-way, and are gone as it passes the screen
+        const drawThrough = (t: number, dtNorm: number) => {
+            const c = holeCentre.current ?? { x: w / 2, y: h / 2 }
+            const x = Math.min(1, t / PORTHOLE_MS)
+            const lv = Math.sin(Math.PI * Math.min(1, x * 1.15))
+            ctx.clearRect(0, 0, w, h)
+            const speed = (IDLE_SPEED + lv * lv * 0.12) * dtNorm
+            const scale = Math.min(w, h) * 0.5
+            const at = (s: Star, z: number) => ({ x: c.x + (s.x / z) * scale, y: c.y + (s.y / z) * scale })
+            for (const s of stars) {
+                s.pz = s.z
+                s.z -= speed
+                if (s.z <= 0.04) {
+                    initStar(s)
+                    continue
+                }
+                const cur = at(s, s.z)
+                if (cur.x < -80 || cur.x > w + 80 || cur.y < -80 || cur.y > h + 80) {
+                    initStar(s)
+                    continue
+                }
+                const depth = 1 - s.z
+                ctx.globalAlpha = Math.min(1, 0.3 + depth * 0.7) * (1 - x * 0.6)
+                const prev = at(s, s.pz)
+                ctx.strokeStyle = s.color
+                ctx.lineWidth = Math.max(0.6, depth * 2.2)
+                ctx.beginPath()
+                ctx.moveTo(prev.x, prev.y)
+                ctx.lineTo(cur.x, cur.y)
+                ctx.stroke()
+            }
+            ctx.globalAlpha = 1
+        }
+
         const loop = (now: number) => {
             const dtNorm = Math.min(3, (now - last) / 16.7)
             last = now
-            if (warpStartRef.current !== null) drawCollapse((now - warpStartRef.current) / COLLAPSE_MS)
+            if (warpStartRef.current !== null && porthole) drawThrough(now - warpStartRef.current, dtNorm)
+            else if (warpStartRef.current !== null) drawCollapse((now - warpStartRef.current) / COLLAPSE_MS)
             else drawFrame(0, dtNorm)
             raf = requestAnimationFrame(loop)
         }
@@ -382,7 +521,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
             cancelAnimationFrame(raf)
             window.removeEventListener("resize", setup)
         }
-    }, [reduce])
+    }, [reduce, porthole])
 
     return (
         <motion.div
@@ -394,8 +533,9 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
           {/* The void: the sky and the portal. The bang cuts it away from the middle out */}
           <motion.div
             className="absolute inset-0 bg-black"
-            // in place from the click (a hole of nothing), so the bang itself only grows it
-            style={isTransitioning && !reduce ? { maskImage: holeMask, WebkitMaskImage: holeMask } : undefined}
+            // cut away from the click: the Big Bang from the middle out (a hole of nothing
+            // until the bang), the porthole from the glass itself
+            style={isTransitioning && !reduce ? (porthole ? { maskImage: windowMask, WebkitMaskImage: windowMask } : { maskImage: holeMask, WebkitMaskImage: holeMask }) : undefined}
           >
             {/* Starfield */}
             <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
@@ -412,9 +552,17 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
             {/* Center content - the name paints immediately (LCP), no opacity-0 entrance */}
             <motion.div
                 className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center"
-                // drawn in to the centre with the stars
-                animate={isTransitioning && !reduce ? { opacity: [1, 1, 0], scale: [1, 0.55, 0], filter: ["blur(0px)", "blur(1px)", "blur(6px)"] } : { opacity: 1, scale: 1, filter: "blur(0px)" }}
-                transition={{ duration: COLLAPSE_MS / 1000, ease: [0.55, 0, 0.9, 0.4], times: [0, 0.6, 1] }}
+                // the Big Bang draws it in to the centre with the stars; through the
+                // porthole, it swells past you from the window as you fly at it
+                style={porthole ? { transformOrigin: origin } : undefined}
+                animate={
+                    isTransitioning && !reduce
+                        ? porthole
+                            ? { opacity: [1, 0.9, 0], scale: [1, 1.25, 2.2], filter: ["blur(0px)", "blur(1px)", "blur(6px)"] }
+                            : { opacity: [1, 1, 0], scale: [1, 0.55, 0], filter: ["blur(0px)", "blur(1px)", "blur(6px)"] }
+                        : { opacity: 1, scale: 1, filter: "blur(0px)" }
+                }
+                transition={porthole ? { duration: 0.9, ease: [0.55, 0, 0.9, 0.4], times: [0, 0.5, 1] } : { duration: COLLAPSE_MS / 1000, ease: [0.55, 0, 0.9, 0.4], times: [0, 0.6, 1] }}
             >
                 <h1 className="font-display mb-4 bg-gradient-to-b from-white via-teal-100 to-slate-400 bg-clip-text pb-2 text-4xl font-light leading-[1.2] tracking-wide text-transparent sm:text-5xl md:text-6xl lg:text-7xl">
                     Miit Daga
@@ -426,6 +574,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
 
                 {/* Portal button */}
                 <motion.button
+                    ref={buttonRef}
                     onClick={handleEnterClick}
                     disabled={isTransitioning}
                     aria-label="Enter the portfolio"
@@ -455,13 +604,42 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
                 >
                     {enterHint}
                 </motion.p>
+
+                {/* The visitor's pick of entry */}
+                <motion.div
+                    data-entry-choice
+                    role="radiogroup"
+                    aria-label="How to enter"
+                    className="mt-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-600"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: isTransitioning ? 0 : 1 }}
+                    transition={{ duration: 0.5, delay: isTransitioning ? 0 : 0.7 }}
+                >
+                    <span>Entry</span>
+                    <span className="flex rounded-full border border-white/10 bg-white/[0.03] p-0.5">
+                        {ENTRIES.map((e) => (
+                            <button
+                                key={e.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={choice === e.id}
+                                title={e.hint}
+                                disabled={isTransitioning}
+                                onClick={() => setChoice(e.id)}
+                                className={`rounded-full px-2.5 py-1 tracking-[0.2em] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-teal-400 ${choice === e.id ? "bg-teal-400/15 text-teal-200" : "text-slate-500 hover:text-slate-300"}`}
+                            >
+                                {e.label}
+                            </button>
+                        ))}
+                    </span>
+                </motion.div>
             </motion.div>
 
           </motion.div>
 
             {/* The singularity: everything in one bright point, pulsing, then the bang */}
             <AnimatePresence>
-                {isTransitioning && !reduce && (
+                {isTransitioning && !reduce && !porthole && (
                     <motion.div
                         key="point"
                         aria-hidden
@@ -473,6 +651,27 @@ export const EnterScreen = ({ onAnimationComplete, onReveal }: EnterScreenProps)
                     />
                 )}
             </AnimatePresence>
+
+            {/* The porthole's rim, riding the edge of the window as it grows */}
+            {porthole && isTransitioning && !reduce && (
+                <motion.div
+                    aria-hidden
+                    className="pointer-events-none absolute rounded-full"
+                    style={{
+                        left: rimLeft,
+                        top: rimTop,
+                        width: ringSize,
+                        height: ringSize,
+                        x: "-50%",
+                        y: "-50%",
+                        border: "2px solid rgba(94,234,212,0.85)",
+                        boxShadow: "0 0 22px 4px rgba(45,212,191,0.45), inset 0 0 26px 2px rgba(45,212,191,0.3)",
+                    }}
+                    initial={{ opacity: 1 }}
+                    animate={{ opacity: [1, 1, 0] }}
+                    transition={{ duration: PORTHOLE_MS / 1000, times: [0, 0.55, 1] }}
+                />
+            )}
 
             {/* The shockwave, and the sparks it throws out */}
             {banged && (
