@@ -28,6 +28,12 @@ type Stage = {
 
 // A single climbing curve; the three markers sit on it
 const PATH = "M 70 172 C 260 176, 390 160, 500 136 C 650 102, 800 52, 930 30";
+// Phones: the climb runs up the middle, from the pad at the bottom to the
+// orbit at the top, and the labels alternate either side of it, each in its
+// own row and half of the screen, so they never sit on the line however the
+// names wrap. In a 100 x 100 box stretched to the rows; it passes through
+// each marker (the centres of the three rows) with a gentle sway between
+const PHONE_PATH = "M 50 100 C 50 94, 50 90, 50 83.33 C 50 72, 52.5 62, 50 50 C 47.5 38, 50 28, 50 16.67 C 50 10, 50 6, 50 4"
 const STAGES: Stage[] = [
     {
         tag: "Launch",
@@ -84,7 +90,7 @@ export function Education() {
             <div className="mx-auto mt-4 max-w-5xl px-6 md:px-8">
                 {/* ---------------- Trajectory ---------------- */}
                 <div className="relative">
-                    <svg viewBox="0 0 1000 200" className="block h-auto w-full overflow-visible" aria-hidden>
+                    <svg viewBox="0 0 1000 200" className="hidden h-auto w-full overflow-visible md:block" aria-hidden>
                         <defs>
                             <linearGradient id="edu-trail" x1="0" y1="0" x2="1" y2="0">
                                 <stop offset="0" stopColor={section.hex} stopOpacity="0.25" />
@@ -134,7 +140,7 @@ export function Education() {
                     </svg>
 
                     {/* Stage labels, placed over the markers */}
-                    <div className="mt-4 grid grid-cols-3 gap-3 md:mt-0 md:block">
+                    <div className="hidden md:block">
                         {STAGES.map((s, i) => {
                             const orbit = i === STAGES.length - 1;
                             return (
@@ -176,6 +182,81 @@ export function Education() {
                                 </motion.div>
                             );
                         })}
+                    </div>
+
+                    {/* Phones: the climb up the middle, labels either side of it */}
+                    <div className="relative mt-8 md:hidden">
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden>
+                            {/* its own gradient: the desktop one is in a hidden svg on phones */}
+                            <defs>
+                                <linearGradient id="edu-trail-phone" x1="0" y1="1" x2="0" y2="0">
+                                    <stop offset="0" stopColor={section.hex} stopOpacity="0.25" />
+                                    <stop offset="1" stopColor={section.light} stopOpacity="1" />
+                                </linearGradient>
+                            </defs>
+                            <path d={PHONE_PATH} fill="none" stroke="rgba(148,163,184,0.25)" strokeWidth="2" strokeDasharray="3 8" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                            <motion.path
+                                d={PHONE_PATH}
+                                fill="none"
+                                stroke="url(#edu-trail-phone)"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                vectorEffect="non-scaling-stroke"
+                                initial={reduce ? false : { pathLength: 0 }}
+                                whileInView={{ pathLength: 1 }}
+                                viewport={{ once: true, margin: "-80px" }}
+                                transition={{ duration: DRAW, ease: [0.45, 0, 0.2, 1] }}
+                                style={{ filter: `drop-shadow(0 0 6px rgba(${rgb},0.55))` }}
+                            />
+                        </svg>
+                        {/* newest at the top: the orbit, then stage 2, then the launch */}
+                        <div className="relative flex flex-col-reverse">
+                            {STAGES.map((s, i) => {
+                                const orbit = i === STAGES.length - 1;
+                                const right = i !== 1;
+                                return (
+                                    <div key={s.tag} className="relative grid min-h-[118px] grid-cols-2 items-center gap-x-12">
+                                        {/* the marker, on the line at the row's centre */}
+                                        <motion.span
+                                            aria-hidden
+                                            className="absolute left-1/2 top-1/2 block"
+                                            style={{ x: "-50%", y: "-50%" }}
+                                            initial={reduce ? false : { opacity: 0, scale: 0.4 }}
+                                            whileInView={{ opacity: 1, scale: 1 }}
+                                            viewport={{ once: true, margin: "-80px" }}
+                                            transition={{ duration: 0.4, delay: reduce ? 0 : (i / (STAGES.length - 1)) * DRAW * 0.92 }}
+                                        >
+                                            <svg width="64" height="40" viewBox="-32 -20 64 40" className="block overflow-visible">
+                                                {orbit && <ellipse cx="0" cy="0" rx="26" ry="9" fill="none" stroke={section.light} strokeOpacity="0.6" strokeWidth="1.5" transform="rotate(-14)" />}
+                                                <circle cx="0" cy="0" r={orbit ? 10 : 7} fill="#0b1020" stroke={orbit ? section.light : section.hex} strokeWidth="2.5" />
+                                                <circle cx="0" cy="0" r={orbit ? 4 : 2.8} fill={orbit ? section.pale : section.light} />
+                                                {/* the launch pad under the first */}
+                                                {i === 0 && (
+                                                    <g stroke="rgba(148,163,184,0.5)" strokeWidth="2" strokeLinecap="round">
+                                                        <path d="M -16 18 L 16 18 M -10 18 L -6 11 M 10 18 L 6 11" />
+                                                    </g>
+                                                )}
+                                            </svg>
+                                        </motion.span>
+                                        <motion.div
+                                            data-edu-phone-label
+                                            className={right ? "col-start-2 text-left" : "col-start-1 text-right"}
+                                            initial={reduce ? false : { opacity: 0, y: 8 }}
+                                            whileInView={{ opacity: 1, y: 0 }}
+                                            viewport={{ once: true, margin: "-80px" }}
+                                            transition={{ duration: 0.45, delay: reduce ? 0 : (i / (STAGES.length - 1)) * DRAW * 0.92 + 0.15 }}
+                                        >
+                                            <p className="font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: section.light }}>
+                                                <span className="block">{s.tag}</span>
+                                                <span className="block">{s.years}</span>
+                                            </p>
+                                            <p className="font-display mt-1 text-sm font-bold leading-snug text-white">{s.name}</p>
+                                            <p className="mt-0.5 font-mono text-[11px] text-neutral-300">{s.short}</p>
+                                        </motion.div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
