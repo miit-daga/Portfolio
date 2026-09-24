@@ -9,6 +9,7 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { dailyMission, dayKey } from "./assist-daily";
+import { decodeChallenge, encodeChallenge, type Challenge } from "./challenge";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
 import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, fly, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
@@ -39,21 +40,6 @@ type Result = {
     shot?: Shot;
     challenge?: { theirs: number; beat: boolean };
 };
-// A challenge link: the mission (its number, or "d" and today's date for
-// today's sky) and the winning shot, e.g. ?game=assist&c=9.-12345.62000.0.
-// The time to beat isn't in it: the shot is flown again here and timed, so
-// a link can't claim a better one than it really flies.
-type Challenge = { level: number; day?: string; angle: number; power: number; t: number };
-const encodeChallenge = (c: Challenge) =>
-    [c.day ? `d${c.day.replace(/-/g, "")}` : c.level, Math.round(c.angle * 1e5), Math.round(c.power * 1e5), Math.round(c.t * 1000)].join(".");
-function decodeChallenge(code: string): Challenge | null {
-    const m = /^(d\d{8}|\d{1,2})\.(-?\d{1,7})\.(\d{1,6})\.(\d{1,7})$/.exec(code);
-    if (!m) return null;
-    const day = m[1].startsWith("d") ? `${m[1].slice(1, 5)}-${m[1].slice(5, 7)}-${m[1].slice(7, 9)}` : undefined;
-    const power = Number(m[3]) / 1e5;
-    if (power < 0.1 || power > 1) return null;
-    return { level: day ? -1 : Number(m[1]), day, angle: Number(m[2]) / 1e5, power, t: Number(m[4]) / 1000 };
-}
 // The mission of the day is level -1; the best time today is kept here
 const DAILY = -1;
 const DAILY_BEST_KEY = "arcade-assist-daily";

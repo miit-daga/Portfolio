@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { CloseButton } from "../resume/close-button";
 import { Arcade } from "./arcade";
+import { decodeChallenge, flyChallenge, nameOf } from "./challenge";
 
-export const metadata: Metadata = {
+const base: Metadata = {
     title: "Arcade",
     description: "Three small 3D space games: Gravity Assist, Asteroid Run, and Stack the Station.",
     alternates: { canonical: "/arcade" },
@@ -21,6 +22,28 @@ export const metadata: Metadata = {
         description: "Three space games made for this site: Asteroid Run, Stack the Station and Gravity Assist, with real NASA skies.",
     },
 };
+
+// A challenge link (?game=assist&c=...) gets its own title and picture, the
+// friend's course and time (arcade/challenge-image), so the link itself makes
+// the case in a chat; the shot is flown again to time it. Any other link gets
+// the arcade's own (the share picture is opengraph-image.jpg, beside this file)
+export async function generateMetadata({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }): Promise<Metadata> {
+    const { c: code } = await searchParams;
+    const c = typeof code === "string" ? decodeChallenge(code) : null;
+    const flown = c ? flyChallenge(c) : null;
+    if (!c || !flown) return base;
+    const time = `${flown.flight.flight.toFixed(2)} s`;
+    const title = `Beat ${time} · Gravity Assist challenge`;
+    const description = `A friend reached ${nameOf(flown.level.bodies[flown.level.target])} in ${time} on ${flown.label}. Their course is in gold: can you beat their time?`;
+    const image = { url: `/arcade/challenge-image?c=${code}`, width: 1200, height: 630, alt: `${flown.label}: a friend's course, and ${time} to beat` };
+    return {
+        ...base,
+        title,
+        description,
+        openGraph: { ...base.openGraph, url: `/arcade?game=assist&c=${code}`, title, description, images: [image] },
+        twitter: { ...base.twitter, title, description, images: [image.url] },
+    };
+}
 
 // A fixed sky, the same on the server and in the browser
 const STARS = (() => {
