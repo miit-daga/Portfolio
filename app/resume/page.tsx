@@ -7,6 +7,20 @@ export const metadata: Metadata = {
     title: "Resume",
     description: "Resume of Miit Daga, Software Development Engineer.",
     alternates: { canonical: "/resume" },
+    // (the share picture is opengraph-image.jpg, beside this file)
+    openGraph: {
+        type: "website",
+        url: "/resume",
+        siteName: "Miit Daga",
+        title: "Miit Daga · Resume",
+        description: "Resume of Miit Daga, Software Development Engineer: B.Tech IT at VIT, 10 Scopus-indexed papers and a patent.",
+    },
+    twitter: {
+        card: "summary_large_image",
+        creator: "@miit_daga",
+        title: "Miit Daga · Resume",
+        description: "Resume of Miit Daga, Software Development Engineer.",
+    },
 };
 
 // The resume on the site itself: the Drive file in an embedded preview, with

@@ -6,6 +6,20 @@ export const metadata: Metadata = {
     title: "Arcade",
     description: "Three small 3D space games: Asteroid Run, Stack the Station, and Gravity Assist.",
     alternates: { canonical: "/arcade" },
+    // (the share picture is opengraph-image.jpg, beside this file)
+    openGraph: {
+        type: "website",
+        url: "/arcade",
+        siteName: "Miit Daga",
+        title: "Crew arcade · Miit Daga",
+        description: "Three space games made for this site: Asteroid Run, Stack the Station and Gravity Assist, with real NASA skies. In the browser, on any screen.",
+    },
+    twitter: {
+        card: "summary_large_image",
+        creator: "@miit_daga",
+        title: "Crew arcade · Miit Daga",
+        description: "Three space games made for this site: Asteroid Run, Stack the Station and Gravity Assist, with real NASA skies.",
+    },
 };
 
 // A fixed sky, the same on the server and in the browser
