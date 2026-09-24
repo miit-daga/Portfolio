@@ -7,7 +7,7 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
-import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints } from "./space";
+import { alignStars, fbm, loadTexture, normalMap, perlin, seededRandom, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 
 // Stack the Station: build a space station above the Earth, one module at a
 // time. Each module slides in over the last; tap, click or press Space to drop
@@ -31,7 +31,7 @@ const EARTH_AT = new THREE.Vector3(-Math.SQRT1_2 * Math.cos(0.87), -Math.sin(0.8
 const SUN = new THREE.Vector3(0.8, 0.5, 0.36).normalize();
 
 type Phase = "ready" | "playing" | "over";
-type Hud = { score: number; best: number; phase: Phase; perfect: number; streak: number; newBest: boolean };
+type Hud = { daily: boolean; score: number; best: number; phase: Phase; perfect: number; streak: number; newBest: boolean };
 
 // ---- the station's skins, drawn once --------------------------------------
 
@@ -224,11 +224,12 @@ const airFrag = /* glsl */ `
 
 export default function StackStation({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ score: 0, best: 0, phase: "ready", perfect: 0, streak: 0, newBest: false });
+    const [hud, setHud] = useState<Hud>({ daily: false, score: 0, best: 0, phase: "ready", perfect: 0, streak: 0, newBest: false });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
     const drop = useRef<() => void>(() => {});
+    const start = useRef<(daily?: boolean) => void>(() => {});
 
     useEffect(() => {
         const el = mount.current;
@@ -490,20 +491,27 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             station.add(l.group);
             return l;
         };
+        // Today's station: which side each module comes in from, and how fast
+        // it slides, seeded by the date, so everyone builds the same one
+        let daily = false;
+        let rnd = Math.random;
         const spawnMoving = () => {
             const top = layers[layers.length - 1];
             const axis: "x" | "z" = layers.length % 2 ? "x" : "z";
             const l = addLayer({ group: null as unknown as THREE.Group, w: top.w, d: top.d, x: top.x, z: top.z, y: top.y + H }, layers.length);
-            // it comes in from one side
-            if (axis === "x") l.x = top.x - RANGE;
-            else l.z = top.z - RANGE;
+            // it comes in from one side (on today's station, either)
+            const side = daily && rnd() < 0.5 ? 1 : -1;
+            if (axis === "x") l.x = top.x + side * RANGE;
+            else l.z = top.z + side * RANGE;
             l.group.position.set(l.x, l.y, l.z);
-            moving = { ...l, axis, dir: 1 };
+            moving = { ...l, axis, dir: -side };
         };
         const score = () => Math.max(0, layers.length - 1);
-        const pushHud = () => setHud({ score: score(), best, phase, perfect: perfectAt, streak, newBest });
+        const pushHud = () => setHud({ daily, score: score(), best, phase, perfect: perfectAt, streak, newBest });
 
-        const begin = () => {
+        const begin = (asDaily = daily) => {
+            daily = asDaily;
+            rnd = daily ? seededRandom(`stack:${todayKey()}`) : Math.random;
             clear();
             phase = "playing";
             speed = 3.2;
@@ -577,12 +585,13 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 sfxPlace(0);
             }
             layers.push(addLayer({ group: null as unknown as THREE.Group, w: nw, d: nd, x: nx, z: nz, y: m.y }, layers.length));
-            speed = Math.min(8, 3.2 + layers.length * 0.09);
+            speed = Math.min(8, 3.2 + layers.length * 0.09) * (daily ? 0.85 + rnd() * 0.4 : 1);
             moving = null;
             spawnMoving();
             pushHud();
         };
         drop.current = place;
+        start.current = (d?: boolean) => begin(d);
         const end = () => {
             phase = "over";
             const s = score();
@@ -779,16 +788,31 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 // a tap anywhere starts, as well as the button
                 <div className="pointer-events-none absolute inset-0 flex items-end justify-center p-6 pb-24 sm:items-center sm:pb-6">
                     <div className="pointer-events-auto max-w-sm rounded-2xl border border-teal-400/25 bg-black/60 p-6 text-center backdrop-blur-md">
-                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Build over" : "Crew arcade · 03"}</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? (hud.daily ? "Build over · today's station" : "Build over") : "Crew arcade · 03"}</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score} modules` : "Stack the Station"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">Your tallest station yet!</p>}
-                        {hud.phase === "over" && <Board game="stack-station" score={hud.score} format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />}
+                        {hud.phase === "over" &&
+                            (hud.daily ? (
+                                <Board key="daily" game="stack-daily" day={todayKey()} score={hud.score} title="Today's station" format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />
+                            ) : (
+                                <Board key="all" game="stack-station" score={hud.score} format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />
+                            ))}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
                             Drop each module onto the one below. Whatever hangs over the edge is sliced off, so line them up. Land one exactly for a Perfect.
                         </p>
-                        <button type="button" onClick={() => drop.current()} className="mt-5 rounded-full bg-teal-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-teal-300">
-                            {hud.phase === "over" ? "Build again" : "Start building"}
-                        </button>
+                        <div className="mt-5 flex flex-wrap justify-center gap-2">
+                            <button type="button" onClick={() => start.current(hud.phase === "over" ? undefined : false)} className="rounded-full bg-teal-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-teal-300">
+                                {hud.phase === "over" ? "Build again" : "Start building"}
+                            </button>
+                            {/* the same station for everyone today, with its own board */}
+                            <button
+                                type="button"
+                                onClick={() => start.current(!(hud.phase === "over" && hud.daily))}
+                                className="rounded-full border border-teal-300/40 px-5 py-2.5 text-sm text-teal-200 hover:border-teal-300/70"
+                            >
+                                {hud.phase === "over" && hud.daily ? "Build the open one" : "Today's station"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -65,17 +65,20 @@ export function Board({
     game,
     score,
     day,
+    mission,
     shot,
     lower = false,
     format = (n) => n.toLocaleString(),
     title = "Leaderboard",
 }: {
-    game: "asteroid-run" | "stack-station" | "assist-daily";
+    game: "asteroid-run" | "stack-station" | "assist-daily" | "assist-mission" | "run-daily" | "stack-daily";
     /** This run's score (for the daily mission, its time in hundredths) */
     score: number;
     day?: string;
-    /** The daily mission's winning shot, which the server flies again */
-    shot?: { angle: number; power: number };
+    /** For a Gravity Assist mission's board: which mission (its index) */
+    mission?: number;
+    /** Gravity Assist's winning shot, which the server flies again */
+    shot?: { angle: number; power: number; t?: number };
     lower?: boolean;
     format?: (n: number) => string;
     title?: string;
@@ -94,12 +97,12 @@ export function Board({
         }
         const ctl = new AbortController();
         retryPending();
-        fetch(`/api/leaderboard?game=${game}${day ? `&day=${day}` : ""}`, { signal: ctl.signal })
+        fetch(`/api/leaderboard?game=${game}${day ? `&day=${day}` : ""}${mission !== undefined ? `&mission=${mission}` : ""}`, { signal: ctl.signal })
             .then((r) => r.json())
             .then((d) => setRows(d?.configured === false || !d?.boards ? null : (d.boards[game] ?? [])))
             .catch(() => setRows(null));
         return () => ctl.abort();
-    }, [game, day]);
+    }, [game, day, mission]);
 
     if (!rows) return null;
     const last = rows[rows.length - 1];
@@ -115,7 +118,7 @@ export function Board({
         } catch {
             /* ignore */
         }
-        const post = { game, name, score, day, player: playerId(), ...shot };
+        const post = { game, name, score, day, mission: mission !== undefined ? String(mission) : undefined, player: playerId(), ...shot };
         try {
             const r = await fetch("/api/leaderboard", {
                 method: "POST",

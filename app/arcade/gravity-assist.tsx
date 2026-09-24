@@ -1421,6 +1421,9 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                     </p>
                                 )}
                                 <p className="mt-3 text-sm leading-relaxed text-neutral-300">{L.fact}</p>
+                                {!isDaily && hud.result.flight && hud.result.shot && (
+                                    <Board game="assist-mission" mission={hud.level} score={hud.result.flight} shot={hud.result.shot} lower format={fmtTime} title="Fastest on this mission" />
+                                )}
                                 {isDaily && hud.result.time && hud.result.shot && (
                                     <Board game="assist-daily" day={today} score={hud.result.time} shot={hud.result.shot} lower format={fmtTime} title="Today's fastest" />
                                 )}

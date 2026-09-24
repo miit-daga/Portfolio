@@ -13,6 +13,9 @@ export type GameKey =
   | "asteroid-run"
   | "stack-station"
   | "assist-daily"
+  | "assist-mission"
+  | "run-daily"
+  | "stack-daily"
   | "snake"
   | "invaders"
   | "dodge"
@@ -59,6 +62,29 @@ export const GAMES: Record<GameKey, GameMeta> = {
     why: "a flight gives up after 40 seconds",
     arcade: true,
     lower: true,
+  },
+  "assist-mission": {
+    label: "Gravity Assist, a mission",
+    storageKey: "arcade-assist-mission",
+    // a flight's time in hundredths, checked by flying it again, per mission
+    max: 4000,
+    why: "a flight gives up after 40 seconds",
+    arcade: true,
+    lower: true,
+  },
+  "run-daily": {
+    label: "Asteroid Run, today's field",
+    storageKey: "arcade-run-daily",
+    max: 400000,
+    why: "that is over an hour flat out without a scratch",
+    arcade: true,
+  },
+  "stack-daily": {
+    label: "Stack the Station, today's station",
+    storageKey: "arcade-stack-daily",
+    max: 5000,
+    why: "that is a module a second for well over an hour",
+    arcade: true,
   },
   snake: {
     label: "Snake",

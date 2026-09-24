@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { hasKv, kv, kvPipeline, readFile, storeReady, writeFile } from "@/lib/store";
 import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
 import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
-import { fly } from "@/app/arcade/assist-sim";
+import { LEVELS, fly } from "@/app/arcade/assist-sim";
 
 // Arcade leaderboards, stored as a second file inside the guestbook's gist.
 // A PATCH only touches the files it names, so leaderboard writes never disturb
@@ -151,16 +151,23 @@ async function redisBoards(keys: string[]): Promise<Row[][]> {
 // can be the next day in UTC); reading any past day is allowed
 const today = () => dayKey();
 const yesterday = () => dayKey(new Date(Date.now() - 86_400_000));
-const boardKey = (game: GameKey, day?: string | null) => (game === "assist-daily" ? `assist-daily:${day}` : game);
+// A daily board, one per day; Gravity Assist's missions, one board each
+const DAILY = new Set<GameKey>(["assist-daily", "run-daily", "stack-daily"]);
+const isMission = (m: unknown) => typeof m === "string" && /^\d{1,2}$/.test(m) && Number(m) < LEVELS.length;
+const boardKey = (game: GameKey, sub?: string | null) =>
+  DAILY.has(game) ? `${game}:${sub}` : game === "assist-mission" ? `assist-mission:${sub}` : game;
 
 export async function GET(request: Request) {
   if (!gistId()) return NextResponse.json({ configured: false, boards: {} });
 
   const params = new URL(request.url).searchParams;
   const game = params.get("game");
-  const day = params.get("day") ?? today();
-  if (game === "assist-daily" && !isDayKey(day)) {
+  const day = game === "assist-mission" ? params.get("mission") : params.get("day") ?? today();
+  if (game && DAILY.has(game as GameKey) && !isDayKey(day)) {
     return NextResponse.json({ error: "A day is YYYY-MM-DD." }, { status: 400 });
+  }
+  if (game === "assist-mission" && !isMission(day)) {
+    return NextResponse.json({ error: "Which mission?" }, { status: 400 });
   }
   if (game && !isGameKey(game)) {
     return NextResponse.json(
@@ -200,7 +207,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
-  const { game, name: rawName, score: rawScoreIn, player: rawPlayer, day: rawDay, angle, power } =
+  const { game, name: rawName, score: rawScoreIn, player: rawPlayer, day: rawDay, angle, power, t: rawT, mission: rawMission } =
     (body ?? {}) as Record<string, unknown>;
   let rawScore = rawScoreIn;
   const player = typeof rawPlayer === "string" && /^[a-f0-9]{8,32}$/i.test(rawPlayer)
@@ -218,8 +225,31 @@ export async function POST(request: Request) {
   const bestOf = (xs: number[]) => (meta.lower ? Math.min(...xs) : Math.max(...xs));
   const worstOf = (xs: number[]) => (meta.lower ? Math.max(...xs) : Math.min(...xs));
 
-  // The mission of the day: fly the shot again, and time it here
+  // The daily boards take today's (or yesterday's, for a late evening)
   let day: string | undefined;
+  if (DAILY.has(game) && game !== "assist-daily") {
+    if (!isDayKey(rawDay) || (rawDay !== today() && rawDay !== yesterday())) {
+      return NextResponse.json({ error: "That day's board has closed." }, { status: 400 });
+    }
+    day = rawDay;
+  }
+  // A Gravity Assist mission: fly the shot again, from when it was launched, and time it here
+  if (game === "assist-mission") {
+    const m = String(rawMission ?? "");
+    const a = Number(angle);
+    const pw = Number(power);
+    const t = Number(rawT ?? 0);
+    if (!isMission(m) || !Number.isFinite(a) || !Number.isFinite(pw) || pw < 0.1 || pw > 1 || !Number.isFinite(t) || t < 0 || t > 600) {
+      return NextResponse.json({ error: "Send the winning shot: the mission, its angle, power and launch time." }, { status: 400 });
+    }
+    day = m;
+    const flight = fly(LEVELS[Number(m)], a, pw, t);
+    if (flight.state !== "arrived") {
+      return NextResponse.json({ error: "That shot doesn't arrive when flown again here." }, { status: 400 });
+    }
+    rawScore = Math.max(1, Math.round(flight.flight * 100));
+  }
+  // The mission of the day: fly the shot again, and time it here
   if (game === "assist-daily") {
     if (!isDayKey(rawDay) || (rawDay !== today() && rawDay !== yesterday())) {
       return NextResponse.json({ error: "That mission of the day has closed." }, { status: 400 });
@@ -293,7 +323,7 @@ export async function POST(request: Request) {
       const entry: Entry = { name, score, at: new Date().toISOString(), ipHash, player };
       await kvPipeline([
         ["HSET", `lbe:${key}`, id, JSON.stringify(entry)],
-        ...(game === "assist-daily" ? [["EXPIRE", `lbe:${key}`, 8 * 86_400] as (string | number)[]] : []),
+        ...(DAILY.has(game) ? [["EXPIRE", `lbe:${key}`, 8 * 86_400] as (string | number)[]] : []),
       ]);
       // then take away whatever has fallen off, as the board stands now
       const now = (await redisBoards([key]))[0].sort(sort);
@@ -442,7 +472,7 @@ export async function DELETE(request: Request) {
     await new Promise((r) => setTimeout(r, 600));
     return NextResponse.json({ error: "Rejected." }, { status: 401 });
   }
-  if (!isGameKey(game) || (game === "assist-daily" && !isDayKey(day))) {
+  if (!isGameKey(game) || (DAILY.has(game) && !isDayKey(day)) || (game === "assist-mission" && !isMission(day))) {
     return NextResponse.json({ error: "Which board?" }, { status: 400 });
   }
   try {

@@ -6,7 +6,7 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
-import { alignStars, glowTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints } from "./space";
+import { alignStars, glowTexture, rockGeometry, rockMaterial, seededRandom, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
@@ -28,15 +28,15 @@ type Phase = "ready" | "playing" | "over";
 type Power = "star" | "boost";
 const POWER_TIME: Record<Power, number> = { star: 6, boost: 4 };
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
-type Hud = { score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
+type Hud = { daily: boolean; score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
 
 export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
+    const [hud, setHud] = useState<Hud>({ daily: false, score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
-    const start = useRef<() => void>(() => {});
+    const start = useRef<(daily?: boolean) => void>(() => {});
 
     useEffect(() => {
         const el = mount.current;
@@ -255,8 +255,13 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         let ringTimer = 0;
         let shieldAt = 0;
         // the first comes soon after a shield is lost, then now and then while one is down
-        const nextRing = () => 12 + Math.random() * 8;
-        const soonRing = () => 5 + Math.random() * 4;
+        // The field's own randomness: the rocks, fragments, rings and
+        // power-ups. On today's field it's seeded by the date, so everyone
+        // flies the same one (the dust and the flicker stay random)
+        let rnd = Math.random;
+        let daily = false;
+        const nextRing = () => 12 + rnd() * 8;
+        const soonRing = () => 5 + rnd() * 4;
 
         // The power-ups. A golden star (two interlocked tetrahedra) for
         // invincibility, a violet double arrow for the boost
@@ -300,7 +305,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const pickups: Record<Power, THREE.Group> = { star: starPickup, boost: arrowPickup };
         let pickupLive: Power | null = null;
         let pickupTimer = 0;
-        const nextPickup = () => 18 + Math.random() * 12;
+        const nextPickup = () => 18 + rnd() * 12;
         // the one running now, and how long it has left
         let power: Power | null = null;
         let powerLeft = 0;
@@ -341,29 +346,31 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const spawnRock = (aimed: boolean) => {
             const r = rocks.find((x) => !x.live);
             if (!r) return;
-            const scale = 0.7 + Math.random() * 1.7;
+            const scale = 0.7 + rnd() * 1.7;
             r.r = scale * 0.92;
             r.mesh.scale.setScalar(scale);
-            const x = aimed ? shipPos.x + (Math.random() - 0.5) * 2 : (Math.random() - 0.5) * (BOUNDS.x * 2 + 6);
-            const y = aimed ? shipPos.y + (Math.random() - 0.5) * 1.5 : (Math.random() - 0.5) * (BOUNDS.y * 2 + 4);
-            r.mesh.position.set(x, y, FAR - Math.random() * 20);
-            r.mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
-            r.spin.set((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6);
+            const x = aimed ? shipPos.x + (rnd() - 0.5) * 2 : (rnd() - 0.5) * (BOUNDS.x * 2 + 6);
+            const y = aimed ? shipPos.y + (rnd() - 0.5) * 1.5 : (rnd() - 0.5) * (BOUNDS.y * 2 + 4);
+            r.mesh.position.set(x, y, FAR - rnd() * 20);
+            r.mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
+            r.spin.set((rnd() - 0.5) * 1.6, (rnd() - 0.5) * 1.6, (rnd() - 0.5) * 1.6);
             r.live = true;
             r.mesh.visible = true;
         };
         const spawnFrag = () => {
             const f = frags.find((x) => !x.live);
             if (!f) return;
-            f.mesh.position.set((Math.random() - 0.5) * BOUNDS.x * 1.8, (Math.random() - 0.5) * BOUNDS.y * 1.8, FAR);
+            f.mesh.position.set((rnd() - 0.5) * BOUNDS.x * 1.8, (rnd() - 0.5) * BOUNDS.y * 1.8, FAR);
             f.live = true;
             f.mesh.visible = true;
         };
         const score = () => Math.floor(distance / 10) + bonus;
         const pushHud = () =>
-            setHud({ score: score(), shields, speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt, power, powerLeft });
+            setHud({ daily, score: score(), shields, speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt, power, powerLeft });
 
-        const begin = () => {
+        const begin = (asDaily = daily) => {
+            daily = asDaily;
+            rnd = daily ? seededRandom(`run:${todayKey()}`) : Math.random;
             clearField();
             phase = "playing";
             speed = 26;
@@ -557,13 +564,13 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             if (playing) {
                 rockTimer -= dt;
                 if (rockTimer <= 0) {
-                    spawnRock(Math.random() < 0.28 + Math.min(0.3, time / 120));
+                    spawnRock(rnd() < 0.28 + Math.min(0.3, time / 120));
                     rockTimer = Math.max(0.08, 0.42 - time / 150);
                 }
                 fragTimer -= dt;
                 if (fragTimer <= 0) {
                     spawnFrag();
-                    fragTimer = 2.2 + Math.random() * 1.6;
+                    fragTimer = 2.2 + rnd() * 1.6;
                 }
             }
             for (const r of rocks) {
@@ -629,7 +636,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             if (playing && !ringLive && shields < SHIELDS) {
                 ringTimer -= dt;
                 if (ringTimer <= 0) {
-                    shieldRing.position.set((Math.random() - 0.5) * BOUNDS.x * 1.6, (Math.random() - 0.5) * BOUNDS.y * 1.6, FAR);
+                    shieldRing.position.set((rnd() - 0.5) * BOUNDS.x * 1.6, (rnd() - 0.5) * BOUNDS.y * 1.6, FAR);
                     ringLive = true;
                     shieldRing.visible = true;
                     ringTimer = nextRing();
@@ -659,8 +666,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             if (playing && !pickupLive && !power) {
                 pickupTimer -= dt;
                 if (pickupTimer <= 0) {
-                    pickupLive = Math.random() < 0.5 ? "star" : "boost";
-                    pickups[pickupLive].position.set((Math.random() - 0.5) * BOUNDS.x * 1.5, (Math.random() - 0.5) * BOUNDS.y * 1.5, FAR);
+                    pickupLive = rnd() < 0.5 ? "star" : "boost";
+                    pickups[pickupLive].position.set((rnd() - 0.5) * BOUNDS.x * 1.5, (rnd() - 0.5) * BOUNDS.y * 1.5, FAR);
                     pickups[pickupLive].visible = true;
                     pickupTimer = nextPickup();
                 }
@@ -801,12 +808,16 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             {hud.phase !== "playing" && loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                     <div className="max-w-sm rounded-2xl border border-teal-400/25 bg-black/60 p-6 text-center backdrop-blur-md">
-                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Run over" : "Crew arcade · 02"}</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? (hud.daily ? "Run over · today's field" : "Run over") : "Crew arcade · 02"}</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score.toLocaleString()} points` : "Asteroid Run"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">A new best!</p>}
                         {hud.phase === "over" && (
                             <div className="pointer-events-auto">
-                                <Board game="asteroid-run" score={hud.score} />
+                                {hud.daily ? (
+                                    <Board key="daily" game="run-daily" day={todayKey()} score={hud.score} title="Today's field" />
+                                ) : (
+                                    <Board key="all" game="asteroid-run" score={hud.score} />
+                                )}
                             </div>
                         )}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
@@ -816,13 +827,23 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                             <span className="hidden sm:inline">Arrows / WASD or the mouse · M to mute</span>
                             <span className="sm:hidden">Drag anywhere to steer</span>
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => start.current()}
-                            className="pointer-events-auto mt-5 rounded-full bg-teal-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-teal-300"
-                        >
-                            {hud.phase === "over" ? "Fly again" : "Launch"}
-                        </button>
+                        <div className="mt-5 flex flex-wrap justify-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => start.current(hud.phase === "over" ? undefined : false)}
+                                className="pointer-events-auto rounded-full bg-teal-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-teal-300"
+                            >
+                                {hud.phase === "over" ? "Fly again" : "Launch"}
+                            </button>
+                            {/* the same field for everyone today, with its own board */}
+                            <button
+                                type="button"
+                                onClick={() => start.current(!(hud.phase === "over" && hud.daily))}
+                                className="pointer-events-auto rounded-full border border-teal-300/40 px-5 py-2.5 text-sm text-teal-200 hover:border-teal-300/70"
+                            >
+                                {hud.phase === "over" && hud.daily ? "Play the open field" : "Today's field"}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
