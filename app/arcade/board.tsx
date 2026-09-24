@@ -66,6 +66,7 @@ export function Board({
     score,
     day,
     mission,
+    drops,
     shot,
     lower = false,
     format = (n) => n.toLocaleString(),
@@ -77,6 +78,8 @@ export function Board({
     day?: string;
     /** For a Gravity Assist mission's board: which mission (its index) */
     mission?: number;
+    /** Stack the Station's drop times, which the server replays to count the modules */
+    drops?: number[];
     /** Gravity Assist's winning shot, which the server flies again */
     shot?: { angle: number; power: number; t?: number };
     lower?: boolean;
@@ -118,7 +121,7 @@ export function Board({
         } catch {
             /* ignore */
         }
-        const post = { game, name, score, day, mission: mission !== undefined ? String(mission) : undefined, player: playerId(), ...shot };
+        const post = { game, name, score, day, mission: mission !== undefined ? String(mission) : undefined, drops, player: playerId(), ...shot };
         try {
             const r = await fetch("/api/leaderboard", {
                 method: "POST",

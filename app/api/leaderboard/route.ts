@@ -3,6 +3,7 @@ import { hasKv, kv, kvPipeline, readFile, storeReady, writeFile } from "@/lib/st
 import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
 import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
 import { LEVELS, fly } from "@/app/arcade/assist-sim";
+import { replay as replayStack } from "@/app/arcade/stack-sim";
 
 // Arcade leaderboards, stored as a second file inside the guestbook's gist.
 // A PATCH only touches the files it names, so leaderboard writes never disturb
@@ -14,7 +15,12 @@ import { LEVELS, fly } from "@/app/arcade/assist-sim";
 // arrival. That one is the exception to what follows: the client sends the
 // shot (angle and power), and the server flies it again and times it itself.
 //
-// Honest about what this is: scores originate on the client, so they cannot be
+// Two are checked here rather than taken on trust: Gravity Assist's times
+// (its shot flown again) and Stack the Station's modules (its drop times
+// replayed, stack-sim.ts). A bot playing perfectly would still pass: they
+// prove a score can be had by the rules, not that a person had it.
+//
+// Honest about the rest: their scores originate on the client, so they cannot be
 // verified. The ceilings in constants/games.ts and the rate limit below only
 // stop the board becoming immediately worthless. Anyone determined enough to
 // read this file can still post a plausible lie, and that is fine.
@@ -207,7 +213,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
-  const { game, name: rawName, score: rawScoreIn, player: rawPlayer, day: rawDay, angle, power, t: rawT, mission: rawMission } =
+  const { game, name: rawName, score: rawScoreIn, player: rawPlayer, day: rawDay, angle, power, t: rawT, mission: rawMission, drops } =
     (body ?? {}) as Record<string, unknown>;
   let rawScore = rawScoreIn;
   const player = typeof rawPlayer === "string" && /^[a-f0-9]{8,32}$/i.test(rawPlayer)
@@ -248,6 +254,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That shot doesn't arrive when flown again here." }, { status: 400 });
     }
     rawScore = Math.max(1, Math.round(flight.flight * 100));
+  }
+  // Stack the Station: the build is replayed from its drop times, and the
+  // modules it stood are counted here (the score sent is ignored)
+  if (game === "stack-station" || game === "stack-daily") {
+    const counted = replayStack(drops, game === "stack-daily" ? day : null);
+    if (counted === null) {
+      return NextResponse.json({ error: "Send the build: its drop times." }, { status: 400 });
+    }
+    if (counted <= 0) return NextResponse.json({ error: "That build stood no modules." }, { status: 400 });
+    rawScore = counted;
   }
   // The mission of the day: fly the shot again, and time it here
   if (game === "assist-daily") {

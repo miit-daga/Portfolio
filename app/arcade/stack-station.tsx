@@ -7,7 +7,8 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
-import { alignStars, fbm, loadTexture, normalMap, perlin, seededRandom, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { BASE, H, drop as dropModule, movingAt, newStack, roundTime, type Stack } from "./stack-sim";
 
 // Stack the Station: build a space station above the Earth, one module at a
 // time. Each module slides in over the last; tap, click or press Space to drop
@@ -17,10 +18,7 @@ import { alignStars, fbm, loadTexture, normalMap, perlin, seededRandom, skyTextu
 // little. The best station is kept in this browser.
 
 const BEST_KEY = "arcade-stack-best";
-const H = 0.5; // a module's height
-const BASE = 3.2; // the hub's width and depth
-const PERFECT = 0.08; // within this of the one below counts as perfect
-const RANGE = 4.2; // how far a module swings either side
+// (the rules, and the sizes, are in stack-sim.ts, shared with the server)
 
 // The Earth: seen from high orbit, so its curve shows, and filling the view
 // below and ahead. It sits along the camera's line of sight, 50° down.
@@ -31,7 +29,7 @@ const EARTH_AT = new THREE.Vector3(-Math.SQRT1_2 * Math.cos(0.87), -Math.sin(0.8
 const SUN = new THREE.Vector3(0.8, 0.5, 0.36).normalize();
 
 type Phase = "ready" | "playing" | "over";
-type Hud = { daily: boolean; score: number; best: number; phase: Phase; perfect: number; streak: number; newBest: boolean };
+type Hud = { drops: number[]; daily: boolean; score: number; best: number; phase: Phase; perfect: number; streak: number; newBest: boolean };
 
 // ---- the station's skins, drawn once --------------------------------------
 
@@ -224,7 +222,7 @@ const airFrag = /* glsl */ `
 
 export default function StackStation({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ daily: false, score: 0, best: 0, phase: "ready", perfect: 0, streak: 0, newBest: false });
+    const [hud, setHud] = useState<Hud>({ drops: [], daily: false, score: 0, best: 0, phase: "ready", perfect: 0, streak: 0, newBest: false });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
@@ -464,9 +462,12 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
 
         // ---- the build -------------------------------------------------------
         let phase: Phase = "ready";
+        // the meshes of the station as built, and the one sliding in; the
+        // build itself, and its rules, are the sim's
         let layers: Layer[] = [];
-        let moving: (Layer & { axis: "x" | "z"; dir: number }) | null = null;
-        let speed = 3.2;
+        let moving: { group: THREE.Group; since: number } | null = null;
+        let sim: Stack = newStack();
+        let drops: number[] = [];
         let streak = 0;
         let perfectAt = 0;
         let newBest = false;
@@ -492,29 +493,25 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             return l;
         };
         // Today's station: which side each module comes in from, and how fast
-        // it slides, seeded by the date, so everyone builds the same one
+        // it slides, seeded by the date (in the sim), so everyone builds the same one
         let daily = false;
-        let rnd = Math.random;
+        const clock = () => performance.now() / 1000;
         const spawnMoving = () => {
-            const top = layers[layers.length - 1];
-            const axis: "x" | "z" = layers.length % 2 ? "x" : "z";
-            const l = addLayer({ group: null as unknown as THREE.Group, w: top.w, d: top.d, x: top.x, z: top.z, y: top.y + H }, layers.length);
-            // it comes in from one side (on today's station, either)
-            const side = daily && rnd() < 0.5 ? 1 : -1;
-            if (axis === "x") l.x = top.x + side * RANGE;
-            else l.z = top.z + side * RANGE;
-            l.group.position.set(l.x, l.y, l.z);
-            moving = { ...l, axis, dir: -side };
+            const at = movingAt(sim, 0);
+            const group = makeModule(at.w, at.d, sim.layers.length);
+            group.position.set(at.x, at.y, at.z);
+            station.add(group);
+            moving = { group, since: clock() };
         };
-        const score = () => Math.max(0, layers.length - 1);
-        const pushHud = () => setHud({ daily, score: score(), best, phase, perfect: perfectAt, streak, newBest });
+        const score = () => Math.max(0, sim.layers.length - 1);
+        const pushHud = () => setHud({ drops: phase === "over" ? drops.slice() : [], daily, score: score(), best, phase, perfect: perfectAt, streak, newBest });
 
         const begin = (asDaily = daily) => {
             daily = asDaily;
-            rnd = daily ? seededRandom(`stack:${todayKey()}`) : Math.random;
+            sim = newStack(daily ? todayKey() : null);
+            drops = [];
             clear();
             phase = "playing";
-            speed = 3.2;
             streak = 0;
             newBest = false;
             // the hub
@@ -535,58 +532,32 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 return;
             }
             if (!moving) return;
-            const top = layers[layers.length - 1];
-            const m = moving;
-            const along = m.axis === "x" ? m.x - top.x : m.z - top.z;
-            const size = m.axis === "x" ? top.w : top.d;
-            const over = Math.abs(along);
-            station.remove(m.group);
-            disposeGroup(m.group);
-            if (over >= size) {
+            // when, to the millisecond (the same rounding the server replays with)
+            const t = roundTime(clock() - moving.since);
+            drops.push(t);
+            station.remove(moving.group);
+            disposeGroup(moving.group);
+            moving = null;
+            const n = sim.layers.length;
+            const r = dropModule(sim, t);
+            const push = (axis: "x" | "z", sign: number, k: number) => new THREE.Vector3(axis === "x" ? sign * k : 0, 0, axis === "z" ? sign * k : 0);
+            if (r.kind === "miss") {
                 // missed it entirely: the module falls, and that's the build
-                tumble(m.w, m.d, m.x, m.y, m.z, layers.length, new THREE.Vector3(m.axis === "x" ? Math.sign(along) * 2 : 0, 0, m.axis === "z" ? Math.sign(along) * 2 : 0));
-                moving = null;
+                tumble(r.at.w, r.at.d, r.at.x, r.at.y, r.at.z, n, push(r.axis, r.sign, 2));
                 end();
                 return;
             }
-            let nx = m.x;
-            let nz = m.z;
-            let nw = m.w;
-            let nd = m.d;
-            if (over <= PERFECT) {
-                // perfect: snapped onto the one below, and five in a row grows it back a little
-                nx = top.x;
-                nz = top.z;
-                streak += 1;
+            if (r.kind === "perfect") {
+                streak = r.streak;
                 perfectAt = Date.now();
-                if (streak >= 5) {
-                    if (m.axis === "x") nw = Math.min(BASE, nw + 0.25);
-                    else nd = Math.min(BASE, nd + 0.25);
-                }
                 sfxPerfect(streak);
             } else {
                 streak = 0;
-                const keep = size - over;
-                const sign = Math.sign(along);
-                if (m.axis === "x") {
-                    nw = keep;
-                    nx = top.x + along / 2;
-                    const cutW = over;
-                    const cutX = nx + sign * (keep / 2 + cutW / 2);
-                    tumble(cutW, m.d, cutX, m.y, m.z, layers.length, new THREE.Vector3(sign * 1.5, 0, 0));
-                } else {
-                    nd = keep;
-                    nz = top.z + along / 2;
-                    const cutD = over;
-                    const cutZ = nz + sign * (keep / 2 + cutD / 2);
-                    tumble(m.w, cutD, m.x, m.y, cutZ, layers.length, new THREE.Vector3(0, 0, sign * 1.5));
-                }
+                tumble(r.cut.w, r.cut.d, r.cut.x, r.cut.y, r.cut.z, n, push(r.axis, r.sign, 1.5));
                 sfxSlice();
                 sfxPlace(0);
             }
-            layers.push(addLayer({ group: null as unknown as THREE.Group, w: nw, d: nd, x: nx, z: nz, y: m.y }, layers.length));
-            speed = Math.min(8, 3.2 + layers.length * 0.09) * (daily ? 0.85 + rnd() * 0.4 : 1);
-            moving = null;
+            layers.push(addLayer({ group: null as unknown as THREE.Group, ...r.placed }, n));
             spawnMoving();
             pushHud();
         };
@@ -654,14 +625,9 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             last = now;
             if (document.hidden) return;
             // the sliding module, back and forth
-            if (moving && phase === "playing") {
-                const top = layers[layers.length - 1];
-                const key = moving.axis;
-                const base = key === "x" ? top.x : top.z;
-                moving[key] += moving.dir * speed * dt;
-                if (moving[key] > base + RANGE) moving.dir = -1;
-                if (moving[key] < base - RANGE) moving.dir = 1;
-                moving.group.position.set(moving.x, moving.y, moving.z);
+            if (moving && phase === "playing" && sim.moving) {
+                const at = movingAt(sim, clock() - moving.since);
+                moving.group.position.set(at.x, at.y, at.z);
             }
             // the pieces, tumbling away and fading
             for (const f of falling) {
@@ -793,9 +759,9 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">Your tallest station yet!</p>}
                         {hud.phase === "over" &&
                             (hud.daily ? (
-                                <Board key="daily" game="stack-daily" day={todayKey()} score={hud.score} title="Today's station" format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />
+                                <Board key="daily" game="stack-daily" day={todayKey()} score={hud.score} drops={hud.drops} title="Today's station" format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />
                             ) : (
-                                <Board key="all" game="stack-station" score={hud.score} format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />
+                                <Board key="all" game="stack-station" score={hud.score} drops={hud.drops} format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />
                             ))}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
                             Drop each module onto the one below. Whatever hangs over the edge is sliced off, so line them up. Land one exactly for a Perfect.
