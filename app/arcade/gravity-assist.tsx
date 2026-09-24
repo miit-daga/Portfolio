@@ -408,8 +408,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 // the target's capture ring (grey until the flybys are done), and
                 // the rings of flybys still to make
                 if (bi === level.target) {
-                    s.goalMat = new THREE.LineDashedMaterial({ color: 0x5eead4, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.7 });
-                    group.add(circle(arriveRadius(level, b), s.goalMat));
+                    // (drawn over the planet and its glow, so all of it shows)
+                    s.goalMat = new THREE.LineDashedMaterial({ color: 0x5eead4, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.7, depthTest: false });
+                    const goal = circle(arriveRadius(level, b), s.goalMat);
+                    goal.renderOrder = 10;
+                    group.add(goal);
                 }
                 if (level.flyby?.includes(bi)) {
                     s.ringMat = new THREE.LineDashedMaterial({ color: 0xfbbf24, dashSize: 0.6, gapSize: 0.8, transparent: true, opacity: 0.6 });
