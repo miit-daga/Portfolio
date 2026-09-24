@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
-import { isMuted, setMuted, sfxArrive, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
+import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
 import { BOUNDS, LEVELS, VMAX, bodyAt, captureRadius, flybyRadius, launch, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
 
@@ -21,8 +21,8 @@ const KMS = 2.2; // the probe's speed, shown in km/s
 const FULL_PULL = 0.3; // a pull this much of the screen's shorter side is full power
 
 type Phase = "menu" | "aim" | "flying" | "done";
-type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number };
-type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; result: Result | null; stars: number[]; passed: number };
+type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number; skipped?: string };
+type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number };
 
 const NAMES: Record<Kind, string> = { sun: "the Sun", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
@@ -55,6 +55,9 @@ function loadProgress(): number[] {
     return LEVELS.map(() => 0);
 }
 const unlocked = (stars: number[], i: number) => i === 0 || stars[i - 1] > 0;
+/** "Mars", "Jupiter and Saturn": the flybys named. */
+const listNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "");
+const bare = (k: Kind) => NAMES[k].replace(/^the /, "");
 
 // The glow of a world's air against space: the density of air along each line
 // of sight, thinning with height, lit on the side toward the sun
@@ -102,7 +105,7 @@ const sunFrag = /* glsl */ `
 
 export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, result: null, stars: LEVELS.map(() => 0), passed: 0 });
+    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {} });
@@ -154,7 +157,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         scene.add(sunLight);
 
         // ---- a mission's worlds ---------------------------------------------
-        type Shown = { body: Body; group: THREE.Group; spin?: THREE.Object3D; air?: THREE.ShaderMaterial; ring?: THREE.LineLoop; ringMat?: THREE.LineDashedMaterial };
+        type Shown = { body: Body; group: THREE.Group; spin?: THREE.Object3D; air?: THREE.ShaderMaterial; ring?: THREE.LineLoop; ringMat?: THREE.LineDashedMaterial; goalMat?: THREE.LineDashedMaterial };
         let level: Level = LEVELS[0];
         let levelIndex = 0;
         let shown: Shown[] = [];
@@ -256,8 +259,12 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         s.air = mat;
                     }
                 }
-                // the target's capture ring, and the rings of flybys still to make
-                if (bi === level.target) group.add(circle(captureRadius(b.r), new THREE.LineDashedMaterial({ color: 0x5eead4, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.7 })));
+                // the target's capture ring (grey until the flybys are done), and
+                // the rings of flybys still to make
+                if (bi === level.target) {
+                    s.goalMat = new THREE.LineDashedMaterial({ color: 0x5eead4, dashSize: 0.8, gapSize: 0.6, transparent: true, opacity: 0.7 });
+                    group.add(circle(captureRadius(b.r), s.goalMat));
+                }
                 if (level.flyby?.includes(bi)) {
                     s.ringMat = new THREE.LineDashedMaterial({ color: 0xfbbf24, dashSize: 0.6, gapSize: 0.8, transparent: true, opacity: 0.6 });
                     s.ring = circle(flybyRadius(b.r), s.ringMat);
@@ -325,6 +332,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         let result: Result | null = null;
         let path: number[] = [];
         let fast = false;
+        let warnAt = 0;
         let stepAcc = 0;
         let sinceTrail = 0;
         const pushHud = () =>
@@ -336,7 +344,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 speed: probe ? Math.hypot(probe.vx, probe.vy) * KMS : power * VMAX * KMS,
                 result,
                 stars: stars.slice(),
-                passed: probe ? (level.flyby ?? []).filter((k) => probe!.passed[k]).length : 0,
+                passed: (level.flyby ?? []).map((k) => !!probe?.passed[k]),
+                warn: warnAt,
             });
         // the first aim: straight at the target, at a middling speed
         const aimAtTarget = () => {
@@ -373,6 +382,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             probe = null;
             probeGlow.visible = false;
             result = null;
+            warnAt = 0;
             phase = "aim";
             pushHud();
         };
@@ -397,6 +407,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         const finish = () => {
             const p = probe!;
             const hit = p.hit >= 0 ? level.bodies[p.hit] : null;
+            // it got to the target too soon: say which flybys it skipped
+            const skipped = p.early ? listNames((level.flyby ?? []).filter((k) => !p.passed[k]).map((k) => bare(level.bodies[k].kind))) : undefined;
             if (p.state === "arrived") {
                 const s = launches <= level.par ? 3 : launches <= level.par + 2 ? 2 : 1;
                 if (s > stars[levelIndex]) {
@@ -411,14 +423,14 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 result = { kind: "arrived", body: NAMES[level.bodies[level.target].kind], stars: s, top: p.fastest * KMS };
                 sfxArrive();
             } else if (p.state === "crashed") {
-                result = { kind: "crashed", body: hit ? NAMES[hit.kind] : "" };
+                result = { kind: "crashed", body: hit ? NAMES[hit.kind] : "", skipped };
                 bang.visible = true;
                 bangAge = 0;
                 toWorld(p.x, p.y, bang.position);
                 probeGlow.visible = false;
                 sfxHit();
             } else {
-                result = { kind: "lost" };
+                result = { kind: "lost", skipped };
                 sfxOver();
             }
             phase = "done";
@@ -607,6 +619,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             if (phase === "flying" && probe) {
                 stepAcc += dt * (fast ? 3 : 1);
                 const before = probe.passed.slice();
+                const wasEarly = probe.early;
                 while (stepAcc > 0 && probe.state === "flying") {
                     step(level, probe);
                     stepAcc -= 1 / 120;
@@ -618,6 +631,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 t = probe.t;
                 if ((level.flyby ?? []).some((k) => probe!.passed[k] && !before[k])) {
                     sfxFlyby();
+                    pushHud();
+                }
+                if (probe.early && !wasEarly && probe.state === "flying") {
+                    warnAt = Date.now();
+                    sfxDeny();
                     pushHud();
                 }
                 toWorld(probe.x, probe.y, probeGlow.position).setY(0.1);
@@ -641,6 +659,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 if (s.body.kind === "sun") (((s.spin as THREE.Mesh).material as THREE.ShaderMaterial).uniforms.uTime.value = now / 1000);
                 if (s.ringMat && probe) s.ringMat.color.set(probe.passed[level.bodies.indexOf(s.body)] ? 0x86efac : 0xfbbf24);
                 if (s.ringMat && !probe) s.ringMat.color.set(0xfbbf24);
+                if (s.goalMat) {
+                    const ready = (level.flyby ?? []).every((k) => probe?.passed[k]);
+                    s.goalMat.color.set(ready ? 0x5eead4 : 0x6b7280);
+                    s.goalMat.opacity = ready ? 0.75 : 0.5;
+                }
             }
             // aiming: the arrow from Earth, and the dotted path ahead
             let n = 0;
@@ -712,7 +735,6 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
 
     const L = LEVELS[hud.level];
     const total = hud.stars.reduce((a, b) => a + b, 0);
-    const flybys = L.flyby?.length ?? 0;
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
             <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Gravity Assist: a 3D game" role="application" />
@@ -737,13 +759,22 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                             Launches <span className="text-white">{hud.launches}</span>
                         </p>
                         <p className="mt-1">Par {L.par}</p>
-                        {flybys > 0 && (
-                            <p className="mt-1">
-                                Flybys <span className={hud.passed === flybys ? "text-emerald-300" : "text-amber-300"}>{hud.passed}</span>/{flybys}
+                        {(L.flyby ?? []).map((k, i) => (
+                            <p key={k} className="mt-1">
+                                Flyby {bare(L.bodies[k].kind)} <span className={hud.passed[i] ? "text-emerald-300" : "text-amber-300"}>{hud.passed[i] ? "✓" : "○"}</span>
                             </p>
-                        )}
+                        ))}
                         <p className="mt-2 text-sm tracking-normal text-white">{hud.speed.toFixed(1)} km/s</p>
                     </div>
+                </div>
+            )}
+
+            {/* reached the target too soon */}
+            {hud.phase === "flying" && hud.warn > 0 && (
+                <div key={hud.warn} className="pointer-events-none absolute inset-x-0 top-1/3 flex animate-[arcade-hit_2.8s_ease-in_forwards] justify-center px-4">
+                    <p className="rounded-full border border-amber-300/40 bg-black/70 px-5 py-2 font-mono text-xs uppercase tracking-[0.2em] text-amber-200 backdrop-blur">
+                        Fly past {listNames((L.flyby ?? []).filter((_, i) => !hud.passed[i]).map((k) => bare(L.bodies[k].kind)))} first
+                    </p>
                 </div>
             )}
 
@@ -862,6 +893,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                             <>
                                 <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-rose-300">Signal lost</p>
                                 <h2 className="font-display mt-2 text-2xl font-bold">{hud.result.kind === "crashed" ? `The probe hit ${hud.result.body}` : "The probe drifted off into deep space"}</h2>
+                                {hud.result.skipped && (
+                                    <p className="mt-2 text-sm text-amber-200">
+                                        It reached {NAMES[L.bodies[L.target].kind]}, but this mission needs a flyby of {hud.result.skipped} first: pass through the amber ring.
+                                    </p>
+                                )}
                                 <p className="mt-2 text-sm text-neutral-400">Your last path stays on the map, faintly.</p>
                                 <button type="button" onClick={() => api.current.retry()} className="mt-5 rounded-full bg-violet-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-violet-300">
                                     Try again

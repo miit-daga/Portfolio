@@ -185,6 +185,7 @@ export type Probe = {
     state: Outcome;
     hit: number; // the body it crashed into
     passed: boolean[]; // flybys done
+    early: boolean; // reached the target before its flybys were done
     fastest: number;
 };
 
@@ -203,6 +204,7 @@ export function launch(level: Level, angle: number, power: number, t: number): P
         state: "flying",
         hit: -1,
         passed: level.bodies.map(() => false),
+        early: false,
         fastest: v,
     };
 }
@@ -245,9 +247,13 @@ export function step(level: Level, p: Probe) {
         const b = level.bodies[i];
         bodyAt(b, p.t, pos);
         const d = Math.hypot(pos[0] - p.x, pos[1] - p.y);
-        if (i === level.target && d < captureRadius(b.r) && need.every((k) => p.passed[k])) {
-            p.state = "arrived";
-            return;
+        if (i === level.target && d < captureRadius(b.r)) {
+            // it only counts once the flybys are done; before that, the probe flies on
+            if (need.every((k) => p.passed[k])) {
+                p.state = "arrived";
+                return;
+            }
+            p.early = true;
         }
         if (d < b.r + 0.15 && !(i === level.start && p.flight < 0.3)) {
             p.state = "crashed";

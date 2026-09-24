@@ -108,6 +108,11 @@ export const sfxFlyby = () => {
     tone(988, 0, 0.18, 0.06);
     tone(1319, 0.08, 0.3, 0.06);
 };
+/** Not yet: two low buzzes. */
+export const sfxDeny = () => {
+    tone(196, 0, 0.14, 0.07, "square");
+    tone(165, 0.16, 0.22, 0.07, "square");
+};
 /** Arrived: a warm chord, rising. */
 export const sfxArrive = () => {
     [392, 494, 587, 784, 988].forEach((f, i) => tone(f, i * 0.08, 0.7, 0.06, "triangle"));
