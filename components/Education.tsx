@@ -156,17 +156,17 @@ export function Education() {
                                     }
                                 >
                                     {/* Phones: tag and years stacked, so a date never breaks */}
-                                    <p className="font-mono text-[9px] uppercase tracking-[0.14em] md:text-[10px] md:tracking-[0.25em]" style={{ color: section.light }}>
+                                    <p className="font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.14em] md:text-[10px] md:tracking-[0.25em]" style={{ color: section.light }}>
                                         <span className="block md:inline">{s.tag}</span>
                                         <span className="hidden md:inline"> · </span>
                                         <span className="block md:inline">{s.years}</span>
                                     </p>
                                     <p className="font-display mt-1 text-xs font-bold leading-snug text-white md:text-base">{s.name}</p>
                                     {orbit ? (
-                                        <p className="mt-0.5 font-mono text-[10px] text-neutral-300 md:hidden">{s.short}</p>
+                                        <p className="mt-0.5 font-mono text-[11px] sm:text-[10px] text-neutral-300 md:hidden">{s.short}</p>
                                     ) : (
                                         <>
-                                            <p className="mt-0.5 font-mono text-[10px] text-neutral-300 md:text-xs">
+                                            <p className="mt-0.5 font-mono text-[11px] sm:text-[10px] text-neutral-300 md:text-xs">
                                                 <span className="md:hidden">{s.short}</span>
                                                 <span className="hidden md:inline">{s.detail}</span>
                                             </p>
@@ -200,7 +200,7 @@ export function Education() {
                             <TelemetryGauge value={9.22} max={10} decimals={2} suffix="" label="CGPA · out of 10" caption="orbit·01" index={0} accent={accent} />
                         </div>
                         <div className="text-center md:text-left">
-                            <p className="font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: section.light }}>
+                            <p className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.3em]" style={{ color: section.light }}>
                                 Orbit reached · 2022 – 2026
                             </p>
                             <h3 className="font-display mt-2 text-2xl font-bold leading-tight text-white md:text-3xl">Vellore Institute of Technology</h3>
@@ -221,7 +221,7 @@ export function Education() {
 
                     {/* While studying: what shipped alongside the degree */}
                     <div className="relative border-t px-6 py-5 md:px-9" style={{ borderColor: `rgba(${rgb},0.16)` }}>
-                        <p className="mb-3 text-center font-mono text-[10px] uppercase tracking-[0.3em] text-neutral-500 md:text-left">
+                        <p className="mb-3 text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.3em] text-neutral-500 md:text-left">
                             While studying
                         </p>
                         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

@@ -250,7 +250,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                         placeholder="Search the site, or > for a terminal command..."
                                         className="flex h-12 w-full bg-transparent py-3 text-sm outline-none placeholder:text-neutral-500 text-white caret-teal-400"
                                     />
-                                    <kbd className="ml-2 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">ESC</kbd>
+                                    <kbd className="ml-2 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[11px] sm:text-[10px] text-neutral-400">ESC</kbd>
                                 </div>
 
                                 <Command.List className="max-h-[360px] overflow-y-auto overflow-x-hidden p-2 scrollbar-none">
@@ -490,7 +490,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                 </Command.List>
 
                                 {/* Footer key hints */}
-                                <div className="flex items-center justify-between border-t border-white/10 px-4 py-2 text-[10px] text-neutral-500">
+                                <div className="flex items-center justify-between border-t border-white/10 px-4 py-2 text-[11px] sm:text-[10px] text-neutral-500">
                                     <div className="flex items-center gap-3">
                                         <span className="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> navigate</span>
                                         <span className="flex items-center gap-1"><Kbd>↵</Kbd> open</span>
@@ -519,7 +519,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
 
 function Kbd({ children }: { children: React.ReactNode }) {
     return (
-        <kbd className="inline-flex min-w-[16px] items-center justify-center rounded border border-white/10 bg-white/5 px-1 font-mono text-[10px] text-neutral-400">
+        <kbd className="inline-flex min-w-[16px] items-center justify-center rounded border border-white/10 bg-white/5 px-1 font-mono text-[11px] sm:text-[10px] text-neutral-400">
             {children}
         </kbd>
     );
@@ -563,7 +563,7 @@ function Item({
                 {hint && <span className="block truncate text-[11px] text-neutral-500">{hint}</span>}
             </span>
             {tag && (
-                <span className="rounded-full border border-teal-400/30 bg-teal-400/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-teal-200">
+                <span className="rounded-full border border-teal-400/30 bg-teal-400/10 px-2 py-0.5 font-mono text-[11px] sm:text-[9px] uppercase tracking-wider text-teal-200">
                     {tag}
                 </span>
             )}

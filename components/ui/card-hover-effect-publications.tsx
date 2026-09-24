@@ -302,12 +302,12 @@ const TiltCard = ({
           <span hidden data-search={`${item.venue ?? ""} ${item.description} ${item.tldr ?? ""} ${isPatent ? "patent filed" : "peer reviewed scopus indexed journal paper research"}`} />
           {/* Log index + type badge + venue */}
           <div className="flex flex-wrap items-center gap-2 pr-14">
-            <span className="font-mono text-[10px] tracking-[0.25em] text-violet-300/60">
+            <span className="font-mono text-[11px] sm:text-[10px] tracking-[0.25em] text-violet-300/60">
               LOG·0{idx + 1}
             </span>
             <span
               className={cn(
-                "rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                "rounded-full border px-2.5 py-0.5 text-[11px] sm:text-[10px] font-semibold uppercase tracking-wider",
                 isPatent
                   ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
                   : "border-violet-500/30 bg-violet-500/10 text-violet-300"
@@ -321,7 +321,7 @@ const TiltCard = ({
           <CardTitle className="pr-12">{item.title}</CardTitle>
           {item.visual && <VisualAbstract kind={item.visual} />}
           {item.tldr && (
-            <div className="pointer-events-auto mt-4 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 font-mono text-[10.5px] tracking-wide">
+            <div className="pointer-events-auto mt-4 inline-flex rounded-full border border-white/10 bg-white/[0.03] p-0.5 font-mono text-[11px] sm:text-[10.5px] tracking-wide">
               {([["plain", "in 20 seconds"], ["abstract", "abstract"]] as const).map(([k, label]) => (
                 <button
                   key={k}

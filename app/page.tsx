@@ -2,17 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
-import Hero from "@/components/Hero";
-import Paragraph from "@/components/Paragraph";
-import { WorkExp } from "@/components/WorkExp";
-import Projects from "@/components/Projects";
-import Publications from "@/components/Publications";
-import { Contact } from "@/components/Contact";
-import { Education } from "@/components/Education";
-import { SkillsAndAchievements } from "@/components/SkillsAndAchievements";
-import { Stats } from "@/components/Stats";
 import { aboutme } from "@/constants";
-import { FloatingNav } from "@/components/ui/floating-navbar";
 import {
   IconHome,
   IconCode,
@@ -23,19 +13,44 @@ import {
   IconSchool,
   IconTerminal,
 } from "@tabler/icons-react";
-import { AnimatedBackground } from "@/components/ui/animated-background";
 import { EnterScreen } from "@/components/EnterScreen";
-import { ScrollProgress } from "@/components/ScrollProgress";
-import { BackToTop } from "@/components/BackToTop";
-import { SectionDivider } from "@/components/ui/section-divider";
-import { Reveal } from "@/components/ui/reveal";
 import { CollectiblesProvider, CollectibleHUD, Fragment as Collectible, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
 import { BlackHoleOverlay } from "@/components/ui/black-hole";
 import { CONSTELLATION_STORAGE_KEY } from "@/components/ui/constellation-key";
-import { MobileNotice } from "@/components/ui/mobile-notice";
-import { FlightPath } from "@/components/ui/flight-path";
-import { AmbientGlow } from "@/components/ui/ambient-glow";
 import { scrollToSection } from "@/lib/scroll-to-section";
+import { OffscreenPause } from "@/components/ui/offscreen-pause";
+
+// The page behind the entry screen, in one chunk of its own
+// (components/site-sections.tsx). A first visit sees only the entry screen, so
+// that is all it waits for; the chunk is fetched while the entry screen is up,
+// ready by the time anyone clicks, and straight away for anyone who has
+// entered already (the page then shows as soon as it arrives).
+const sections = () => import("@/components/site-sections");
+if (typeof window !== "undefined") {
+  try {
+    if (sessionStorage.getItem("hasEnteredCosmos") || /[?&]embed=1(&|$)/.test(window.location.search)) sections();
+  } catch {
+    /* ignore */
+  }
+}
+const Hero = dynamic(() => sections().then((m) => m.Hero));
+const Paragraph = dynamic(() => sections().then((m) => m.Paragraph));
+const WorkExp = dynamic(() => sections().then((m) => m.WorkExp));
+const Projects = dynamic(() => sections().then((m) => m.Projects));
+const Publications = dynamic(() => sections().then((m) => m.Publications));
+const Contact = dynamic(() => sections().then((m) => m.Contact));
+const Education = dynamic(() => sections().then((m) => m.Education));
+const SkillsAndAchievements = dynamic(() => sections().then((m) => m.SkillsAndAchievements));
+const Stats = dynamic(() => sections().then((m) => m.Stats));
+const FloatingNav = dynamic(() => sections().then((m) => m.FloatingNav));
+const AnimatedBackground = dynamic(() => sections().then((m) => m.AnimatedBackground));
+const ScrollProgress = dynamic(() => sections().then((m) => m.ScrollProgress));
+const BackToTop = dynamic(() => sections().then((m) => m.BackToTop));
+const SectionDivider = dynamic(() => sections().then((m) => m.SectionDivider));
+const Reveal = dynamic(() => sections().then((m) => m.Reveal));
+const MobileNotice = dynamic(() => sections().then((m) => m.MobileNotice));
+const FlightPath = dynamic(() => sections().then((m) => m.FlightPath));
+const AmbientGlow = dynamic(() => sections().then((m) => m.AmbientGlow));
 
 // Easter eggs and the About puzzle load just after first paint, in their own
 // chunks, rather than in the page bundle every visitor downloads up front.
@@ -50,7 +65,10 @@ const ConstellationPuzzle = dynamic(
 );
 
 const Home = () => {
-  const [showEnterScreen, setShowEnterScreen] = useState(false);
+  // Shown in the page as sent, so it paints at once; hidden before the first
+  // paint for anyone who has entered this session (app/layout.tsx), and taken
+  // away here as the page starts
+  const [showEnterScreen, setShowEnterScreen] = useState(true);
   // Set as the entry starts: the site renders behind the Big Bang and is revealed by it
   const [revealing, setRevealing] = useState(false);
   // The entry to start on: the Big Bang after a Big Crunch, otherwise the
@@ -77,8 +95,14 @@ const Home = () => {
       sessionStorage.removeItem("after-big-crunch");
       setEntry("bang");
     }
-    if (!hasEntered && !embedded) {
-      setShowEnterScreen(true);
+    if (hasEntered || embedded) {
+      setShowEnterScreen(false);
+    } else {
+      // the page behind the entry screen, fetched once it is up and idle
+      const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 300));
+      idle(() => {
+        sections();
+      });
     }
     setIsLoaded(true);
 
@@ -160,8 +184,8 @@ const Home = () => {
   };
 
   // Honour a #hash once the sections actually exist. The browser tries on load,
-  // but this component renders null until isLoaded, so there is nothing to
-  // scroll to at that moment and it gives up. Affects any deep link to the
+  // but the sections only render once the page has started (isLoaded), so
+  // there is nothing to scroll to at that moment and it gives up. Affects any deep link to the
   // site, not only the terminal's framed preview.
   useEffect(() => {
     if (!isLoaded || showEnterScreen) return;
@@ -225,12 +249,12 @@ const Home = () => {
     },
   ];
 
-  if (!isLoaded) return null;
-
   return (
     <CollectiblesProvider>
       {/* Progress Bar - Hide during implosion */}
       {!showEnterScreen && !isImploding && <ScrollProgress />}
+      {/* Pauses the CSS decorations that are out of view */}
+      {!showEnterScreen && <OffscreenPause />}
 
       <AnimatePresence>
         {showEnterScreen && (

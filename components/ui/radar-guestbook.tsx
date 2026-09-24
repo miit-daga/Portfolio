@@ -240,7 +240,7 @@ export const RadarBlips = ({ project, sceneScale, reduce }: { project: Project; 
                                             boxShadow: `0 0 14px rgba(${colour},0.22)`,
                                         }}
                                     >
-                                        <div className="flex items-baseline justify-between gap-3 text-[9.5px] uppercase tracking-[0.14em]">
+                                        <div className="flex items-baseline justify-between gap-3 text-[11px] sm:text-[9.5px] uppercase tracking-[0.14em]">
                                             <span style={{ color: `rgb(${colour})` }}>{b.name}</span>
                                             <span className="text-neutral-500">{isMine ? "you" : ago(b.at)}</span>
                                         </div>
@@ -381,7 +381,7 @@ export const GuestbookSignal = () => {
                             setEditing(true);
                             setStatus(null);
                         }}
-                        className="group flex items-center gap-2 rounded-full border border-teal-400/25 bg-black/50 px-3.5 py-1.5 text-[10px] uppercase tracking-[0.18em] text-neutral-400 backdrop-blur-sm transition hover:border-teal-300/50 hover:text-teal-100"
+                        className="group flex items-center gap-2 rounded-full border border-teal-400/25 bg-black/50 px-3.5 py-1.5 text-[11px] sm:text-[10px] uppercase tracking-[0.18em] text-neutral-400 backdrop-blur-sm transition hover:border-teal-300/50 hover:text-teal-100"
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
@@ -396,7 +396,7 @@ export const GuestbookSignal = () => {
             </AnimatePresence>
             <p
                 aria-live="polite"
-                className={`min-h-[14px] text-[10px] tracking-wider ${status?.kind === "error" ? "text-rose-300" : status?.kind === "sent" ? "text-amber-200" : "text-neutral-500"}`}
+                className={`min-h-[14px] text-[11px] sm:text-[10px] tracking-wider ${status?.kind === "error" ? "text-rose-300" : status?.kind === "sent" ? "text-amber-200" : "text-neutral-500"}`}
             >
                 {status?.text ?? ""}
             </p>

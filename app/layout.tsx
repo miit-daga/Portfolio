@@ -92,6 +92,17 @@ const jsonLd = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Before the first paint: the entry screen is in the page as sent, so it
+            shows at once; a visitor who has entered this session (or an ?embed=1
+            preview) gets it hidden before it can flash. And a Mac says Return */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var d=document.documentElement;if(sessionStorage.getItem('hasEnteredCosmos')||/[?&]embed=1(&|$)/.test(location.search))d.setAttribute('data-entered','');if(/Mac/.test(navigator.platform))d.setAttribute('data-mac','')}catch(e){}",
+          }}
+        />
+      </head>
       <body className={`${outfit.className} ${spaceGrotesk.variable}`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {/* Cinematic grade: animated film grain + edge vignette */}

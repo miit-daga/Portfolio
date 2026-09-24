@@ -135,7 +135,7 @@ const Projects = () => {
                   className="h-px flex-1"
                   style={{ background: `linear-gradient(90deg, transparent, rgba(${SECTION.rgb.join(",")},0.3))` }}
                 />
-                <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-neutral-500">
+                <span className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.3em] text-neutral-500">
                   also on the shelf
                 </span>
                 <span

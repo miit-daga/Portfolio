@@ -1,6 +1,6 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { motion, AnimatePresence, useReducedMotion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export const FRAGMENT_IDS = ["workex", "education", "skills", "projects", "publications"] as const;
@@ -122,6 +122,9 @@ export function Fragment({ id, className }: { id: string; className?: string }) 
     const { found, collect } = useCollectibles();
     const reduce = useReducedMotion();
     const [picked, setPicked] = useState(false);
+    // its halo and bob only run while it is on screen or about to be
+    const ref = useRef<HTMLButtonElement>(null);
+    const live = useInView(ref, { margin: "200px" });
 
     if (found.has(id)) return null;
 
@@ -136,13 +139,14 @@ export function Fragment({ id, className }: { id: string; className?: string }) 
 
     return (
         <button
+            ref={ref}
             type="button"
             onClick={onClick}
             aria-label="Collect cosmic fragment"
             className={cn("group absolute z-30 flex h-9 w-9 items-center justify-center", className)}
         >
             {/* Pulsing halo */}
-            {!reduce && !picked && (
+            {!reduce && !picked && live && (
                 <motion.span
                     className="absolute h-7 w-7 rounded-full bg-teal-400/20 blur-md"
                     animate={{ scale: [1, 1.6, 1], opacity: [0.5, 0, 0.5] }}
@@ -152,8 +156,8 @@ export function Fragment({ id, className }: { id: string; className?: string }) 
             {/* The shard */}
             <motion.span
                 className="block h-3.5 w-3.5 rotate-45 rounded-[3px] bg-gradient-to-br from-teal-100 to-teal-500 shadow-[0_0_12px_rgba(45,212,191,0.85)] transition-transform group-hover:scale-125"
-                animate={picked ? { scale: [1, 2.2], opacity: [1, 0], rotate: 225 } : reduce ? undefined : { y: [0, -3, 0] }}
-                transition={picked ? { duration: 0.36, ease: "easeOut" } : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                animate={picked ? { scale: [1, 2.2], opacity: [1, 0], rotate: 225 } : reduce ? undefined : live ? { y: [0, -3, 0] } : { y: 0 }}
+                transition={picked ? { duration: 0.36, ease: "easeOut" } : live ? { duration: 2.4, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
             />
             {/* Burst ring on pickup */}
             {picked && (

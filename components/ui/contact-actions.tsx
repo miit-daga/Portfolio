@@ -548,7 +548,7 @@ export const ContactActions = () => {
                                             </div>
                                         </>
                                     )}
-                                    <p className="text-center font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+                                    <p className="text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500">
                                         {cameraError ?? "Your photo stays on your device. Nothing is uploaded."}
                                     </p>
                                     <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={onFile} />

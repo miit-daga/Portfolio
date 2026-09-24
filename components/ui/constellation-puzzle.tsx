@@ -454,7 +454,7 @@ export const ConstellationPuzzle = () => {
                 )}
             </svg>
 
-            <p className="text-center font-mono text-[10px] uppercase tracking-[0.25em] text-neutral-600">
+            <p className="text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.25em] text-neutral-600">
                 {solved ? (
                     <span className="text-teal-400/90">
                         {justSolved ? (
@@ -475,7 +475,7 @@ export const ConstellationPuzzle = () => {
             </p>
             {solved && callsign && (
                 <motion.p
-                    className="text-center font-mono text-[9px] uppercase tracking-[0.25em] text-neutral-700"
+                    className="text-center font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.25em] text-neutral-700"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5, delay: justSolved ? 1.4 : 0 }}
@@ -485,7 +485,7 @@ export const ConstellationPuzzle = () => {
             )}
             {solved && (reward || tally) && (
                 <motion.p
-                    className="text-center font-mono text-[9px] uppercase tracking-[0.25em] text-neutral-500"
+                    className="text-center font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.25em] text-neutral-500"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5, delay: justSolved ? 1.8 : 0 }}

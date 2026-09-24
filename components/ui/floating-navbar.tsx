@@ -425,7 +425,7 @@ export const FloatingNav = ({
                   className="block rounded-xl bg-slate-950/95 px-3 py-2 text-left shadow-lg backdrop-blur-md"
                   style={{ border: `1px solid ${rgba(acc.rgb, 0.35)}`, boxShadow: `0 8px 24px rgba(0,0,0,0.4), 0 0 18px ${rgba(acc.rgb, 0.15)}` }}
                 >
-                  <span className="block font-mono text-[9px] uppercase tracking-[0.25em]" style={{ color: acc.light }}>
+                  <span className="block font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.25em]" style={{ color: acc.light }}>
                     {meta?.index ? `${String(meta.index).padStart(2, "0")} · ` : ""}
                     {meta?.eyebrow ?? (isTerminal ? "new tab" : "about")}
                   </span>
@@ -489,7 +489,7 @@ export const FloatingNav = ({
           <span className="h-2 w-2 rounded-full" style={{ background: activeAccent.light, boxShadow: `0 0 8px ${rgba(activeAccent.rgb, 0.9)}` }} />
           <span style={{ color: activeItem ? activeAccent.light : undefined }}>{activeItem?.name ?? "Launch pad"}</span>
           {activeIdx >= 0 && (
-            <span className="font-mono text-[10px] font-medium tracking-wider text-neutral-500">
+            <span className="font-mono text-[11px] sm:text-[10px] font-medium tracking-wider text-neutral-500">
               {activeIdx + 1}/{sectionItems.length}
             </span>
           )}
@@ -587,7 +587,7 @@ export const FloatingNav = ({
                   exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
                   transition={{ duration: 0.16 }}
                 >
-                  <span className="block font-mono text-[9px] uppercase tracking-[0.25em] text-teal-300">new tab</span>
+                  <span className="block font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.25em] text-teal-300">new tab</span>
                   <span className="mt-0.5 block text-xs font-medium text-neutral-200">opens on the site · PDF download</span>
                 </motion.span>
               )}
@@ -697,7 +697,7 @@ export const FloatingNav = ({
                             {React.cloneElement(item.icon as any, { className: "h-[18px] w-[18px]", style: { color: acc.light } })}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block font-mono text-[9px] uppercase tracking-[0.22em]" style={{ color: rgba(acc.rgb, isActive ? 0.95 : 0.6) }}>
+                            <span className="block font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.22em]" style={{ color: rgba(acc.rgb, isActive ? 0.95 : 0.6) }}>
                               {meta?.index ? `${String(meta.index).padStart(2, "0")} · ` : ""}
                               {meta?.eyebrow ?? "about"}
                             </span>
@@ -706,7 +706,7 @@ export const FloatingNav = ({
                             </span>
                           </span>
                           {isActive && (
-                            <span className="shrink-0 font-mono text-[8.5px] uppercase tracking-[0.18em]" style={{ color: acc.light }}>
+                            <span className="shrink-0 font-mono text-[11px] sm:text-[8.5px] uppercase tracking-[0.18em]" style={{ color: acc.light }}>
                               here
                             </span>
                           )}
@@ -757,7 +757,7 @@ export const FloatingNav = ({
                       </a>
                     ))}
                   </div>
-                  <p className="text-center font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-600">swipe left to close</p>
+                  <p className="text-center font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.2em] text-neutral-600">swipe left to close</p>
                 </motion.div>
               </motion.div>
             </>
@@ -784,7 +784,7 @@ function MenuClock() {
   }, []);
   if (!now) return null;
   return (
-    <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[10px] text-neutral-400">
+    <p className="mt-0.5 flex items-center gap-1.5 font-mono text-[11px] sm:text-[10px] text-neutral-400">
       <span className="h-1.5 w-1.5 rounded-full" style={{ background: now.mood.color, boxShadow: `0 0 6px ${now.mood.color}` }} />
       Kolkata {now.time} · {now.mood.label}
     </p>

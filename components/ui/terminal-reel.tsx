@@ -142,10 +142,10 @@ export const TerminalReel = ({ reel }: { reel: Reel }) => {
         {/* min-w-0: without it this flex item's minimum width is the full,
             untruncated path, which widened the whole card and pushed DisMan
             onto a row of its own */}
-        <span className="min-w-0 flex-1 truncate text-center font-mono text-[9px] text-zinc-500">{reel.title}</span>
+        <span className="min-w-0 flex-1 truncate text-center font-mono text-[11px] sm:text-[9px] text-zinc-500">{reel.title}</span>
         {reel.note ? (
           <span
-            className="rounded border px-1 font-mono text-[8px] uppercase tracking-wider"
+            className="rounded border px-1 font-mono text-[11px] sm:text-[8px] uppercase tracking-wider"
             style={{ color: ACCENT, borderColor: "rgba(var(--accent-rgb, 45, 212, 191), 0.3)" }}
           >
             {reel.note}
@@ -158,7 +158,7 @@ export const TerminalReel = ({ reel }: { reel: Reel }) => {
 
       {/* Body: newest line pinned to the bottom, older lines scroll off the top */}
       <div
-        className="flex h-[152px] flex-col justify-end overflow-hidden px-2.5 py-2 font-mono text-[10px] leading-[1.45] [overflow-wrap:anywhere]"
+        className="flex h-[152px] flex-col justify-end overflow-hidden px-2.5 py-2 font-mono text-[11px] sm:text-[10px] leading-[1.45] [overflow-wrap:anywhere]"
         style={{
           // Lines scrolling off the top fade out instead of being sliced in half
           maskImage: "linear-gradient(to bottom, transparent 0, #000 22px)",

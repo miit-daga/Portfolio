@@ -41,7 +41,7 @@ export const MobileNotice = () => {
                     transition={{ type: "spring", stiffness: 260, damping: 26 }}
                     className="fixed inset-x-4 bottom-4 z-[6000] mx-auto max-w-sm rounded-2xl border border-teal-500/30 bg-neutral-950/95 p-4 shadow-[0_0_30px_rgba(45,212,191,0.2)]"
                 >
-                    <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-teal-400/80">
+                    <p className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.3em] text-teal-400/80">
                         pocket edition detected
                     </p>
                     <p className="mt-2 text-sm leading-relaxed text-neutral-200">

@@ -268,7 +268,8 @@ export const Timeline = ({
                   transition: "color 0.5s, text-shadow 0.5s",
                 }}
               >
-                {item.title}
+                {/* "Role · Remote": the suffix stays with the last word, never alone on a line */}
+                {item.title.replace(/ · /g, "\u00a0·\u00a0")}
               </h3>
             </div>
             <div className="relative w-full md:w-2/3 pl-20 md:pl-0 pr-4">

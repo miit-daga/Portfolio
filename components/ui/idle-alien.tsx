@@ -92,6 +92,40 @@ const NIGHT_LINES = ["Shh. He's asleep.", "*yawn* Night shift again.", "Tiptoe. 
 // A visitor he has seen on an earlier visit
 const RETURN_LINES = ["You again?", "Oh. It's you. Hi again.", "Back already? I haven't finished browsing."];
 
+// What he has left to say, per pool, for the whole visit: every line of a pool
+// is said once before any comes round again. Kept outside the component (he
+// leaves and comes back) and in sessionStorage (reloads), and a fresh shuffle
+// never opens on the line just said
+const BAGS_KEY = "alien-line-bags";
+const bags: Record<string, string[]> = (() => {
+    try {
+        return JSON.parse(sessionStorage.getItem(BAGS_KEY) || "{}") as Record<string, string[]>;
+    } catch {
+        return {};
+    }
+})();
+function drawLine(name: string, pool: string[], avoid: string | null) {
+    // only lines still in the pool (a line edited since the bag was saved is dropped)
+    let bag = (bags[name] ?? []).filter((l) => pool.includes(l));
+    if (!bag.length) {
+        bag = [...pool];
+        for (let i = bag.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [bag[i], bag[j]] = [bag[j], bag[i]];
+        }
+        // drawn from the end: keep the last line said away from it
+        if (avoid && bag.length > 1 && bag[bag.length - 1] === avoid) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+    }
+    const line = bag.pop() as string;
+    bags[name] = bag;
+    try {
+        sessionStorage.setItem(BAGS_KEY, JSON.stringify(bags));
+    } catch {
+        /* ignore */
+    }
+    return line;
+}
+
 // Kolkata's night: the torch in his left hand, drawn in that hand's
 // coordinates so it moves with it. Drawn large: at 54px wide the alien
 // shrinks it 5x
@@ -247,21 +281,14 @@ export const IdleAlien = () => {
     }, []);
 
     // Muttering while browsing: show a line, pause, show the next (shuffle
-    // bags per pool, no repeats until a pool runs dry). Vanishes the instant
-    // he's caught.
+    // bags per pool, drawLine above, no repeats until a pool runs dry).
+    // Vanishes the instant he's caught.
     const [bubble, setBubble] = useState<string | null>(null);
-    const bags = useRef<Record<string, string[]>>({});
     const lastLine = useRef<string | null>(null);
     const draw = (name: string, pool: string[]) => {
-        if (!bags.current[name]?.length) {
-            const b = [...pool];
-            for (let i = b.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [b[i], b[j]] = [b[j], b[i]];
-            }
-            bags.current[name] = b;
-        }
-        return bags.current[name].pop() as string;
+        const line = drawLine(name, pool, lastLine.current);
+        lastLine.current = line;
+        return line;
     };
     useEffect(() => {
         if (phase !== "idle") {
@@ -302,21 +329,15 @@ export const IdleAlien = () => {
             const q = queue.shift();
             if (q) return q;
             const section = currentSection();
-            const r = Math.random();
-            // Half about the room, the rest general, and never the same line twice running
-            for (let tries = 0; tries < 4; tries++) {
-                const text =
-                    night && r < 0.35
-                        ? draw("night", NIGHT_LINES)
-                        : section && SECTION_LINES[section] && Math.random() < 0.5
-                            ? draw(section, SECTION_LINES[section])
-                            : draw("any", ALIEN_LINES);
-                if (text !== lastLine.current) {
-                    lastLine.current = text;
-                    return { text };
-                }
-            }
-            return { text: draw("any", ALIEN_LINES) };
+            // Half about the room, the rest general; each pool runs through
+            // all its lines before any repeats, and never the same line twice running
+            const text =
+                night && Math.random() < 0.35
+                    ? draw("night", NIGHT_LINES)
+                    : section && SECTION_LINES[section] && Math.random() < 0.5
+                        ? draw(section, SECTION_LINES[section])
+                        : draw("any", ALIEN_LINES);
+            return { text };
         };
         let alive = true;
         let t: number;

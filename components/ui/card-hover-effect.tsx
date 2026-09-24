@@ -251,7 +251,7 @@ export const Card = ({
             <div className="mb-1 flex items-center justify-between gap-2">
               {featured ? (
                 <span
-                  className="font-mono text-[10px] uppercase tracking-[0.22em]"
+                  className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.22em]"
                   style={{ color: "rgb(var(--accent-rgb, 45, 212, 191))" }}
                 >
                   featured · {String(featuredIndex + 1).padStart(2, "0")}
@@ -260,7 +260,7 @@ export const Card = ({
                 <span />
               )}
               {pill && (
-                <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 font-mono text-[10px] tracking-wide text-neutral-300">
+                <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 font-mono text-[11px] sm:text-[10px] tracking-wide text-neutral-300">
                   {pill.label}
                 </span>
               )}
@@ -274,7 +274,7 @@ export const Card = ({
               {topics.slice(0, 4).map((t) => (
                 <span
                   key={t}
-                  className="font-mono text-[10px] tracking-tight"
+                  className="font-mono text-[11px] sm:text-[10px] tracking-tight"
                   style={{ color: "rgba(var(--accent-rgb, 45, 212, 191), 0.75)" }}
                 >
                   #{t}
@@ -292,7 +292,7 @@ export const Card = ({
               {langEntries.slice(0, 3).map(([lang]) => (
                 <span
                   key={lang}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-zinc-400"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[11px] sm:text-[10px] font-medium text-zinc-400"
                 >
                   <span
                     aria-hidden
@@ -321,7 +321,7 @@ export const Card = ({
                   style={{ background: "linear-gradient(90deg, rgba(var(--accent-rgb, 45, 212, 191), 0.4), transparent)" }}
                 />
                 <span
-                  className="text-[9px] uppercase tracking-[0.2em] font-mono"
+                  className="text-[11px] sm:text-[9px] uppercase tracking-[0.2em] font-mono"
                   style={{ color: "rgba(var(--accent-rgb, 45, 212, 191), 0.7)" }}
                 >
                   Signal Freq
@@ -338,7 +338,7 @@ export const Card = ({
                   const color = langColor(lang);
                   return (
                     <div key={lang} className="flex items-center gap-2">
-                      <span className="text-[9px] font-mono text-zinc-500 w-[52px] truncate flex-shrink-0">
+                      <span className="text-[11px] sm:text-[9px] font-mono text-zinc-500 w-[52px] truncate flex-shrink-0">
                         {lang}
                       </span>
                       {/* Signal bar track */}
@@ -359,14 +359,14 @@ export const Card = ({
                           }}
                         />
                       </div>
-                      <span className="text-[9px] font-mono text-zinc-500 w-[32px] text-right flex-shrink-0">
+                      <span className="text-[11px] sm:text-[9px] font-mono text-zinc-500 w-[32px] text-right flex-shrink-0">
                         {pct.toFixed(1)}%
                       </span>
                     </div>
                   );
                 })}
                 {langEntries.length > 4 && (
-                  <span className="text-[8px] font-mono text-zinc-600 text-right">
+                  <span className="text-[11px] sm:text-[8px] font-mono text-zinc-600 text-right">
                     +{langEntries.length - 4} more
                   </span>
                 )}

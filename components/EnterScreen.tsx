@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useMotionTemplate, useTransform, animate } from "framer-motion"
 import { Porthole } from "./ui/porthole"
 
@@ -283,6 +283,11 @@ function playBigBang() {
 export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScreenProps) => {
     // The visitor picks the entry under the portal, fresh each time
     const [choice, setChoice] = useState<"bang" | "porthole">(variant ?? "porthole")
+    // the page reads what to start on (a Big Crunch just happened) after this
+    // screen is already up, as it is in the page from the start
+    useEffect(() => {
+        if (variant) setChoice(variant)
+    }, [variant])
     const porthole = choice === "porthole"
     // Through the porthole: the window's centre (the button's) and its reach
     const buttonRef = useRef<HTMLButtonElement>(null)
@@ -306,13 +311,6 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
     const warpStartRef = useRef<number | null>(null)
     const transitioningRef = useRef(false)
 
-    // Per-device hint: touch has no Enter key, Macs call it Return
-    const enterHint = useMemo(() => {
-        if (typeof window === "undefined") return <>or press Enter &#8629; to begin</>
-        if (window.matchMedia("(pointer: coarse)").matches) return <>tap the portal to begin</>
-        if (/Mac/.test(navigator.platform)) return <>or press Return &#9166; to begin</>
-        return <>or press Enter &#8629; to begin</>
-    }, [])
 
     const handleEnterClick = useCallback(() => {
         if (transitioningRef.current) return
@@ -525,7 +523,9 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
 
     return (
         <motion.div
+            data-enter-screen
             className="fixed inset-0 z-[9999] overflow-hidden"
+            initial={false}
             // reduced motion: the site is behind, and the sky simply fades
             animate={reduce && isTransitioning ? { opacity: 0 } : { opacity: 1 }}
             transition={{ duration: 0.45 }}
@@ -552,6 +552,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
             {/* Center content - the name paints immediately (LCP), no opacity-0 entrance */}
             <motion.div
                 className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center"
+                initial={false}
                 // the Big Bang draws it in to the centre with the stars; through the
                 // porthole, it swells past you from the window as you fly at it
                 style={porthole ? { transformOrigin: origin } : undefined}
@@ -602,7 +603,13 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                     animate={{ opacity: 1 }}
                     transition={{ duration: 0.5, delay: 0.5 }}
                 >
-                    {enterHint}
+                    {/* Per-device hint, chosen in CSS (globals.css) so the page as sent matches:
+                        touch has no Enter key, Macs call it Return */}
+                    <span className="enter-hint-press">
+                        or press <span className="enter-key-other">Enter &#8629;</span>
+                        <span className="enter-key-mac">Return &#9166;</span> to begin
+                    </span>
+                    <span className="enter-hint-tap">tap the portal to begin</span>
                 </motion.p>
 
                 {/* The visitor's pick of entry */}
@@ -610,7 +617,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                     data-entry-choice
                     role="radiogroup"
                     aria-label="How to enter"
-                    className="mt-4 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.25em] text-slate-600"
+                    className="mt-4 flex items-center gap-2 font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.25em] text-slate-600"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: isTransitioning ? 0 : 1 }}
                     transition={{ duration: 0.5, delay: isTransitioning ? 0 : 0.7 }}

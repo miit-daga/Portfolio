@@ -85,7 +85,7 @@ const Finale = ({ reduceMotion, onDone }: { reduceMotion: boolean; onDone: () =>
                 animate={{ opacity: [0, 1, 1, 0], y: [10, 0, 0, -6] }}
                 transition={{ duration: 3.6, times: [0, 0.12, 0.85, 1], delay: reduceMotion ? 0 : 0.9 }}
             >
-                <span className="whitespace-nowrap rounded-full border border-teal-400/40 bg-black/75 px-4 py-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-teal-200 backdrop-blur-sm shadow-[0_0_18px_rgba(45,212,191,0.25)] sm:text-[11px] sm:tracking-[0.25em]">
+                <span className="whitespace-nowrap rounded-full border border-teal-400/40 bg-black/75 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-teal-200 backdrop-blur-sm shadow-[0_0_18px_rgba(45,212,191,0.25)] sm:text-[11px] sm:tracking-[0.25em]">
                     transmission complete &middot; thanks for flying
                 </span>
             </motion.div>
@@ -245,16 +245,22 @@ export const ScrollProgress = () => {
             className="fixed top-0 left-0 right-0 h-1.5 z-[6000] pointer-events-none transition-opacity duration-200"
             style={{ opacity: menuOpen ? 0 : 1 }}
         >
-            {/* The flowing gradient line */}
+            {/* The flowing gradient line. The gradient flows by transform, on a
+                layer three bars wide sliding one gradient-width (two bars) a
+                beat: the same drift as sliding the background itself, but
+                without repainting the bar on every frame */}
             <motion.div
-                className="absolute top-0 left-0 bottom-0 origin-left bg-[length:200%_100%] animate-shimmer motion-reduce:animate-none shadow-[0_0_10px_rgba(45,212,191,0.6)]"
-                style={{
-                    scaleX,
-                    width: "100%",
-                    backgroundImage:
-                        "linear-gradient(90deg, #2563eb, #14b8a6, #5eead4, #14b8a6, #2563eb)",
-                }}
-            />
+                className="absolute top-0 left-0 bottom-0 origin-left overflow-hidden shadow-[0_0_10px_rgba(45,212,191,0.6)]"
+                style={{ scaleX, width: "100%" }}
+            >
+                <div
+                    className="absolute inset-y-0 left-0 w-[300%] animate-shimmer-slide motion-reduce:animate-none"
+                    style={{
+                        backgroundSize: "66.6667% 100%",
+                        backgroundImage: "linear-gradient(90deg, #2563eb, #14b8a6, #5eead4, #14b8a6, #2563eb)",
+                    }}
+                />
+            </motion.div>
 
             {/* Checkpoint stars at each section */}
             {!shouldReduceMotion &&
@@ -306,7 +312,7 @@ export const ScrollProgress = () => {
                 transition={{ duration: 0.2 }}
             >
                 <span
-                    className="block -translate-x-1/2 whitespace-nowrap rounded-full border border-teal-400/40 bg-black/70 px-2 py-0.5 text-[10px] font-medium tracking-wide text-teal-200 backdrop-blur-sm"
+                    className="block -translate-x-1/2 whitespace-nowrap rounded-full border border-teal-400/40 bg-black/70 px-2 py-0.5 text-[11px] sm:text-[10px] font-medium tracking-wide text-teal-200 backdrop-blur-sm"
                 >
                     {label}
                 </span>

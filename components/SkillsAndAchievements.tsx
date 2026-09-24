@@ -93,12 +93,12 @@ function SystemPanel({
                     {category}
                 </h3>
                 <span
-                    className="font-mono text-[9px] uppercase tracking-[0.25em]"
+                    className="font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.25em]"
                     style={{ color: `rgba(${RGB}, 0.75)` }}
                 >
                     sys·0{index + 1}
                 </span>
-                <span className="font-mono text-[10px] text-neutral-600">
+                <span className="font-mono text-[11px] sm:text-[10px] text-neutral-600">
                     {String(skills.length).padStart(2, "0")}
                 </span>
             </header>
@@ -153,7 +153,7 @@ function SystemPanel({
                 the contents change; on narrower screens the panels stack, so it
                 may grow for a long trail instead of clipping it. */}
             <div
-                className="flex min-h-[46px] items-center gap-x-3 gap-y-1 overflow-hidden border-t px-4 py-2 font-mono text-[10px] lg:h-[46px] lg:py-0"
+                className="flex min-h-[46px] items-center gap-x-3 gap-y-1 overflow-hidden border-t px-4 py-2 font-mono text-[11px] sm:text-[10px] lg:h-[46px] lg:py-0"
                 style={{ borderColor: `rgba(${RGB}, 0.14)`, background: `rgba(${RGB}, 0.04)` }}
                 aria-live="polite"
             >

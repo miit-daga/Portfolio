@@ -138,7 +138,7 @@ export const RocketDock = ({ className }: { className?: string }) => {
                             overwrite a centring translate on the same element */}
                         <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2">
                             <motion.span
-                                className="block whitespace-nowrap rounded-lg border border-teal-400/40 bg-black/85 px-2 py-0.5 font-mono text-[10px] text-teal-100"
+                                className="block whitespace-nowrap rounded-lg border border-teal-400/40 bg-black/85 px-2 py-0.5 font-mono text-[11px] sm:text-[10px] text-teal-100"
                                 initial={{ opacity: 0, y: 4 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.35, duration: 0.25 }}

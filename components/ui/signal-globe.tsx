@@ -6,6 +6,7 @@ import { kolkataNow } from "@/lib/kolkata";
 import { cn } from "@/lib/utils";
 import { describeLocation } from "@/lib/locate";
 import { LAND_COLS, LAND_MASK, LAND_ROWS, LAND_STEP } from "@/constants/land-mask";
+import { issNow, subscribeIss } from "@/lib/iss";
 
 // A slowly swaying wireframe globe with a glowing signal arc from the
 // visitor's location (IP-geolocated by Vercel's edge headers, with a
@@ -236,25 +237,13 @@ export const SignalGlobe = () => {
         });
     }, [inView]);
 
-    // ISS: fetch while the globe is on screen, every 15 s (every 5 s while following it)
+    // ISS: while the globe is on screen, every 15 s (every 5 s while following
+    // it), from the poll it shares with the sky's station (lib/iss.ts)
     useEffect(() => {
         if (!inView) return;
-        let alive = true;
-        const poll = () =>
-            fetch("https://api.wheretheiss.at/v1/satellites/25544", { cache: "no-store" })
-                .then((r) => (r.ok ? r.json() : null))
-                .then((d) => {
-                    if (alive && d && Number.isFinite(d.latitude) && Number.isFinite(d.longitude)) {
-                        issRef.current = { lat: d.latitude, lon: d.longitude, alt: d.altitude, vel: d.velocity };
-                    }
-                })
-                .catch(() => {});
-        poll();
-        const id = setInterval(poll, following ? 5000 : 15000);
-        return () => {
-            alive = false;
-            clearInterval(id);
-        };
+        return subscribeIss(following ? 5000 : 15000, (d) => {
+            issRef.current = { lat: d.latitude, lon: d.longitude, alt: d.altitude, vel: d.velocity };
+        });
     }, [inView, following]);
 
     // Resolve the visitor's position: IP geolocation via /api/visitor-location
@@ -866,7 +855,7 @@ export const SignalGlobe = () => {
                             exit={{ opacity: 0, transition: { duration: 0.1 } }}
                         >
                             <p className="text-[11px] text-neutral-100">{hover.title}</p>
-                            <p className="mt-0.5 text-[9.5px] leading-snug text-neutral-400">{hover.sub}</p>
+                            <p className="mt-0.5 text-[11px] sm:text-[9.5px] leading-snug text-neutral-400">{hover.sub}</p>
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -879,7 +868,7 @@ export const SignalGlobe = () => {
             </div>
 
             {origin && distance !== null && (
-                <div className="space-y-1 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+                <div className="space-y-1 text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500">
                     <p>
                         uplink &middot; <span className="text-violet-300/90">{origin.city}</span> →{" "}
                         <span className="text-teal-300/90">kolkata station</span>
@@ -907,11 +896,11 @@ export const SignalGlobe = () => {
                             <span style={{ color: kolkataNow(clock).mood.color }}>{kolkataNow(clock).mood.reply}</span>
                         </p>
                     )}
-                    <p className="pt-1 text-[9px] normal-case tracking-[0.12em] text-neutral-600">
+                    <p className="pt-1 text-[11px] sm:text-[9px] normal-case tracking-[0.12em] text-neutral-600">
                         <span className="hidden md:inline">drag to spin · click to ping · double-click for home</span>
                         <span className="md:hidden">drag to spin · tap to ping · double-tap for home</span>
                     </p>
-                    <p className="text-[8.5px] normal-case tracking-[0.1em] text-neutral-700">
+                    <p className="text-[11px] sm:text-[8.5px] normal-case tracking-[0.1em] text-neutral-700">
                         cities{" "}
                         <a href="https://www.geonames.org" target="_blank" rel="noopener noreferrer" className="underline decoration-dotted underline-offset-2 hover:text-neutral-500">
                             GeoNames
@@ -1029,11 +1018,11 @@ function LiveLoop({ reduce }: { reduce: boolean | null }) {
                     style={{ opacity: f === shown ? 1 : 0 }}
                 />
             ))}
-            {!allIn && <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">fetching the last 3 hours…</p>}
-            {allIn && !ready.length && <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">the satellite is quiet</p>}
+            {!allIn && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[9.5px] text-neutral-500">fetching the last 3 hours…</p>}
+            {allIn && !ready.length && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[9.5px] text-neutral-500">the satellite is quiet</p>}
             {shown && (
                 <>
-                    <span className="absolute bottom-1.5 left-2 flex items-center gap-1 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
+                    <span className="absolute bottom-1.5 left-2 flex items-center gap-1 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[11px] sm:text-[8.5px] tracking-wide text-neutral-300">
                         <span className={cn("h-1.5 w-1.5 rounded-full", shown === newest ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" : "bg-neutral-500")} />
                         {shown === newest ? `live · ${kolkataClock(shown.t)} · Meteosat` : kolkataClock(shown.t)}
                     </span>
@@ -1068,7 +1057,7 @@ function IsroView() {
             .catch(() => setImg("failed"));
     }, []);
     const k = IMG / INSAT.window;
-    if (img === "failed") return <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">ISRO is not answering</p>;
+    if (img === "failed") return <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[9.5px] text-neutral-500">ISRO is not answering</p>;
     return (
         <>
             {img && (
@@ -1081,12 +1070,12 @@ function IsroView() {
                         className="absolute max-w-none transition-opacity duration-300"
                         style={{ width: INSAT.w * k, left: -(INSAT.kx - INSAT.window / 2) * k, top: -(INSAT.ky - INSAT.window / 2) * k, opacity: loaded ? 1 : 0 }}
                     />
-                    <span className="absolute bottom-1.5 left-2 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
+                    <span className="absolute bottom-1.5 left-2 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[11px] sm:text-[8.5px] tracking-wide text-neutral-300">
                         INSAT-3DS · ISRO · {kolkataClock(new Date(img.time))}
                     </span>
                 </>
             )}
-            {!loaded && <p className="absolute inset-0 flex items-center justify-center text-[9.5px] text-neutral-500">asking ISRO…</p>}
+            {!loaded && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[9.5px] text-neutral-500">asking ISRO…</p>}
         </>
     );
 }
@@ -1187,8 +1176,8 @@ function IssLive({ onClose }: { onClose: () => void }) {
         let alive = true;
         const check = async () => {
             try {
-                const now = await fetch("https://api.wheretheiss.at/v1/satellites/25544").then((r) => r.json());
-                if (!alive) return;
+                const now = await issNow();
+                if (!alive || !now) return;
                 if (now.visibility !== "eclipsed") return setNight({ dark: false, minutes: null });
                 // When it comes back into daylight: its positions over the next 40 minutes
                 const t0 = Math.round(Date.now() / 1000);
@@ -1238,7 +1227,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-1.5 flex items-center justify-between px-0.5">
-                    <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-neutral-300">
+                    <p className="flex items-center gap-1.5 text-[11px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-300">
                         <span className={cn("h-1.5 w-1.5 rounded-full", f.live ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" : "bg-neutral-500")} />
                         {f.live ? "live from the iss" : f.badge}
                     </p>
@@ -1266,7 +1255,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src="https://i.ytimg.com/vi/0FBiyFpV__g/hqdefault.jpg" alt="" className="h-full w-full object-cover opacity-70 transition-opacity group-hover:opacity-90" />
                             <span className="absolute inset-0 flex items-center justify-center">
-                                <span className="rounded-full bg-black/70 px-3 py-1 text-[10px] text-neutral-100">watch on YouTube ↗</span>
+                                <span className="rounded-full bg-black/70 px-3 py-1 text-[11px] sm:text-[10px] text-neutral-100">watch on YouTube ↗</span>
                             </span>
                         </a>
                     )}
@@ -1279,7 +1268,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
                             type="button"
                             onClick={() => choose(k)}
                             className={cn(
-                                "rounded-full border px-2 py-0.5 text-[9px] tracking-wide transition-colors",
+                                "rounded-full border px-2 py-0.5 text-[11px] sm:text-[9px] tracking-wide transition-colors",
                                 feed === k ? "border-amber-200/40 bg-amber-200/10 text-amber-100" : "border-white/10 text-neutral-400 hover:text-neutral-200",
                             )}
                         >
@@ -1288,7 +1277,7 @@ function IssLive({ onClose }: { onClose: () => void }) {
                         </button>
                     ))}
                 </div>
-                <p className="mt-1.5 px-0.5 text-[9px] leading-snug text-neutral-500">
+                <p className="mt-1.5 px-0.5 text-[11px] sm:text-[9px] leading-snug text-neutral-500">
                     {nightSwap ? (
                         <>
                             It is night over the station, and every live camera is dark, so here is a recorded spacewalk. Live returns
@@ -1354,7 +1343,7 @@ function HomeCard({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="mb-1.5 flex items-center justify-between px-0.5">
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-neutral-300">kolkata station</p>
+                    <p className="text-[11px] sm:text-[10px] uppercase tracking-[0.22em] text-neutral-300">kolkata station</p>
                     <button type="button" onClick={onClose} aria-label="Zoom back out" className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white">
                         <IconX className="h-3.5 w-3.5" />
                     </button>
@@ -1387,17 +1376,17 @@ function HomeCard({
                             ))}
                         </div>
                     )}
-                    {tab === "today" && failed && <p className="absolute inset-0 flex items-center justify-center text-[10px] text-neutral-500">no clear pass lately</p>}
+                    {tab === "today" && failed && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[10px] text-neutral-500">no clear pass lately</p>}
                     {/* Kolkata */}
                     <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,1)]" />
                     <span className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-amber-300/70 motion-reduce:animate-none" />
                     {tab === "today" && (
-                        <span className="absolute bottom-1.5 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[8.5px] tracking-wide text-neutral-300">
+                        <span className="absolute bottom-1.5 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] sm:text-[8.5px] tracking-wide text-neutral-300">
                             from orbit · NASA · {pretty}
                         </span>
                     )}
                     {/* live, or today's sharper pass */}
-                    <span className="absolute right-1.5 top-1.5 flex rounded-full bg-black/60 p-0.5 text-[8.5px] tracking-wide">
+                    <span className="absolute right-1.5 top-1.5 flex rounded-full bg-black/60 p-0.5 text-[11px] sm:text-[8.5px] tracking-wide">
                         {(["live", "isro", "today"] as const).map((k) => (
                             <button
                                 key={k}
@@ -1411,7 +1400,7 @@ function HomeCard({
                     </span>
                 </div>
 
-                <div className="mt-1.5 space-y-0 px-0.5 text-[9.5px] leading-snug text-neutral-400">
+                <div className="mt-1.5 space-y-0 px-0.5 text-[11px] sm:text-[9.5px] leading-snug text-neutral-400">
                     {now && (
                         <p>
                             <span className="text-neutral-100">{now.time}</span> · <span style={{ color: now.mood.color }}>{now.mood.label}</span>

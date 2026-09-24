@@ -52,6 +52,9 @@ export const SectionDivider = ({
 }) => {
   const ref = useRef<HTMLDivElement>(null)
   const isInView = useInView(ref, { once: true, margin: "-40px" })
+  // Its loops (pulses, a comet, a spin) only run while it is on screen or
+  // about to be: they rest once it has been scrolled well past
+  const live = useInView(ref, { margin: "200px" })
   const accent = toAccent(section ? getSection(section) : TEAL)
 
   return (
@@ -70,23 +73,23 @@ export const SectionDivider = ({
       </motion.div>
 
       {variant === "comet" ? (
-        <CometDivider isInView={isInView} a={accent} />
+        <CometDivider isInView={isInView} live={live} a={accent} />
       ) : variant === "planet" ? (
-        <PlanetDivider isInView={isInView} a={accent} />
+        <PlanetDivider isInView={isInView} live={live} a={accent} />
       ) : variant === "nova" ? (
-        <NovaDivider isInView={isInView} a={accent} />
+        <NovaDivider isInView={isInView} live={live} a={accent} />
       ) : variant === "galaxy" ? (
-        <GalaxyDivider isInView={isInView} a={accent} />
+        <GalaxyDivider isInView={isInView} live={live} a={accent} />
       ) : variant === "rocket" ? (
-        <RocketDivider isInView={isInView} a={accent} />
+        <RocketDivider isInView={isInView} live={live} a={accent} />
       ) : (
-        <ConstellationDivider isInView={isInView} a={accent} />
+        <ConstellationDivider isInView={isInView} live={live} a={accent} />
       )}
     </div>
   )
 }
 
-type VariantProps = { isInView: boolean; a: Accent }
+type VariantProps = { isInView: boolean; live: boolean; a: Accent }
 
 // --- Variant 1: Constellation ---
 const CONSTELLATION = [
@@ -99,7 +102,7 @@ const CONSTELLATION = [
   { x: 250, y: 26 },
 ]
 
-const ConstellationDivider = ({ isInView, a }: VariantProps) => (
+const ConstellationDivider = ({ isInView, live, a }: VariantProps) => (
   <div className="relative flex items-center justify-center h-10">
     <svg width="280" height="34" viewBox="0 0 280 34" className="relative overflow-visible" fill="none">
       {/* Connecting lines draw in sequence */}
@@ -137,12 +140,12 @@ const ConstellationDivider = ({ isInView, a }: VariantProps) => (
             initial={{ scale: 0, opacity: 0 }}
             animate={
               isInView
-                ? { scale: 1, opacity: big ? [1, 0.55, 1] : [0.7, 1, 0.7] }
+                ? { scale: 1, opacity: live ? (big ? [1, 0.55, 1] : [0.7, 1, 0.7]) : big ? 1 : 0.7 }
                 : { scale: 0, opacity: 0 }
             }
             transition={{
               scale: { duration: 0.4, delay: 0.3 + i * 0.12, ease: [0.34, 1.56, 0.64, 1] },
-              opacity: { duration: 2.6, repeat: Infinity, delay: 1 + i * 0.2, ease: "easeInOut" },
+              opacity: live ? { duration: 2.6, repeat: Infinity, delay: 1 + i * 0.2, ease: "easeInOut" } : { duration: 0.3 },
             }}
           />
         )
@@ -152,7 +155,7 @@ const ConstellationDivider = ({ isInView, a }: VariantProps) => (
 )
 
 // --- Variant 2: Comet ---
-const CometDivider = ({ isInView, a }: VariantProps) => (
+const CometDivider = ({ isInView, live, a }: VariantProps) => (
   <div className="relative flex items-center justify-center h-10">
     {/* Faint trajectory */}
     <div
@@ -166,7 +169,7 @@ const CometDivider = ({ isInView, a }: VariantProps) => (
     />
 
     {/* The comet */}
-    {isInView && (
+    {isInView && live && (
       <motion.div
         className="absolute top-1/2"
         style={{ y: "-50%" }}
@@ -199,7 +202,7 @@ const CometDivider = ({ isInView, a }: VariantProps) => (
 )
 
 // --- Variant 3: Ringed planet ---
-const PlanetDivider = ({ isInView, a }: VariantProps) => {
+const PlanetDivider = ({ isInView, live, a }: VariantProps) => {
   const gradId = `dividerPlanetBody-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`
   return (
     <div className="relative flex items-center justify-center h-10">
@@ -240,10 +243,10 @@ const PlanetDivider = ({ isInView, a }: VariantProps) => {
           className="absolute h-1 w-1 rounded-full"
           style={{ ...p, background: a.pale, boxShadow: `0 0 4px ${a.rgba(0.8)}` }}
           initial={{ opacity: 0, scale: 0 }}
-          animate={isInView ? { opacity: [0.4, 1, 0.4], scale: 1 } : { opacity: 0, scale: 0 }}
+          animate={isInView ? { opacity: live ? [0.4, 1, 0.4] : 0.4, scale: 1 } : { opacity: 0, scale: 0 }}
           transition={{
             scale: { duration: 0.3, delay: 0.6 + i * 0.1 },
-            opacity: { duration: 2.4, repeat: Infinity, delay: 1 + i * 0.3, ease: "easeInOut" },
+            opacity: live ? { duration: 2.4, repeat: Infinity, delay: 1 + i * 0.3, ease: "easeInOut" } : { duration: 0.3 },
           }}
         />
       ))}
@@ -284,7 +287,7 @@ const PlanetDivider = ({ isInView, a }: VariantProps) => {
 }
 
 // --- Variant 4: Nova (bright star with lens-flare diffraction spikes) ---
-const NovaDivider = ({ isInView, a }: VariantProps) => (
+const NovaDivider = ({ isInView, live, a }: VariantProps) => (
   <div className="relative flex items-center justify-center h-10">
     {/* Side lines */}
     <motion.div
@@ -321,8 +324,8 @@ const NovaDivider = ({ isInView, a }: VariantProps) => (
       {/* Soft glow + gentle twinkle */}
       <motion.div
         className="relative flex items-center justify-center"
-        animate={isInView ? { opacity: [0.7, 1, 0.7], scale: [1, 1.12, 1] } : { opacity: 0 }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+        animate={isInView ? (live ? { opacity: [0.7, 1, 0.7], scale: [1, 1.12, 1] } : { opacity: 0.7, scale: 1 }) : { opacity: 0 }}
+        transition={live ? { duration: 3, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
       >
         <div
           className="absolute rounded-full"
@@ -354,7 +357,7 @@ const NovaDivider = ({ isInView, a }: VariantProps) => (
 )
 
 // --- Variant 5: Spiral galaxy ---
-const GalaxyDivider = ({ isInView, a }: VariantProps) => {
+const GalaxyDivider = ({ isInView, live, a }: VariantProps) => {
   const coreId = `dividerGalaxyCore-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`
   return (
     <div className="relative flex items-center justify-center h-10">
@@ -369,11 +372,10 @@ const GalaxyDivider = ({ isInView, a }: VariantProps) => {
           width="56"
           height="56"
           viewBox="0 0 56 56"
-          className="relative overflow-visible"
+          className={`relative overflow-visible ${isInView ? "animate-[spin_24s_linear_infinite]" : ""}`}
           fill="none"
-          animate={isInView ? { rotate: 360 } : { rotate: 0 }}
-          transition={{ duration: 24, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "28px 28px" }}
+          // turning once a day at 24 s a turn: paused while off screen, from the same angle
+          style={{ transformOrigin: "28px 28px", animationPlayState: live ? "running" : "paused" }}
         >
           <defs>
             <radialGradient id={coreId} cx="50%" cy="50%" r="50%">
@@ -396,13 +398,13 @@ const GalaxyDivider = ({ isInView, a }: VariantProps) => {
 }
 
 // --- Variant 6: Rocket fly-by (echoes the timeline / progress rocket) ---
-const RocketDivider = ({ isInView, a }: VariantProps) => (
+const RocketDivider = ({ isInView, live, a }: VariantProps) => (
   <div className="relative flex items-center justify-center h-10">
     <div
       className="absolute top-1/2 left-10 right-10 h-px -translate-y-1/2"
       style={{ background: `linear-gradient(90deg, transparent, ${a.rgba(0.15)}, transparent)` }}
     />
-    {isInView && (
+    {isInView && live && (
       <motion.div
         className="absolute top-1/2"
         style={{ y: "-50%" }}

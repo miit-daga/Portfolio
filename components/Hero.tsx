@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useCallback, useRef } from "react"
-import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring } from "framer-motion"
+import { motion, AnimatePresence, useScroll, useTransform, useReducedMotion, useMotionValue, useSpring, useInView } from "framer-motion"
 import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroNebula } from "./ui/hero-nebula"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
@@ -130,11 +130,18 @@ const Hero = () => {
   const shouldReduceMotion = useReducedMotion()
   const scrollOpacity = useTransform(scrollY, [0, 600], [1, 0])
   const opacity = shouldReduceMotion ? 1 : scrollOpacity
+  // Its loops (the portrait's float, the scroll cues, the name's glitch) rest
+  // once the hero has been scrolled well out of view
+  const heroRef = useRef<HTMLDivElement>(null)
+  const heroLive = useInView(heroRef, { margin: "200px" })
+  const heroLiveRef = useRef(true)
+  heroLiveRef.current = heroLive
 
   // Glitch effect state
   const [isGlitching, setIsGlitching] = useState(false)
 
   const triggerGlitch = useCallback(() => {
+    if (!heroLiveRef.current) return
     setIsGlitching(true)
     setTimeout(() => setIsGlitching(false), 300)
   }, [])
@@ -204,6 +211,7 @@ const Hero = () => {
 
   return (
     <motion.div
+      ref={heroRef}
       style={{ opacity }}
       className="h-dvh relative overflow-hidden"
     >
@@ -286,8 +294,8 @@ const Hero = () => {
                 />
 
                 <motion.div
-                  animate={{ y: [-15, 15, -15] }}
-                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                  animate={heroLive ? { y: [-15, 15, -15] } : { y: -15 }}
+                  transition={heroLive ? { duration: 6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
                   className="relative w-full h-full"
                 >
                   {/* 1. The Image: natural colours, cyan rim light (.holo-figure).
@@ -371,7 +379,7 @@ const Hero = () => {
                           exit={{ opacity: 0, scale: 0.9 }}
                           transition={{ duration: 0.2, ease: "easeOut" }}
                           style={{ transformOrigin: "bottom center" }}
-                          className="relative flex min-h-[44px] w-[160px] items-center justify-center rounded-2xl border border-teal-400/40 bg-black/85 px-3 py-1.5 text-center font-mono text-[10px] leading-snug text-teal-200 shadow-[0_0_22px_rgba(45,212,191,0.3)] backdrop-blur-md sm:min-h-[50px] sm:w-[190px] sm:text-xs lg:min-h-[58px] lg:w-[240px] lg:text-sm"
+                          className="relative flex min-h-[44px] w-[160px] items-center justify-center rounded-2xl border border-teal-400/40 bg-black/85 px-3 py-1.5 text-center font-mono text-[11px] leading-snug text-teal-200 shadow-[0_0_22px_rgba(45,212,191,0.3)] backdrop-blur-md sm:min-h-[50px] sm:w-[190px] sm:text-xs lg:min-h-[58px] lg:w-[240px] lg:text-sm"
                         >
                           <AnimatePresence mode="wait">
                             <motion.span
@@ -447,7 +455,7 @@ const Hero = () => {
 
             <div className="flex items-center gap-2 text-xs text-neutral-500 font-mono">
               <span>Navigate</span>
-              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[10px] font-medium text-neutral-400 opacity-100">
+              <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border border-white/10 bg-white/5 px-1.5 font-mono text-[11px] sm:text-[10px] font-medium text-neutral-400 opacity-100">
                 {typeof window !== "undefined" &&
                   /Mac|iPhone|iPod|iPad/.test(navigator.platform) ? (
                   <>
@@ -472,11 +480,11 @@ const Hero = () => {
             <span className="relative block h-9 w-6 rounded-full border-2 border-current">
               <motion.span
                 className="absolute left-[calc(50%-2px)] top-1.5 block h-2 w-1 rounded-full bg-current"
-                animate={shouldReduceMotion ? undefined : { y: [0, 9, 0], opacity: [1, 0.15, 1] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                animate={shouldReduceMotion ? undefined : heroLive ? { y: [0, 9, 0], opacity: [1, 0.15, 1] } : { y: 0, opacity: 1 }}
+                transition={heroLive ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
               />
             </span>
-            <span className="font-mono text-[10px] font-normal uppercase tracking-[0.3em]">Scroll</span>
+            <span className="font-mono text-[11px] sm:text-[10px] font-normal uppercase tracking-[0.3em]">Scroll</span>
           </a>
 
           {/* --- MOBILE SCROLL CUE --- */}
@@ -490,8 +498,8 @@ const Hero = () => {
               href="#about-me"
               aria-label="Scroll to content"
               className="flex flex-col items-center gap-2 text-teal-300/90"
-              animate={shouldReduceMotion ? undefined : { y: [0, 10, 0] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+              animate={shouldReduceMotion ? undefined : heroLive ? { y: [0, 10, 0] } : { y: 0 }}
+              transition={heroLive ? { duration: 1.6, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
             >
               <span className="text-[11px] font-mono uppercase tracking-[0.25em]">Scroll</span>
               <span className="flex items-center justify-center h-9 w-9 rounded-full border border-teal-400/40 bg-teal-500/10 backdrop-blur-sm">

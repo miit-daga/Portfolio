@@ -191,7 +191,7 @@ export const FlightPath = () => {
                             </span>
                             {/* Label: shown for the hovered waypoint, else the active one */}
                             <span
-                                className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-full border border-teal-400/30 bg-black/75 px-2 py-0.5 font-mono text-[10px] tracking-wide text-teal-200 backdrop-blur-sm transition-opacity duration-200"
+                                className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-full border border-teal-400/30 bg-black/75 px-2 py-0.5 font-mono text-[11px] sm:text-[10px] tracking-wide text-teal-200 backdrop-blur-sm transition-opacity duration-200"
                                 style={{ opacity: showLabel ? 1 : 0 }}
                             >
                                 {w.label}

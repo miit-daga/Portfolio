@@ -77,7 +77,7 @@ export function MissionStatus({ accent }: { accent: string }) {
     };
 
     return (
-        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">
+        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500">
             <span>
                 your time <span className="text-neutral-300">{yours}</span>
             </span>
@@ -105,7 +105,7 @@ export function MissionStatus({ accent }: { accent: string }) {
                             <button
                                 type="button"
                                 onClick={reroll}
-                                className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-1 font-mono text-[10px] text-neutral-200 hover:border-white/30"
+                                className="mt-2 inline-flex items-center gap-1 rounded-full border border-white/15 px-2.5 py-1 font-mono text-[11px] sm:text-[10px] text-neutral-200 hover:border-white/30"
                             >
                                 <IconRefresh className="h-3 w-3" /> new callsign
                             </button>
@@ -259,7 +259,7 @@ export function VisitLog() {
             <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
-                className="font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500 transition-colors hover:text-neutral-300"
+                className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500 transition-colors hover:text-neutral-300"
             >
                 visit log · {log.minutes} min aboard · {log.visited.length}/{SECTIONS.length} sections · {f} {f === 1 ? "find" : "finds"}
                 <span className="ml-1.5 text-neutral-600">{open ? "▴" : "▾"}</span>
@@ -273,7 +273,7 @@ export function VisitLog() {
                         exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     >
                         <div className="flex items-center justify-between">
-                            <p className="text-[9px] uppercase tracking-[0.25em] text-amber-300/90">mission report</p>
+                            <p className="text-[11px] sm:text-[9px] uppercase tracking-[0.25em] text-amber-300/90">mission report</p>
                             <button type="button" onClick={() => setOpen(false)} aria-label="Close" className="rounded-full p-1 text-neutral-500 hover:text-white">
                                 <IconX className="h-3.5 w-3.5" />
                             </button>
@@ -303,7 +303,7 @@ export function VisitLog() {
                                     style={{ background: log.visited.includes(s.id) ? s.hex : "rgba(255,255,255,0.12)", boxShadow: log.visited.includes(s.id) ? `0 0 6px ${s.hex}` : undefined }}
                                 />
                             ))}
-                            <span className="ml-1 text-[10px] text-neutral-500">
+                            <span className="ml-1 text-[11px] sm:text-[10px] text-neutral-500">
                                 {log.visited.length}/{SECTIONS.length} sections
                             </span>
                         </div>
@@ -387,7 +387,7 @@ export function BigCrunchKeys() {
                     );
                 })}
             </motion.div>
-            <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-neutral-600 md:hidden">tap them in order</span>
+            <span className="font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.2em] text-neutral-600 md:hidden">tap them in order</span>
         </div>
     );
 }

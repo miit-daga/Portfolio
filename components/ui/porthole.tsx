@@ -177,6 +177,8 @@ export const Porthole = ({ reduce }: { reduce: boolean | null }) => {
 
         const draw = (t: number, dt: number) => {
             const s = size;
+            // not laid out (the entry screen hidden for a visitor already in): nothing to draw
+            if (s < 8) return;
             ctx.clearRect(0, 0, s, s);
 
             // Deep space behind the glass

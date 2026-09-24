@@ -309,17 +309,17 @@ export const DefenseMode = () => {
                             <div className="mt-5 grid grid-cols-3 gap-2 text-center">
                                 <div>
                                     <p className="text-lg font-bold text-teal-300">{summary.hit}</p>
-                                    <p className="text-[10px] uppercase tracking-wider text-neutral-500">destroyed</p>
+                                    <p className="text-[11px] sm:text-[10px] uppercase tracking-wider text-neutral-500">destroyed</p>
                                 </div>
                                 <div>
                                     <p className="text-lg font-bold text-teal-300">
                                         {summary.fired ? Math.round((summary.hit / summary.fired) * 100) : 0}%
                                     </p>
-                                    <p className="text-[10px] uppercase tracking-wider text-neutral-500">accuracy</p>
+                                    <p className="text-[11px] sm:text-[10px] uppercase tracking-wider text-neutral-500">accuracy</p>
                                 </div>
                                 <div>
                                     <p className="text-lg font-bold text-amber-300">{summary.escaped}</p>
-                                    <p className="text-[10px] uppercase tracking-wider text-neutral-500">escaped</p>
+                                    <p className="text-[11px] sm:text-[10px] uppercase tracking-wider text-neutral-500">escaped</p>
                                 </div>
                             </div>
                             <div className="mt-6 flex flex-col gap-2">

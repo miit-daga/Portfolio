@@ -54,11 +54,12 @@ export const BackgroundGradientAnimation = ({
   animationSpeed?: number;
 }) => {
   const interactiveRef = useRef<HTMLDivElement>(null);
-
-  const [curX, setCurX] = useState(0);
-  const [curY, setCurY] = useState(0);
-  const [tgX, setTgX] = useState(0);
-  const [tgY, setTgY] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gradientsRef = useRef<HTMLDivElement>(null);
+  // The pointer blob's position, eased toward the pointer a twentieth of the
+  // way per move. Kept in a ref and written straight to its transform: it
+  // moves exactly as it did through state, without re-rendering on every move
+  const cur = useRef({ x: 0, y: 0 });
 
   const isMobile = useIsMobile();
   const isInteractive = interactive && !isMobile;
@@ -83,28 +84,31 @@ export const BackgroundGradientAnimation = ({
     document.body.style.setProperty("--blending-value", blendingValue);
   }, []);
 
-  useEffect(() => {
-    function move() {
-      if (!isInteractive || !interactiveRef.current) {
-        return;
-      }
-      setCurX(curX + (tgX - curX) / 20);
-      setCurY(curY + (tgY - curY) / 20);
-      interactiveRef.current.style.transform = `translate(${Math.round(
-        curX
-      )}px, ${Math.round(curY)}px)`;
-    }
-
-    move();
-  }, [tgX, tgY, isInteractive]);
-
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (isInteractive && interactiveRef.current) {
-      const rect = interactiveRef.current.getBoundingClientRect();
-      setTgX(event.clientX - rect.left);
-      setTgY(event.clientY - rect.top);
-    }
+    const el = interactiveRef.current;
+    if (!isInteractive || !el) return;
+    const rect = el.getBoundingClientRect();
+    const tgX = event.clientX - rect.left;
+    const tgY = event.clientY - rect.top;
+    // placed where it was, then eased on for the next move (as before)
+    el.style.transform = `translate(${Math.round(cur.current.x)}px, ${Math.round(cur.current.y)}px)`;
+    cur.current = { x: cur.current.x + (tgX - cur.current.x) / 20, y: cur.current.y + (tgY - cur.current.y) / 20 };
   };
+
+  // The blobs drift under a heavy blur, which is redrawn every frame they
+  // move: they rest while the hero is out of view, and carry on from where
+  // they were when it comes back
+  useEffect(() => {
+    const box = containerRef.current;
+    const layer = gradientsRef.current;
+    if (!box || !layer || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) layer.removeAttribute("data-paused");
+      else layer.setAttribute("data-paused", "");
+    });
+    io.observe(box);
+    return () => io.disconnect();
+  }, []);
 
   const [isSafari, setIsSafari] = useState(false);
   useEffect(() => {
@@ -113,6 +117,7 @@ export const BackgroundGradientAnimation = ({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "h-screen w-screen relative overflow-hidden top-0 left-0 bg-[linear-gradient(40deg,var(--gradient-background-start),var(--gradient-background-end))]",
         containerClassName
@@ -138,6 +143,7 @@ export const BackgroundGradientAnimation = ({
       </svg>
       <div className={cn("", className)}>{children}</div>
       <div
+        ref={gradientsRef}
         className={cn(
           "gradients-container h-full w-full blur-lg",
           isSafari || isMobile ? "blur-2xl" : "[filter:url(#blurMe)_blur(40px)]"

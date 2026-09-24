@@ -316,7 +316,7 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 4 }}
                         >
-                            <span className="text-[9px] uppercase tracking-[0.2em] text-neutral-500">say it</span>
+                            <span className="text-[11px] sm:text-[9px] uppercase tracking-[0.2em] text-neutral-500">say it</span>
                             <span className="text-neutral-100">{SAY.phonetic}</span>
                             {canSpeak && (
                                 <button

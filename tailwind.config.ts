@@ -33,12 +33,18 @@ const config: Config = {
         ninth: "moveInCircle 25s linear infinite",
         tenth: "moveHorizontal 17s reverse infinite",
         shimmer: "shimmer 3s linear infinite",
+        // the scroll bar's shimmer by transform (components/ScrollProgress.tsx)
+        "shimmer-slide": "shimmer-slide 1.5s linear infinite",
         sheen: "sheen 5s ease-in-out infinite",
       },
       keyframes: {
         shimmer: {
           "0%": { backgroundPosition: "200% 0" },
           "100%": { backgroundPosition: "-200% 0" },
+        },
+        "shimmer-slide": {
+          "0%": { transform: "translateX(-66.6667%)" },
+          "100%": { transform: "translateX(0)" },
         },
         sheen: {
           "0%, 55%": { backgroundPosition: "150% 0" },

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { describeLocation } from "@/lib/locate"
 import { skyPalette } from "@/lib/sky"
+import { subscribeIss } from "@/lib/iss"
 
 interface AnimatedBackgroundProps {
   children: React.ReactNode
@@ -333,6 +334,10 @@ const ISS_FACTS = [
 export const AnimatedBackground = ({ children, className, isImploding = false }: AnimatedBackgroundProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
+  // The still stars, on a layer of their own between the planets and the
+  // twinkles: redrawn only when they move (the parallax), a twinkle starts, or
+  // the window resizes, not every frame with the orbiting planets
+  const starsCanvasRef = useRef<HTMLCanvasElement>(null)
   const mouseRef = useRef({ x: 0, y: 0 });
   const didPlayImplosionSound = useRef(false);
   const satellitePosRef = useRef<{ x: number; y: number }[]>([])
@@ -341,7 +346,6 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   // refreshed on an interval so the modal can show it instantly
   const [issTelemetry, setIssTelemetry] = useState<{ alt: number; vel: number; lat: number; lon: number } | null>(null)
   const issTelemetryRef = useRef<{ alt: number; vel: number; lat: number; lon: number } | null>(null)
-  const issFetchAbort = useRef<AbortController | null>(null)
   const issPausedRef = useRef(false)
   const issFactIdx = useRef(Math.floor(Math.random() * ISS_FACTS.length))
   const issSarcasmIdx = useRef(Math.floor(Math.random() * ISS_SARCASM.length))
@@ -349,31 +353,17 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   // 30s cadence keeps the prefetched position warm; while the modal is open
   // it tightens to 10s (with an immediate fetch) so the readout visibly drifts
   const issModalOpen = issModal !== null
+  // One shared poll with the contact globe (lib/iss.ts); offline or blocked,
+  // the modal just skips the strip
   useEffect(() => {
     if (window.innerWidth < 768) return // the ISS never renders on phones
-    const fetchTelemetry = () => {
-      if (document.hidden) return
-      issFetchAbort.current?.abort()
-      const ac = new AbortController()
-      issFetchAbort.current = ac
-      fetch("https://api.wheretheiss.at/v1/satellites/25544", { signal: ac.signal, cache: "no-store" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d && typeof d.altitude === "number") {
-            const t = { alt: d.altitude, vel: d.velocity, lat: d.latitude, lon: d.longitude }
-            issTelemetryRef.current = t
-            // Modal already open: refresh the strip in place
-            if (issPausedRef.current) setIssTelemetry(t)
-          }
-        })
-        .catch(() => { /* offline or blocked - the modal just skips the strip */ })
-    }
-    fetchTelemetry()
-    const id = setInterval(fetchTelemetry, issModalOpen ? 10000 : 30000)
-    return () => {
-      clearInterval(id)
-      issFetchAbort.current?.abort()
-    }
+    return subscribeIss(issModalOpen ? 10000 : 30000, (d) => {
+      if (typeof d.altitude !== "number") return
+      const t = { alt: d.altitude, vel: d.velocity, lat: d.latitude, lon: d.longitude }
+      issTelemetryRef.current = t
+      // Modal already open: refresh the strip in place
+      if (issPausedRef.current) setIssTelemetry(t)
+    })
   }, [issModalOpen])
 
   // Easter egg: clicking the drifting ISS halts it mid-orbit and opens a modal.
@@ -438,11 +428,17 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   useEffect(() => {
     const canvas = canvasRef.current
     const backgroundCanvas = backgroundCanvasRef.current
-    if (!canvas || !backgroundCanvas) return
+    const starsCanvas = starsCanvasRef.current
+    if (!canvas || !backgroundCanvas || !starsCanvas) return
 
     const ctx = canvas.getContext("2d")
     const bgCtx = backgroundCanvas.getContext("2d")
-    if (!ctx || !bgCtx) return
+    const sCtx = starsCanvas.getContext("2d")
+    if (!ctx || !bgCtx || !sCtx) return
+    // The still stars need drawing again (resize, a twinkle starting); and
+    // where the pointer was when they were last drawn
+    let starsDirty = true
+    let starsAt = { x: NaN, y: NaN }
 
     if (isImploding && !didPlayImplosionSound.current) {
       playBlackHoleSound();
@@ -463,6 +459,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
     ctx.imageSmoothingEnabled = true
     bgCtx.imageSmoothingEnabled = true
+    sCtx.imageSmoothingEnabled = true
 
     // --- Configuration ---
     const MAX_ACTIVE_TWINKLERS = 15
@@ -559,10 +556,14 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       canvas.height = newHeight;
       backgroundCanvas.width = newWidth;
       backgroundCanvas.height = newHeight;
+      starsCanvas.width = newWidth;
+      starsCanvas.height = newHeight;
+      starsDirty = true;
 
       stars = []
       potentialTwinklers = []
       activeTwinklers = []
+      twinkling.clear()
 
       // Generate Stars
       const starCount = Math.floor((canvas.width * canvas.height) / AREA_PER_STAR)
@@ -678,6 +679,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       })
     }
 
+    // Which stars are twinkling now (a set, for the star loop's lookups)
+    const twinkling = new Set<Star>()
+
     // --- Animation Logic ---
     let animationFrame: number
     let shootingStarTimer = 0
@@ -742,8 +746,18 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         drawPlanet(bgCtx, planet, keyLight);
       });
 
-      // 2. Draw Stars
-      stars.forEach((star) => {
+      // 2. Draw Stars. Normally on their own layer, and only when they have
+      // moved or a twinkle has taken one away; in the implosion, on the
+      // background with its trails, as before
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+      const redrawStill = !isImploding && (starsDirty || mx !== starsAt.x || my !== starsAt.y);
+      if (redrawStill) {
+        sCtx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
+        starsDirty = false;
+        starsAt = { x: mx, y: my };
+      }
+      if (isImploding || redrawStill) stars.forEach((star) => {
         let x = star.originalX;
         let y = star.originalY;
 
@@ -790,12 +804,12 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
           y = star.originalY + offsetY;
           star.x = x; star.y = y;
 
-          if (!activeTwinklers.includes(star)) {
+          if (!twinkling.has(star)) {
             const { r, g, b } = star.color
-            bgCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
-            bgCtx.beginPath()
-            bgCtx.arc(x, y, star.size, 0, Math.PI * 2)
-            bgCtx.fill()
+            sCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
+            sCtx.beginPath()
+            sCtx.arc(x, y, star.size, 0, Math.PI * 2)
+            sCtx.fill()
           }
         }
       });
@@ -812,11 +826,13 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
           if (star.twinklePhase >= Math.PI * 2) {
             star.twinklePhase = 0
             activeTwinklers.splice(i, 1)
+            twinkling.delete(star)
+            // back among the still stars, drawn there this same frame
             const { r, g, b } = star.color
-            bgCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
-            bgCtx.beginPath();
-            bgCtx.arc(star.originalX + offsetX, star.originalY + offsetY, star.size, 0, Math.PI * 2);
-            bgCtx.fill()
+            sCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${star.brightness * 0.8})`
+            sCtx.beginPath();
+            sCtx.arc(star.originalX + offsetX, star.originalY + offsetY, star.size, 0, Math.PI * 2);
+            sCtx.fill()
             continue
           }
 
@@ -916,8 +932,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       if (isImploding) return;
       if (activeTwinklers.length >= MAX_ACTIVE_TWINKLERS || potentialTwinklers.length === 0) return
       const starToActivate = potentialTwinklers[Math.floor(Math.random() * potentialTwinklers.length)]
-      if (!activeTwinklers.includes(starToActivate)) {
+      if (!twinkling.has(starToActivate)) {
         activeTwinklers.push(starToActivate)
+        twinkling.add(starToActivate)
+        // it leaves the still layer, which is drawn again without it
+        starsDirty = true
       }
     }
 
@@ -964,6 +983,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         ref={backgroundCanvasRef}
         style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: -2 }}
       />
+      {/* the still stars: above the planets (same layer, later), under the twinkles */}
+      <canvas
+        ref={starsCanvasRef}
+        style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: -2 }}
+      />
       <canvas
         ref={canvasRef}
         style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: -1 }}
@@ -995,14 +1019,14 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-teal-400/80">incoming transmission</p>
+              <p className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.3em] text-teal-400/80">incoming transmission</p>
               <p className="mt-3 text-base font-medium leading-snug text-white">{issModal.sarcasm}</p>
               {issTelemetry && (
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.4 }}
-                  className="mt-3 rounded-md border border-teal-500/20 bg-teal-500/5 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-teal-300/90"
+                  className="mt-3 rounded-md border border-teal-500/20 bg-teal-500/5 px-2.5 py-1.5 font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.14em] text-teal-300/90"
                 >
                   <span className="mr-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400 align-middle motion-reduce:animate-none" />
                   live telemetry &middot; alt {Math.round(issTelemetry.alt)} km &middot;{" "}

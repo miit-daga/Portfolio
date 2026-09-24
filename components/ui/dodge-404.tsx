@@ -211,7 +211,7 @@ export const Dodge404 = () => {
                         >
                             {phase === "over" ? "Fly Again" : "Engage Thrusters"}
                         </button>
-                        <p className="px-4 text-center font-mono text-[10px] text-neutral-500">
+                        <p className="px-4 text-center font-mono text-[11px] sm:text-[10px] text-neutral-500">
                             arrows / AD &middot; or hold &amp; drag &middot; dodge the meteors
                         </p>
                     </div>

@@ -36,7 +36,7 @@ const Heading = ({
             style={{ background: `linear-gradient(90deg, transparent, ${meta.hex})` }}
           />
           <span
-            className="font-mono text-[10px] uppercase tracking-[0.35em] md:text-[11px]"
+            className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.35em] md:text-[11px]"
             style={{ color: meta.light }}
           >
             {String(meta.index).padStart(2, '0')} &middot; {meta.eyebrow}
@@ -54,6 +54,7 @@ const Heading = ({
           The title flows white -> section accent -> white (clipped to text).
           leading + padding keep descenders (j, g, p) from being clipped by bg-clip-text. */}
       <h2
+        data-offscreen-pause
         className='font-display font-bold text-4xl md:text-6xl lg:text-7xl tracking-tight leading-[1.2] pb-1 bg-clip-text text-transparent bg-[length:200%_100%] animate-shimmer motion-reduce:animate-none'
         style={{
           backgroundImage:
@@ -74,6 +75,7 @@ const Heading = ({
       {/* Flowing gradient underline, same accent */}
       <div className="relative mx-auto mt-4 h-1 w-24 overflow-hidden rounded-full opacity-90">
         <div
+          data-offscreen-pause
           className="h-full w-full animate-shimmer rounded-full bg-[length:200%_100%] motion-reduce:animate-none"
           style={{
             backgroundImage:

@@ -178,15 +178,15 @@ const cardClass =
 const KeywordCard = ({ k }: { k: Keyword }) => (
   <span aria-hidden className={cardClass}>
     <span className="block font-mono text-[11px] text-sky-200">{k.title}</span>
-    <span className="mt-0.5 block font-mono text-[10px] text-neutral-400">{k.detail}</span>
-    <span className="mt-1 block font-mono text-[9px] uppercase tracking-[0.2em] text-sky-400/70">click to fly there ↓</span>
+    <span className="mt-0.5 block font-mono text-[11px] sm:text-[10px] text-neutral-400">{k.detail}</span>
+    <span className="mt-1 block font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.2em] text-sky-400/70">click to fly there ↓</span>
   </span>
 );
 
 const LanguageCard = ({ l }: { l: { hello: string; say: string } }) => (
   <span aria-hidden className={cardClass}>
     <span className="block text-xl leading-tight text-sky-100">{l.hello}</span>
-    <span className="mt-0.5 block font-mono text-[10px] text-neutral-400">{l.say}</span>
+    <span className="mt-0.5 block font-mono text-[11px] sm:text-[10px] text-neutral-400">{l.say}</span>
   </span>
 );
 

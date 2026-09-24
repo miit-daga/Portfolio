@@ -138,13 +138,13 @@ export function TelemetryGauge({
             </div>
             {caption && (
                 <span
-                    className="mt-3 font-mono text-[9px] uppercase tracking-[0.3em]"
+                    className="mt-3 font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.3em]"
                     style={{ color: `rgba(${rgb},0.7)` }}
                 >
                     {caption}
                 </span>
             )}
-            <span className="mt-1 max-w-[10rem] font-mono text-[10px] uppercase leading-relaxed tracking-[0.18em] text-neutral-400 md:text-[11px]">
+            <span className="mt-1 max-w-[10rem] font-mono text-[11px] sm:text-[10px] uppercase leading-relaxed tracking-[0.18em] text-neutral-400 md:text-[11px]">
                 {label}
             </span>
         </div>

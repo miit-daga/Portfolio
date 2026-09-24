@@ -12,21 +12,17 @@ import { useMailCourier } from "./ui/mail-courier";
 import { BigCrunchKeys, MissionStatus, VisitLog } from "./ui/footer-console";
 
 // The scenes at the foot of the page (UFO, crew card with its QR library,
-// globe, pass printer) load in their own chunks after first paint. The
-// placeholders hold their space so nothing shifts when they arrive.
+// globe, pass printer) load in their own chunks, and only once the visitor
+// reaches Projects (or lands on Contact itself): until then neither their code
+// nor their data (the globe's location, the radar's guestbook) is fetched.
+// The placeholders hold their space so nothing shifts when they arrive.
+const CrewCardSpace = () => <div className="h-[237px] w-[336px] sm:h-[253px] sm:w-[362px]" />;
+const GlobeSpace = () => <div style={{ width: 280, height: 350 }} />;
+const ActionsSpace = () => <div className="h-[38px]" />;
 const SignalRings = dynamic(() => import("./ui/signal-rings").then((m) => m.SignalRings), { ssr: false });
-const CrewCard = dynamic(() => import("./ui/crew-card").then((m) => m.CrewCard), {
-    ssr: false,
-    loading: () => <div className="h-[237px] w-[336px] sm:h-[253px] sm:w-[362px]" />,
-});
-const SignalGlobe = dynamic(() => import("./ui/signal-globe").then((m) => m.SignalGlobe), {
-    ssr: false,
-    loading: () => <div style={{ width: 280, height: 350 }} />,
-});
-const ContactActions = dynamic(() => import("./ui/contact-actions").then((m) => m.ContactActions), {
-    ssr: false,
-    loading: () => <div className="h-[38px]" />,
-});
+const CrewCard = dynamic(() => import("./ui/crew-card").then((m) => m.CrewCard), { ssr: false, loading: CrewCardSpace });
+const SignalGlobe = dynamic(() => import("./ui/signal-globe").then((m) => m.SignalGlobe), { ssr: false, loading: GlobeSpace });
+const ContactActions = dynamic(() => import("./ui/contact-actions").then((m) => m.ContactActions), { ssr: false, loading: ActionsSpace });
 const GuestbookSignal = dynamic(() => import("./ui/radar-guestbook").then((m) => m.GuestbookSignal), { ssr: false });
 import { accentVars, getSection } from "@/constants/sections";
 
@@ -47,6 +43,25 @@ export function Contact() {
 
     useEffect(() => {
         setMounted(true);
+    }, []);
+
+    // The footer scenes come in as Projects comes into view, or Contact itself
+    // (a link straight to it skips Projects)
+    const [near, setNear] = useState(false);
+    useEffect(() => {
+        const targets = [document.getElementById("projects"), document.getElementById("contact")].filter((el): el is HTMLElement => !!el);
+        if (!targets.length || typeof IntersectionObserver === "undefined") {
+            setNear(true);
+            return;
+        }
+        const io = new IntersectionObserver((entries) => {
+            if (entries.some((e) => e.isIntersecting)) {
+                setNear(true);
+                io.disconnect();
+            }
+        });
+        targets.forEach((t) => io.observe(t));
+        return () => io.disconnect();
     }, []);
 
     const copyEmail = () => {
@@ -140,7 +155,7 @@ export function Contact() {
                                 {emailCopied ? <IconCheck className="h-6 w-6" /> : <IconMail className="h-6 w-6" style={{ color: CONTACT.hex }} />}
                                 <span>{emailCopied ? "Email Copied!" : "miitcodes27@gmail.com"}</span>
                             </a>
-                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
+                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[11px] sm:text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
                                 Left-click: Send • Right-click: Copy
                             </span>
                         </div>
@@ -158,7 +173,7 @@ export function Contact() {
                                 {phoneCopied ? <IconCheck className="h-6 w-6" /> : <IconPhone className="h-6 w-6" style={{ color: CONTACT.hex }} />}
                                 <span>{phoneCopied ? "Number Copied!" : "+91 7003816564"}</span>
                             </a>
-                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
+                            <span className="absolute -bottom-6 left-0 right-0 text-center text-[11px] sm:text-[10px] uppercase tracking-wider text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none hidden md:block">
                                 Click to Copy
                             </span>
                         </div>
@@ -173,10 +188,10 @@ export function Contact() {
                 {/* Right Side: SIGNAL BEACON */}
                 <div className="relative h-[360px] lg:h-[440px] w-full flex items-center justify-center order-1 lg:order-2 overflow-visible">
                     <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 to-blue-500/5 blur-3xl opacity-20 rounded-full" />
-                    <SignalRings />
+                    {near && <SignalRings />}
                     {/* The radar's guestbook: sign it here, read it on the blips */}
                     <div className="absolute inset-x-0 bottom-0 z-30 flex justify-center px-2">
-                        <GuestbookSignal />
+                        {near && <GuestbookSignal />}
                     </div>
                 </div>
             </div>
@@ -184,11 +199,11 @@ export function Contact() {
             {/* Crew ID + live signal path */}
             <div className="max-w-7xl mx-auto px-4 mt-20 grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
                 <div className="flex flex-col items-center gap-5">
-                    <CrewCard />
-                    <ContactActions />
+                    {near ? <CrewCard /> : <CrewCardSpace />}
+                    {near ? <ContactActions /> : <ActionsSpace />}
                 </div>
                 <div className="flex justify-center">
-                    <SignalGlobe />
+                    {near ? <SignalGlobe /> : <GlobeSpace />}
                 </div>
             </div>
 
