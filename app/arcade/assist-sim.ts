@@ -227,13 +227,14 @@ export const LEVELS: Level[] = [
     },
     {
         name: "Two giants",
-        brief: "Thread the gap between Jupiter and Saturn to reach Neptune.",
+        brief: "Thread the gap between Jupiter and Saturn's rings to reach Neptune. The rings are solid.",
         fact: "Jupiter and Saturn line up in our sky every 20 years or so, the Great Conjunction.",
         bodies: [
             EARTH(-44, 4),
             { kind: "jupiter", r: 4.2, mu: 2600, at: [-4, 10] },
-            { kind: "saturn", r: 3.4, mu: 2200, at: [-2, -8] },
-            { kind: "neptune", r: 2.3, mu: 400, at: [42, -16] },
+            // (Saturn well below Jupiter: its rings are solid, and there has to be a gap to thread)
+            { kind: "saturn", r: 3.4, mu: 2200, at: [-2, -16] },
+            { kind: "neptune", r: 2.3, mu: 400, at: [42, -4] },
         ],
         start: 0,
         target: 3,
