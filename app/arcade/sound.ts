@@ -98,6 +98,20 @@ export const sfxPerfect = (streak: number) => {
     tone(f, 0, 0.25, 0.08, "triangle");
     tone(f * 1.5, 0.05, 0.3, 0.05);
 };
+/** A probe launched: a rushing lift-off, falling away. */
+export const sfxLaunch = (power: number) => {
+    noiseBurst(0.9, 0.1 + power * 0.12, 2500, 200);
+    tone(70 + power * 40, 0, 0.8, 0.14, "triangle", 40);
+};
+/** A flyby done: a soft two-note ping. */
+export const sfxFlyby = () => {
+    tone(988, 0, 0.18, 0.06);
+    tone(1319, 0.08, 0.3, 0.06);
+};
+/** Arrived: a warm chord, rising. */
+export const sfxArrive = () => {
+    [392, 494, 587, 784, 988].forEach((f, i) => tone(f, i * 0.08, 0.7, 0.06, "triangle"));
+};
 /** An overhang sliced off. */
 export const sfxSlice = () => noiseBurst(0.18, 0.12, 6000, 900);
 

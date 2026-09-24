@@ -4,10 +4,11 @@ import dynamic from "next/dynamic";
 
 // The arcade: two 3D games, each in its own chunk with three.js, loaded only
 // when it is opened, so nothing here costs the rest of the site anything.
-// ?game=run or ?game=stack opens one straight away (the command menu does).
+// ?game=run, ?game=stack or ?game=assist opens one straight away.
 
 const AsteroidRun = dynamic(() => import("./asteroid-run"), { ssr: false, loading: () => <Loading /> });
 const StackStation = dynamic(() => import("./stack-station"), { ssr: false, loading: () => <Loading /> });
+const GravityAssist = dynamic(() => import("./gravity-assist"), { ssr: false, loading: () => <Loading /> });
 
 function Loading() {
     return (
@@ -17,7 +18,7 @@ function Loading() {
     );
 }
 
-type Game = "run" | "stack";
+type Game = "run" | "stack" | "assist";
 const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; best: string; bestKey: string; hue: string }[] = [
     {
         id: "run",
@@ -39,6 +40,16 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
         bestKey: "arcade-stack-best",
         hue: "251,191,36",
     },
+    {
+        id: "assist",
+        no: "03",
+        title: "Gravity Assist",
+        blurb: "Send a probe from Earth to other worlds, bending its path round the planets on the way, and catch a moving one to be flung on faster, as Voyager was. Eight missions.",
+        how: "Drag back to aim, let go to launch · the same on a phone",
+        best: "Stars",
+        bestKey: "arcade-assist-stars",
+        hue: "167,139,250",
+    },
 ];
 
 export function Arcade() {
@@ -48,7 +59,7 @@ export function Arcade() {
     useEffect(() => {
         const q = new URLSearchParams(window.location.search).get("game");
         // (the docking game this replaced was ?game=dock)
-        if (q === "run" || q === "stack") setGame(q);
+        if (q === "run" || q === "stack" || q === "assist") setGame(q);
         else if (q === "dock") {
             setGame("stack");
             window.history.replaceState(null, "", "/arcade?game=stack");
@@ -77,9 +88,10 @@ export function Arcade() {
 
     if (game === "run") return <AsteroidRun onExit={() => open(null)} />;
     if (game === "stack") return <StackStation onExit={() => open(null)} />;
+    if (game === "assist") return <GravityAssist onExit={() => open(null)} />;
 
     return (
-        <section className="relative z-10 mx-auto grid w-full max-w-5xl gap-5 px-4 pb-10 md:grid-cols-2 md:px-6">
+        <section className="relative z-10 mx-auto grid w-full max-w-5xl gap-5 px-4 pb-10 md:grid-cols-2 md:px-6 lg:max-w-6xl lg:grid-cols-3">
             {GAMES.map((g) => (
                 <button
                     key={g.id}
@@ -88,9 +100,19 @@ export function Arcade() {
                     className="group relative overflow-hidden rounded-3xl border border-white/10 bg-neutral-950/70 p-6 text-left transition-colors hover:border-[rgba(var(--hue),0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--hue),0.7)]"
                     style={{ ["--hue" as string]: g.hue }}
                 >
-                    {/* a glimpse of the game */}
+                    {/* a glimpse of the game: a still from it */}
                     <div className="relative mb-6 h-40 overflow-hidden rounded-2xl bg-black" aria-hidden>
-                        {g.id === "run" ? <RunPreview /> : <StackPreview />}
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                            src={`/arcade/preview-${g.id}.webp`}
+                            alt=""
+                            width={960}
+                            height={440}
+                            loading="lazy"
+                            decoding="async"
+                            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04] motion-reduce:transition-none"
+                        />
+                        <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/10" />
                     </div>
                     <p className="font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: `rgb(${g.hue})` }}>
                         Game {g.no} · 3D
@@ -111,41 +133,5 @@ export function Arcade() {
                 </button>
             ))}
         </section>
-    );
-}
-
-// Previews in CSS: streaking stars and rocks for the run, and for the stack, modules over the Earth
-function RunPreview() {
-    return (
-        <>
-            {Array.from({ length: 18 }, (_, i) => (
-                <span
-                    key={i}
-                    className="absolute left-1/2 top-1/2 block h-px w-10 origin-left animate-[arcade-streak_1.6s_linear_infinite] bg-gradient-to-r from-transparent to-white motion-reduce:animate-none"
-                    style={{ rotate: `${(i * 360) / 18}deg`, animationDelay: `${(i % 6) * -0.27}s` }}
-                />
-            ))}
-            <span className="absolute left-[30%] top-[35%] block h-6 w-7 rounded-[40%_55%_45%_60%] bg-stone-500" />
-            <span className="absolute right-[26%] top-[55%] block h-9 w-8 rounded-[55%_40%_60%_45%] bg-stone-600" />
-            <span className="absolute left-1/2 top-[62%] block h-0 w-0 -translate-x-1/2 border-x-[14px] border-b-[22px] border-x-transparent border-b-slate-200" />
-        </>
-    );
-}
-function StackPreview() {
-    // a few modules, narrowing as they go up, and one sliding in
-    const mods = [
-        { w: 46, x: 0, c: "#e9e6df" },
-        { w: 42, x: 2, c: "#b9bec6" },
-        { w: 38, x: 3, c: "#e9e6df" },
-        { w: 34, x: 1, c: "#d9a441" },
-    ];
-    return (
-        <>
-            <div className="absolute inset-x-0 bottom-[-70%] h-[100%] rounded-[50%] bg-gradient-to-b from-sky-500/50 to-blue-900" />
-            {mods.map((m, i) => (
-                <span key={i} className="absolute left-1/2 block h-4 rounded-[3px]" style={{ width: `${m.w}%`, bottom: `${22 + i * 15}%`, marginLeft: `${-m.w / 2 + m.x}%`, background: m.c }} />
-            ))}
-            <span className="absolute left-1/2 block h-4 w-[34%] animate-[arcade-slide_2.4s_ease-in-out_infinite_alternate] rounded-[3px] bg-slate-300 motion-reduce:animate-none" style={{ bottom: `${22 + 4 * 15}%`, marginLeft: "-17%" }} />
-        </>
     );
 }

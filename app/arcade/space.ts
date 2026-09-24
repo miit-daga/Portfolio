@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 // What both arcade games share: the real sky, and the tools for making
 // things look real. The imagery is NASA's, in the public domain: the sky is the
@@ -246,4 +247,100 @@ export function normalMap(height: Float32Array, size: number, strength: number) 
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.NoColorSpace;
     return t;
+}
+
+// ---- rocks -----------------------------------------------------------------
+
+// A rock: a finely divided sphere, pushed out and in by layers of noise into
+// a lumpy potato, stretched a little, and pocked with craters (each a bowl
+// with a raised rim). Its colour varies across it, darker in the craters.
+// Three kinds, as asteroids come: dark carbon grey, stony brown, and grey.
+const ROCK_TONES = [
+    [0.19, 0.18, 0.17],
+    [0.34, 0.3, 0.26],
+    [0.29, 0.285, 0.28],
+];
+export function rockGeometry(seed: number) {
+    const noise = perlin(seed);
+    let s = seed;
+    const rand = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    const unit = () => {
+        const z = rand() * 2 - 1;
+        const a = rand() * Math.PI * 2;
+        const r = Math.sqrt(1 - z * z);
+        return new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z);
+    };
+    let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, 14);
+    g.deleteAttribute("normal");
+    g.deleteAttribute("uv");
+    g = mergeVertices(g);
+    const craters = Array.from({ length: 5 + Math.floor(rand() * 7) }, () => ({ c: unit(), r: 0.18 + rand() * 0.4, depth: 0.05 + rand() * 0.09 }));
+    const stretch = new THREE.Vector3(1.05 + rand() * 0.3, 0.78 + rand() * 0.15, 0.9 + rand() * 0.2);
+    const tone = ROCK_TONES[seed % ROCK_TONES.length];
+    const base = new THREE.Color().setRGB(tone[0], tone[1], tone[2], THREE.SRGBColorSpace);
+    const pos = g.getAttribute("position") as THREE.BufferAttribute;
+    const col = new Float32Array(pos.count * 3);
+    const p = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+        p.fromBufferAttribute(pos, i).normalize();
+        // big lumps, sharp ridges, and fine grit
+        let h = fbm(noise, p.x * 1.2 + 7, p.y * 1.2, p.z * 1.2, 3) * 0.42;
+        h += (0.5 - Math.abs(fbm(noise, p.x * 3 + 11, p.y * 3, p.z * 3 + 5, 3))) * 0.12;
+        h += fbm(noise, p.x * 9, p.y * 9 + 3, p.z * 9, 2) * 0.035;
+        let dark = 0;
+        for (const c of craters) {
+            const d = Math.acos(THREE.MathUtils.clamp(p.dot(c.c), -1, 1)) / c.r;
+            if (d < 1) {
+                h -= c.depth * (1 - d * d);
+                dark = Math.max(dark, (1 - d) * 0.35);
+            } else if (d < 1.5) h += c.depth * 0.4 * (1 - (d - 1) / 0.5);
+        }
+        const v = (0.82 + fbm(noise, p.x * 3 + 20, p.y * 3, p.z * 3, 3) * 0.5) * (1 - dark);
+        pos.setXYZ(i, p.x * (1 + h) * stretch.x, p.y * (1 + h) * stretch.y, p.z * (1 + h) * stretch.z);
+        col[i * 3] = base.r * v;
+        col[i * 3 + 1] = base.g * v;
+        col[i * 3 + 2] = base.b * v;
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    return g;
+}
+
+/**
+ * The rocks' material: their colours, and grit finer than the geometry can
+ * carry, noise over the surface that roughens its light and speckles it.
+ */
+export function rockMaterial() {
+    const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+    rockMat.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader
+            .replace("#include <common>", "#include <common>\nvarying vec3 vRock;")
+            .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRock = position;");
+        sh.fragmentShader = sh.fragmentShader
+            .replace(
+                "#include <common>",
+                `#include <common>
+                varying vec3 vRock;
+                float rockHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+                float rockNoise(vec3 x) {
+                    vec3 i = floor(x);
+                    vec3 f = fract(x);
+                    f = f * f * (3.0 - 2.0 * f);
+                    return mix(mix(mix(rockHash(i), rockHash(i + vec3(1, 0, 0)), f.x), mix(rockHash(i + vec3(0, 1, 0)), rockHash(i + vec3(1, 1, 0)), f.x), f.y),
+                               mix(mix(rockHash(i + vec3(0, 0, 1)), rockHash(i + vec3(1, 0, 1)), f.x), mix(rockHash(i + vec3(0, 1, 1)), rockHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+                }
+                float rockGrit(vec3 p) { return rockNoise(p * 5.0) * 0.55 + rockNoise(p * 13.0) * 0.3 + rockNoise(p * 31.0) * 0.15; }
+                vec3 rockBump(vec3 pos, vec3 n, vec2 dh, float face) {
+                    vec3 sx = normalize(dFdx(pos));
+                    vec3 sy = normalize(dFdy(pos));
+                    vec3 r1 = cross(sy, n);
+                    vec3 r2 = cross(n, sx);
+                    float det = dot(sx, r1) * face;
+                    return normalize(abs(det) * n - sign(det) * (dh.x * r1 + dh.y * r2));
+                }`,
+            )
+            .replace("#include <color_fragment>", "#include <color_fragment>\nfloat grit = rockGrit(vRock);\ndiffuseColor.rgb *= 0.78 + grit * 0.4;")
+            .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\nnormal = rockBump(-vViewPosition, normal, vec2(dFdx(grit), dFdy(grit)) * 2.2, faceDirection);");
+    };
+    return rockMat;
 }

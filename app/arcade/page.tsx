@@ -4,7 +4,7 @@ import { Arcade } from "./arcade";
 
 export const metadata: Metadata = {
     title: "Arcade",
-    description: "Two small 3D space games: Asteroid Run, and Stack the Station.",
+    description: "Three small 3D space games: Asteroid Run, Stack the Station, and Gravity Assist.",
     alternates: { canonical: "/arcade" },
 };
 
@@ -26,7 +26,7 @@ export default function ArcadePage() {
                     <span key={i} className="absolute rounded-full bg-white" style={{ left: `${s.x}%`, top: `${s.y}%`, width: s.s, height: s.s, opacity: s.o }} />
                 ))}
             </div>
-            <header className="relative z-10 mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 pb-6 pt-6 md:px-6">
+            <header className="relative z-10 mx-auto flex w-full max-w-5xl flex-wrap lg:max-w-6xl items-center justify-between gap-4 px-4 pb-6 pt-6 md:px-6">
                 <div>
                     <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Crew arcade</p>
                     <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">Miit Daga · Arcade</h1>
@@ -34,8 +34,8 @@ export default function ArcadePage() {
                 <CloseButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
             </header>
             <Arcade />
-            <p className="relative z-10 mx-auto mt-auto w-full max-w-5xl px-4 pb-6 font-mono text-[11px] text-neutral-600 md:px-6">
-                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps.
+            <p className="relative z-10 mx-auto mt-auto w-full max-w-5xl px-4 pb-6 lg:max-w-6xl font-mono text-[11px] text-neutral-600 md:px-6">
+                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps. Mars, Jupiter, Saturn and Neptune are from Solar System Scope, under CC BY 4.0.
             </p>
         </main>
     );
