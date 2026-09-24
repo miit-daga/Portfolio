@@ -5,8 +5,8 @@ import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sf
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
-// Now and then, once a shield is down, a blue shield ring comes by: flying
-// through it restores one. Rarer still, two power-ups: a golden star makes
+// Once a shield is down, a blue shield ring comes by within a few seconds, and
+// then now and then while one is still down: flying through it restores one. Rarer still, two power-ups: a golden star makes
 // the ship invincible for a few seconds (rocks shatter on it), and a violet
 // arrow boosts it forward, fast and untouchable, for double the distance.
 // Arrow keys or WASD, or the mouse; on a phone, drag anywhere. Three hits and
@@ -164,7 +164,9 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         let ringLive = false;
         let ringTimer = 0;
         let shieldAt = 0;
-        const nextRing = () => 14 + Math.random() * 10;
+        // the first comes soon after a shield is lost, then now and then while one is down
+        const nextRing = () => 12 + Math.random() * 8;
+        const soonRing = () => 5 + Math.random() * 4;
 
         // The power-ups. A golden star (two interlocked tetrahedra) for
         // invincibility, a violet double arrow for the boost
@@ -482,6 +484,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                     if (tmp.distanceTo(r.mesh.position) < r.r + 0.55) {
                         shields -= 1;
                         invulnerable = 1.4;
+                        if (!ringLive) ringTimer = Math.min(ringTimer, soonRing());
                         shake = reduce ? 0 : 0.5;
                         r.live = false;
                         r.mesh.visible = false;

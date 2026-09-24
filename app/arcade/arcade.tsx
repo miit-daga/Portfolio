@@ -4,10 +4,10 @@ import dynamic from "next/dynamic";
 
 // The arcade: two 3D games, each in its own chunk with three.js, loaded only
 // when it is opened, so nothing here costs the rest of the site anything.
-// ?game=run or ?game=dock opens one straight away (the command menu does).
+// ?game=run or ?game=stack opens one straight away (the command menu does).
 
 const AsteroidRun = dynamic(() => import("./asteroid-run"), { ssr: false, loading: () => <Loading /> });
-const IssDock = dynamic(() => import("./iss-dock"), { ssr: false, loading: () => <Loading /> });
+const StackStation = dynamic(() => import("./stack-station"), { ssr: false, loading: () => <Loading /> });
 
 function Loading() {
     return (
@@ -17,7 +17,7 @@ function Loading() {
     );
 }
 
-type Game = "run" | "dock";
+type Game = "run" | "stack";
 const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; best: string; bestKey: string; hue: string }[] = [
     {
         id: "run",
@@ -30,13 +30,13 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
         hue: "45,212,191",
     },
     {
-        id: "dock",
+        id: "stack",
         no: "02",
-        title: "Dock with the ISS",
-        blurb: "Pilot a capsule to the station's forward port. Line up, close in gently, and don't run out of fuel. Newton does not forgive.",
-        how: "WASD to the sides, E and Q to close · thrusters on screen on a phone",
-        best: "Best score",
-        bestKey: "arcade-dock-best",
+        title: "Stack the Station",
+        blurb: "Build a space station above the Earth, one module at a time. Whatever hangs over the edge is sliced off, so line them up. Land one exactly for a Perfect.",
+        how: "Space, Enter or click · tap on a phone",
+        best: "Tallest",
+        bestKey: "arcade-stack-best",
         hue: "251,191,36",
     },
 ];
@@ -47,7 +47,12 @@ export function Arcade() {
 
     useEffect(() => {
         const q = new URLSearchParams(window.location.search).get("game");
-        if (q === "run" || q === "dock") setGame(q);
+        // (the docking game this replaced was ?game=dock)
+        if (q === "run" || q === "stack") setGame(q);
+        else if (q === "dock") {
+            setGame("stack");
+            window.history.replaceState(null, "", "/arcade?game=stack");
+        }
     }, []);
     // the scores, read again each time a game is closed
     useEffect(() => {
@@ -71,7 +76,7 @@ export function Arcade() {
     }, [game]);
 
     if (game === "run") return <AsteroidRun onExit={() => open(null)} />;
-    if (game === "dock") return <IssDock onExit={() => open(null)} />;
+    if (game === "stack") return <StackStation onExit={() => open(null)} />;
 
     return (
         <section className="relative z-10 mx-auto grid w-full max-w-5xl gap-5 px-4 pb-10 md:grid-cols-2 md:px-6">
@@ -85,7 +90,7 @@ export function Arcade() {
                 >
                     {/* a glimpse of the game */}
                     <div className="relative mb-6 h-40 overflow-hidden rounded-2xl bg-black" aria-hidden>
-                        {g.id === "run" ? <RunPreview /> : <DockPreview />}
+                        {g.id === "run" ? <RunPreview /> : <StackPreview />}
                     </div>
                     <p className="font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: `rgb(${g.hue})` }}>
                         Game {g.no} · 3D
@@ -126,17 +131,21 @@ function RunPreview() {
         </>
     );
 }
-function DockPreview() {
+function StackPreview() {
+    // a few modules, narrowing as they go up, and one sliding in
+    const mods = [
+        { w: 46, x: 0, c: "#5eead4" },
+        { w: 42, x: 2, c: "#67e8f9" },
+        { w: 38, x: 3, c: "#7dd3fc" },
+        { w: 34, x: 1, c: "#93c5fd" },
+    ];
     return (
         <>
-            <div className="absolute inset-x-0 bottom-[-60%] h-[90%] rounded-[50%] bg-gradient-to-b from-sky-500/60 to-blue-900" />
-            <div className="absolute left-1/2 top-[40%] h-16 w-16 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-slate-400 bg-slate-200/90">
-                <span className="absolute left-1/2 top-1/2 h-6 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-slate-800" />
-                <span className="absolute left-1/2 top-1/2 h-0.5 w-6 -translate-x-1/2 -translate-y-1/2 bg-slate-800" />
-            </div>
-            <span className="absolute left-[8%] top-[34%] block h-3 w-[28%] bg-amber-600/80" />
-            <span className="absolute right-[8%] top-[34%] block h-3 w-[28%] bg-amber-600/80" />
-            <div className="absolute left-1/2 top-[40%] h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-emerald-300/70" />
+            <div className="absolute inset-x-0 bottom-[-70%] h-[100%] rounded-[50%] bg-gradient-to-b from-sky-500/50 to-blue-900" />
+            {mods.map((m, i) => (
+                <span key={i} className="absolute left-1/2 block h-4 rounded-[3px]" style={{ width: `${m.w}%`, bottom: `${22 + i * 15}%`, marginLeft: `${-m.w / 2 + m.x}%`, background: m.c }} />
+            ))}
+            <span className="absolute left-1/2 block h-4 w-[34%] animate-[arcade-slide_2.4s_ease-in-out_infinite_alternate] rounded-[3px] bg-violet-300 motion-reduce:animate-none" style={{ bottom: `${22 + 4 * 15}%`, marginLeft: "-17%" }} />
         </>
     );
 }

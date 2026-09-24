@@ -1,4 +1,4 @@
-// The arcade's sounds (asteroid-run.tsx, iss-dock.tsx), synthesised with the
+// The arcade's sounds (asteroid-run.tsx, stack-station.tsx), synthesised with the
 // Web Audio API. Browsers allow sound only after a click or key, which starting
 // a game always is.
 
@@ -90,15 +90,16 @@ export const sfxOver = () => {
     tone(440, 0, 0.3, 0.08, "square", 220);
     tone(220, 0.25, 0.5, 0.08, "square", 110);
 };
-/** A short thruster puff. */
-export const sfxPuff = () => noiseBurst(0.12, 0.05, 3000, 900);
-/** Docked: a soft capture, then a chime. */
-export const sfxDocked = () => {
-    tone(160, 0, 0.3, 0.2, "triangle", 90);
-    [659, 880, 1318].forEach((f, i) => tone(f, 0.25 + i * 0.1, 0.5, 0.07));
+/** A module set down: a soft clunk. */
+export const sfxPlace = (step = 0) => tone(220 + step * 30, 0, 0.12, 0.12, "triangle", 150);
+/** A perfect drop: a bright note, higher with each one in a row. */
+export const sfxPerfect = (streak: number) => {
+    const f = 523 * Math.pow(2, Math.min(streak - 1, 12) / 12);
+    tone(f, 0, 0.25, 0.08, "triangle");
+    tone(f * 1.5, 0.05, 0.3, 0.05);
 };
-/** A countdown or a warning beep. */
-export const sfxBeep = (high = false) => tone(high ? 1320 : 880, 0, 0.1, 0.06);
+/** An overhang sliced off. */
+export const sfxSlice = () => noiseBurst(0.18, 0.12, 6000, 900);
 
 // A steady engine rumble, its pitch following the speed (0 to 1)
 let engine: { src: AudioBufferSourceNode; gain: GainNode; lp: BiquadFilterNode } | null = null;

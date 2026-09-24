@@ -4,7 +4,7 @@ import { Arcade } from "./arcade";
 
 export const metadata: Metadata = {
     title: "Arcade",
-    description: "Two small 3D space games: Asteroid Run, and docking with the ISS.",
+    description: "Two small 3D space games: Asteroid Run, and Stack the Station.",
     alternates: { canonical: "/arcade" },
 };
 

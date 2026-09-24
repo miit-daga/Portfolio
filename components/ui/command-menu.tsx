@@ -484,8 +484,8 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 <Item value="asteroid run 3d game play space arcade" external icon={<IconDeviceGamepad2 />} hint="3D · dodge rocks, grab fragments" onSelect={() => runCommand(() => window.open("/arcade?game=run", "_blank"))}>
                                                     Asteroid Run
                                                 </Item>
-                                                <Item value="dock with the iss 3d game play space station docking arcade" external icon={<IconSatellite />} hint="3D · pilot a capsule to the station" onSelect={() => runCommand(() => window.open("/arcade?game=dock", "_blank"))}>
-                                                    Dock with the ISS
+                                                <Item value="stack the station 3d game play space station build arcade" external icon={<IconSatellite />} hint="3D · build a station, one module at a time" onSelect={() => runCommand(() => window.open("/arcade?game=stack", "_blank"))}>
+                                                    Stack the Station
                                                 </Item>
                                                 <Item value="arcade games terminal snake invaders tetris" external icon={<IconDeviceGamepad2 />} hint="snake, invaders, tetris and more" onSelect={() => runCommand(() => window.open("/terminal.html?cmd=play", "_blank"))}>
                                                     The terminal arcade

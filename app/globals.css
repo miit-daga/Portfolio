@@ -370,3 +370,4 @@ html[data-mac] .enter-key-other { display: none; }
   30% { opacity: 1; }
   to { transform: translateX(150px) scaleX(1.4); opacity: 0; }
 }
+@keyframes arcade-slide { from { transform: translateX(-60%); } to { transform: translateX(60%); } }
