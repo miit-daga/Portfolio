@@ -25,7 +25,35 @@ const STARS_KEY = "arcade-assist-stars"; // the total, for the arcade's card
 const FULL_PULL = 0.3; // a pull this much of the screen's shorter side is full power
 
 type Phase = "menu" | "aim" | "flying" | "done";
-type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number; skipped?: string; rings?: boolean; tooFast?: number; time?: number; shot?: { angle: number; power: number } };
+type Shot = { angle: number; power: number; t: number };
+type Result = {
+    kind: "arrived" | "crashed" | "lost";
+    body?: string;
+    stars?: number;
+    top?: number;
+    skipped?: string;
+    rings?: boolean;
+    tooFast?: number;
+    time?: number; // today's sky: its flight time, in hundredths
+    flight?: number; // any arrival's flight time, in hundredths
+    shot?: Shot;
+    challenge?: { theirs: number; beat: boolean };
+};
+// A challenge link: the mission (its number, or "d" and today's date for
+// today's sky) and the winning shot, e.g. ?game=assist&c=9.-12345.62000.0.
+// The time to beat isn't in it: the shot is flown again here and timed, so
+// a link can't claim a better one than it really flies.
+type Challenge = { level: number; day?: string; angle: number; power: number; t: number };
+const encodeChallenge = (c: Challenge) =>
+    [c.day ? `d${c.day.replace(/-/g, "")}` : c.level, Math.round(c.angle * 1e5), Math.round(c.power * 1e5), Math.round(c.t * 1000)].join(".");
+function decodeChallenge(code: string): Challenge | null {
+    const m = /^(d\d{8}|\d{1,2})\.(-?\d{1,7})\.(\d{1,6})\.(\d{1,7})$/.exec(code);
+    if (!m) return null;
+    const day = m[1].startsWith("d") ? `${m[1].slice(1, 5)}-${m[1].slice(5, 7)}-${m[1].slice(7, 9)}` : undefined;
+    const power = Number(m[3]) / 1e5;
+    if (power < 0.1 || power > 1) return null;
+    return { level: day ? -1 : Number(m[1]), day, angle: Number(m[2]) / 1e5, power, t: Number(m[4]) / 1000 };
+}
 // The mission of the day is level -1; the best time today is kept here
 const DAILY = -1;
 const DAILY_BEST_KEY = "arcade-assist-daily";
@@ -39,7 +67,7 @@ function dailyBest(day: string): number | null {
 }
 const fmtTime = (cs: number) => `${(cs / 100).toFixed(2)} s`;
 type Hint = "idle" | "searching" | "shown" | "none";
-type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number; hint: Hint };
+type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number; hint: Hint; challenge: number | null };
 
 const NAMES: Record<Kind, string> = { blackhole: "the black hole", sun: "the Sun", mercury: "Mercury", venus: "Venus", uranus: "Uranus", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
@@ -99,6 +127,8 @@ const unlocked = (stars: number[], i: number) => {
 /** "Mars", "Jupiter and Saturn": the flybys named. */
 const listNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "");
 const bare = (k: Kind) => NAMES[k].replace(/^the /, "");
+/** A body's name without "the", for short labels ("Flyby captured giant"). */
+const bareOf = (b: Body) => (b.name ?? NAMES[b.kind]).replace(/^the /, "");
 /** What a body is called: its own name out in deep space, else its planet's. */
 const called = (b: Body) => b.name ?? NAMES[b.kind];
 
@@ -178,7 +208,10 @@ const sunFrag = /* glsl */ `
 
 export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0, hint: "idle" });
+    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0, hint: "idle", challenge: null });
+    // a challenge link that no longer flies true (the mission has changed), or has closed
+    const [challengeNote, setChallengeNote] = useState<string | null>(null);
+    const [shared, setShared] = useState<"idle" | "copied" | "failed">("idle");
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
@@ -509,7 +542,12 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         let path: number[] = [];
         let fast = false;
         let warnAt = 0;
-        let shot = { angle: 0, power: 0 };
+        let shot: Shot = { angle: 0, power: 0, t: 0 };
+        // A friend's challenge: their shot, its course drawn in gold, their time
+        let challenge: (Challenge & { idx: number; cs: number }) | null = null;
+        let challengeFreeze = false;
+        let challengeLine: Line2 | null = null;
+        const challengeMat = new LineMaterial({ color: 0xfbbf24, linewidth: 2.5, transparent: true, opacity: 0.55, depthWrite: false });
         // The hint: a winning shot found by flying the nearest ones first, set
         // as the aim, with the start of its course drawn in gold. While it's
         // shown, moving planets wait, so it stays true until the launch. A
@@ -541,6 +579,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 passed: (level.flyby ?? []).map((k) => !!probe?.passed[k]),
                 warn: warnAt,
                 hint,
+                challenge: challenge && challenge.idx === levelIndex ? challenge.cs : null,
             });
         // the first aim: straight at the target, at a middling speed
         const aimAtTarget = () => {
@@ -552,6 +591,10 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         const open = (i: number, given?: Level) => {
             clearHint();
             hintUsed = false;
+            // (a challenge belongs to its own mission: going elsewhere drops it)
+            challenge = null;
+            challengeFreeze = false;
+            challengeLine = drop(challengeLine);
             build(i, given);
             phase = "menu";
             probe = null;
@@ -570,6 +613,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         };
         const retry = () => {
             clearHint();
+            if (challenge && challenge.idx === levelIndex) {
+                // back to where the friend launched from
+                t = challenge.t;
+                challengeFreeze = true;
+            }
             // the last attempt stays, faintly, to learn from
             if (path.length > 6) {
                 ghost = drop(ghost);
@@ -598,7 +646,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             if (phase !== "aim") return;
             clearHint();
             probe = launch(level, angle, power, t);
-            shot = { angle, power };
+            shot = { angle, power, t };
+            challengeFreeze = false;
             launches += 1;
             phase = "flying";
             path = [];
@@ -609,11 +658,46 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             sfxLaunch(power);
             pushHud();
         };
+        const challengeResult = (cs: number) => (challenge && challenge.idx === levelIndex ? { theirs: challenge.cs, beat: cs < challenge.cs } : undefined);
+        // Open a friend's challenge: fly their shot here first, to time it and
+        // be sure it still arrives (a mission can change after a link is made)
+        const openChallenge = (c: Challenge): string | null => {
+            let lvl: Level | undefined;
+            let idx: number;
+            if (c.day) {
+                if (c.day !== dayKey()) return "That challenge was on another day's sky, which has closed. Here's today's.";
+                lvl = dailyMission(c.day);
+                idx = DAILY;
+            } else {
+                lvl = LEVELS[c.level];
+                idx = c.level;
+            }
+            if (!lvl) return "That challenge is for a mission that isn't here any more.";
+            const flight = fly(lvl, c.angle, c.power, c.t);
+            if (flight.state !== "arrived") return "That challenge no longer flies true: the mission has changed since it was sent.";
+            if (idx === DAILY) setDailyLevel(lvl);
+            open(idx, idx === DAILY ? lvl : undefined);
+            challenge = { ...c, idx, cs: Math.max(1, Math.round(flight.flight * 100)) };
+            t = c.t;
+            challengeFreeze = true;
+            // their whole course, in gold
+            const p = launch(lvl, c.angle, c.power, c.t);
+            const pts: number[] = [p.x, 0.06, -p.y];
+            let k = 0;
+            while (p.state === "flying") {
+                step(lvl, p);
+                if (++k % 3 === 0) pts.push(p.x, 0.06, -p.y);
+            }
+            pts.push(p.x, 0.06, -p.y);
+            if (pts.length >= 6) challengeLine = makeLine(pts, challengeMat);
+            begin();
+            return null;
+        };
         const finish = () => {
             const p = probe!;
             const hit = p.hit >= 0 ? level.bodies[p.hit] : null;
             // it got to the target too soon: say which flybys it skipped
-            const skipped = p.early ? listNames((level.flyby ?? []).filter((k) => !p.passed[k]).map((k) => bare(level.bodies[k].kind))) : undefined;
+            const skipped = p.early ? listNames((level.flyby ?? []).filter((k) => !p.passed[k]).map((k) => bareOf(level.bodies[k]))) : undefined;
             if (p.state === "arrived" && levelIndex === DAILY) {
                 // today's sky: a time, not stars
                 const cs = Math.max(1, Math.round(p.flight * 100));
@@ -626,12 +710,14 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         /* ignore */
                     }
                 }
-                result = { kind: "arrived", body: called(level.bodies[level.target]), top: p.fastest * KMS, time: cs, shot };
+                result = { kind: "arrived", body: called(level.bodies[level.target]), top: p.fastest * KMS, time: cs, flight: cs, shot, challenge: challengeResult(cs) };
                 trackEvent("gravity_assist_daily", { day, seconds: Math.round(p.flight), launches });
                 sfxArrive();
             } else if (p.state === "arrived") {
                 const earned = launches <= level.par ? 3 : launches <= level.par + 2 ? 2 : 1;
-                const s = hintUsed ? Math.min(2, earned) : earned;
+                // (a hint, or a friend's course shown, is worth two stars at most)
+                const s = hintUsed || (challenge && challenge.idx === levelIndex) ? Math.min(2, earned) : earned;
+                const cs = Math.max(1, Math.round(p.flight * 100));
                 if (s > stars[levelIndex]) {
                     stars[levelIndex] = s;
                     try {
@@ -641,7 +727,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         /* ignore */
                     }
                 }
-                result = { kind: "arrived", body: called(level.bodies[level.target]), stars: s, top: p.fastest * KMS };
+                result = { kind: "arrived", body: called(level.bodies[level.target]), stars: s, top: p.fastest * KMS, flight: cs, shot, challenge: challengeResult(cs) };
                 trackEvent("gravity_assist_arrived", { mission: levelIndex + 1, name: level.name, stars: s, launches });
                 sfxArrive();
             } else if (p.state === "crashed") {
@@ -828,7 +914,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             renderer.domElement.style.width = "100%";
             renderer.domElement.style.height = "100%";
             camera.aspect = w / h;
-            [trailMat, ghostMat, aimMat, hintMat].forEach((m) => m.resolution.set(w, h));
+            [trailMat, ghostMat, aimMat, hintMat, challengeMat].forEach((m) => m.resolution.set(w, h));
             // what must be seen: every body with its rings, and every orbit
             let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
             const add = (x: number, y: number, r: number) => {
@@ -956,7 +1042,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                     hudTimer = 0.1;
                     pushHud();
                 }
-            } else if (phase !== "done" && !(hintFreeze && phase === "aim")) t += dt;
+            } else if (phase !== "done" && !((hintFreeze || challengeFreeze) && phase === "aim")) t += dt;
             // the worlds, where they are now, turning
             for (const s of shown) {
                 bodyAt(s.body, t, bp);
@@ -1015,6 +1101,10 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         // start where the player left off
         const first = stars.findIndex((s) => s === 0);
         open(first === -1 ? 0 : first);
+        // a challenge link opens its mission, with the friend's course
+        const code = new URLSearchParams(window.location.search).get("c");
+        const c = code ? decodeChallenge(code) : null;
+        if (code) setChallengeNote(c ? openChallenge(c) : "That challenge link is damaged.");
         raf = requestAnimationFrame(loop);
 
         return () => {
@@ -1028,13 +1118,13 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             cv.removeEventListener("pointerup", onUp);
             cv.removeEventListener("pointercancel", onUp);
             clearWorld();
-            [trail, ghost, aimLine, hintLine].forEach(drop);
+            [trail, ghost, aimLine, hintLine, challengeLine].forEach(drop);
             scene.traverse((o) => {
                 const m = o as THREE.Mesh;
                 m.geometry?.dispose();
                 (m.material as THREE.Material | undefined)?.dispose?.();
             });
-            [trailMat, ghostMat, aimMat, hintMat, rockMat].forEach((m) => m.dispose());
+            [trailMat, ghostMat, aimMat, hintMat, challengeMat, rockMat].forEach((m) => m.dispose());
             [planetGeo, airGeo, ...rockGeos].forEach((g) => g.dispose());
             [...maps.values(), ringTex, glowWarm, glowProbe, glowBang, photonRing, sky].forEach((x) => x.dispose());
             renderer.dispose();
@@ -1053,6 +1143,27 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const tabMissions = inSection(tab);
     const tabStars = tabMissions.reduce((a, i) => a + hud.stars[i], 0);
     const lastInSection = place.n === place.of;
+    // Share a winning shot as a challenge: the phone's share sheet, or the link copied
+    const shareChallenge = async () => {
+        const r = hud.result;
+        if (!r?.shot || !r.flight) return;
+        const code = encodeChallenge({ level: hud.level, day: isDaily ? today : undefined, ...r.shot });
+        const url = `${window.location.origin}/arcade?game=assist&c=${code}`;
+        const where = isDaily ? "today's sky" : `${sectionOf(hud.level) === "deep" ? "deep space" : "mission"} ${place.n}, ${L.name}`;
+        const text = `I reached ${r.body} in ${fmtTime(r.flight)} on Gravity Assist (${where}). My course is in gold: can you beat my time?`;
+        try {
+            if (navigator.share && window.matchMedia("(pointer: coarse)").matches) {
+                await navigator.share({ title: "Gravity Assist challenge", text, url });
+                return;
+            }
+            await navigator.clipboard.writeText(`${text} ${url}`);
+            setShared("copied");
+        } catch (e) {
+            // (a closed share sheet isn't a failure)
+            if ((e as Error)?.name !== "AbortError") setShared("failed");
+        }
+        window.setTimeout(() => setShared("idle"), 2500);
+    };
     if (noGl) return <NoWebGL onExit={onExit} title="Gravity Assist" />;
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
@@ -1072,6 +1183,19 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         </p>
                         <p className="font-display mt-1 text-xl font-bold sm:text-2xl">{L.name}</p>
                         <p className="mt-1 text-sm leading-snug text-neutral-300">{L.brief}</p>
+                        {hud.challenge && (
+                            <p className="mt-1 text-xs leading-snug text-amber-300">
+                                Challenge: a friend reached {called(L.bodies[L.target])} in {fmtTime(hud.challenge)}. Their course is in gold. Beat their time. (Following it, this mission&apos;s best is two stars.)
+                            </p>
+                        )}
+                        {challengeNote && (
+                            <p className="mt-1 text-xs leading-snug text-rose-300">
+                                {challengeNote}{" "}
+                                <button type="button" className="pointer-events-auto underline" onClick={() => setChallengeNote(null)}>
+                                    OK
+                                </button>
+                            </p>
+                        )}
                         {hud.hint === "shown" && hud.phase === "aim" && (
                             <p className="mt-1 text-xs leading-snug text-amber-300">
                                 Hint: aimed for you, the start of its course in gold. Tap anywhere (or Launch hint, or Space) to fly it; dragging aims your own way instead. (With a hint, this mission&apos;s best is two stars.)
@@ -1085,7 +1209,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         <p className="mt-1">Par {L.par}</p>
                         {(L.flyby ?? []).map((k, i) => (
                             <p key={k} className="mt-1">
-                                Flyby {bare(L.bodies[k].kind)} <span className={hud.passed[i] ? "text-emerald-300" : "text-amber-300"}>{hud.passed[i] ? "✓" : "○"}</span>
+                                Flyby {bareOf(L.bodies[k])} <span className={hud.passed[i] ? "text-emerald-300" : "text-amber-300"}>{hud.passed[i] ? "✓" : "○"}</span>
                             </p>
                         ))}
                         <p className="mt-2 text-sm tracking-normal text-white">{hud.speed.toFixed(1)} km/s</p>
@@ -1106,7 +1230,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             {hud.phase === "flying" && hud.warn > 0 && (
                 <div key={hud.warn} className="pointer-events-none absolute inset-x-0 top-1/3 flex animate-[arcade-hit_2.8s_ease-in_forwards] justify-center px-4">
                     <p className="rounded-full border border-amber-300/40 bg-black/70 px-5 py-2 font-mono text-xs uppercase tracking-[0.2em] text-amber-200 backdrop-blur">
-                        Fly past {listNames((L.flyby ?? []).filter((_, i) => !hud.passed[i]).map((k) => bare(L.bodies[k].kind)))} first
+                        Fly past {listNames((L.flyby ?? []).filter((_, i) => !hud.passed[i]).map((k) => bareOf(L.bodies[k])))} first
                     </p>
                 </div>
             )}
@@ -1168,6 +1292,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         <p className="mt-2 text-sm leading-relaxed text-neutral-300">
                             Send a probe from Earth to another world, bending its path round the planets on the way. Drag back to aim, and let go to launch. A planet on the move can fling you on faster.
                         </p>
+                        {challengeNote && (
+                            <p className="mt-3 rounded-lg border border-rose-300/30 bg-rose-400/10 px-3 py-2 text-xs leading-snug text-rose-200">
+                                {challengeNote}
+                            </p>
+                        )}
                         {/* today's sky, above the numbered missions */}
                         <button
                             type="button"
@@ -1258,11 +1387,25 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-400">
                                     {isDaily ? "flight time" : `${hud.launches} ${hud.launches === 1 ? "launch" : "launches"} · par ${L.par}`} · top speed {hud.result.top?.toFixed(1)} km/s
                                 </p>
+                                {hud.result.challenge && (
+                                    <p className={`mt-2 text-sm font-semibold ${hud.result.challenge.beat ? "text-emerald-300" : "text-amber-300"}`}>
+                                        {hud.result.challenge.beat
+                                            ? `You beat your friend: ${fmtTime(hud.result.flight ?? 0)} against their ${fmtTime(hud.result.challenge.theirs)}!`
+                                            : `Their ${fmtTime(hud.result.challenge.theirs)} still stands (you took ${fmtTime(hud.result.flight ?? 0)}).`}
+                                    </p>
+                                )}
                                 <p className="mt-3 text-sm leading-relaxed text-neutral-300">{L.fact}</p>
                                 {isDaily && hud.result.time && hud.result.shot && (
                                     <Board game="assist-daily" day={today} score={hud.result.time} shot={hud.result.shot} lower format={fmtTime} title="Today's fastest" />
                                 )}
-                                <div className="mt-5 flex justify-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={shareChallenge}
+                                    className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-amber-300/40 px-4 py-1.5 text-sm text-amber-200 hover:border-amber-300/70"
+                                >
+                                    {shared === "copied" ? "Link copied: send it to a friend" : shared === "failed" ? "Couldn't share that" : `Challenge a friend to beat ${fmtTime(hud.result.flight ?? 0)}`}
+                                </button>
+                                <div className="mt-4 flex justify-center gap-2">
                                     <button type="button" onClick={() => api.current.retry()} className="rounded-full border border-white/20 px-5 py-2.5 text-sm text-neutral-200 hover:border-white/40">
                                         Fly it again
                                     </button>
