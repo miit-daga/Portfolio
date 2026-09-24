@@ -37,6 +37,14 @@ const TEASERS: Record<string, string> = {
   "#contact": "email, crew card, and a guestbook on the radar",
 };
 
+// Shorter names for the long ones, below 1400px wide, where the full bar
+// would run off the screen
+const SHORT: Record<string, string> = {
+  "#workex": "Experience",
+  "#skills-achievements": "Skills",
+  "#publications": "Publications",
+};
+
 const TEAL = { rgb: [45, 212, 191] as [number, number, number], light: "#5eead4" };
 
 // A section's colours from its "#id" link; teal for anything else
@@ -379,9 +387,8 @@ export const FloatingNav = ({
           onBlur={() => setPreview((p) => (p === navItem.link ? null : p))}
           target={newTab ? "_blank" : undefined}
           rel={newTab ? "noopener noreferrer" : undefined}
-          aria-label={isArcade ? "Arcade: three space games (opens in a new tab)" : undefined}
           className={cn(
-            "relative items-center flex hidden lg:flex px-3 py-1 transition-colors duration-300",
+            "relative items-center flex hidden lg:flex px-2 py-1 transition-colors duration-300 min-[1400px]:px-3",
             isActive ? "" : "text-white hover:text-neutral-300"
           )}
           style={isActive ? { color: acc.light } : undefined}
@@ -406,9 +413,7 @@ export const FloatingNav = ({
             </span>
           ) : tool && isArcade ? (
             <span className="relative z-10 font-mono text-xs font-semibold tracking-wide">
-              {/* (just the arrow on narrower screens, where the bar is short of room) */}
-              <span className="text-teal-300/90">▶</span>
-              <span className="hidden min-[1400px]:inline"> arcade</span> <span className="text-neutral-500">↗</span>
+              <span className="text-teal-300/90">▶</span> arcade <span className="text-neutral-500">↗</span>
             </span>
           ) : (
             <span className="relative z-10 flex items-center gap-1.5 text-sm font-bold">
@@ -416,7 +421,14 @@ export const FloatingNav = ({
                 className="h-1.5 w-1.5 rounded-full transition-opacity"
                 style={{ background: acc.light, boxShadow: `0 0 6px ${rgba(acc.rgb, 0.8)}`, opacity: isActive ? 1 : 0.55 }}
               />
-              {navItem.name}
+              {SHORT[navItem.link] ? (
+                <>
+                  <span className="hidden min-[1400px]:inline">{navItem.name}</span>
+                  <span className="min-[1400px]:hidden">{SHORT[navItem.link]}</span>
+                </>
+              ) : (
+                navItem.name
+              )}
             </span>
           )}
 
@@ -516,7 +528,7 @@ export const FloatingNav = ({
         transition={expanded ? { duration: 0.22, delay: 0.06 } : { duration: 0.18 }}
         style={{ clipPath: contentClip }}
         className={cn(
-          "relative flex items-center justify-center space-x-2 rounded-full py-2 pl-6 pr-2 text-white",
+          "relative flex items-center justify-center space-x-1 rounded-full py-2 pl-4 pr-2 text-white min-[1400px]:space-x-2 min-[1400px]:pl-6",
           expanded ? "pointer-events-auto" : "pointer-events-none",
           className
         )}
