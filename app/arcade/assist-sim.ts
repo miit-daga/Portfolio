@@ -9,7 +9,7 @@
 // system. Touch a body and the probe is lost; reach the target's capture ring
 // (after any flybys the mission asks for) and it has arrived.
 
-export type Kind = "sun" | "mercury" | "venus" | "earth" | "moon" | "mars" | "jupiter" | "saturn" | "uranus" | "neptune" | "rock";
+export type Kind = "sun" | "mercury" | "venus" | "earth" | "moon" | "mars" | "jupiter" | "saturn" | "uranus" | "neptune" | "rock" | "blackhole";
 export type Orbit = { around: [number, number]; R: number; period: number; phase: number };
 // (pass: how close counts as a flyby, where a mission wants it closer than usual)
 export type Body = { kind: Kind; r: number; mu: number; at?: [number, number]; orbit?: Orbit; pass?: number };
@@ -291,6 +291,46 @@ export const LEVELS: Level[] = [
         target: 4,
         flyby: [2, 3],
         par: 6,
+    },
+    // Deep space: beyond the solar system, where there are black holes. (The
+    // black disc is the hole's shadow, and touching it is falling in.)
+    {
+        name: "Event horizon",
+        brief: "Deep space. A black hole sits between you and Neptune. Bend round it, and don't touch the dark.",
+        fact: "The first picture of a black hole, M87*, was released in 2019 by the Event Horizon Telescope.",
+        bodies: [EARTH(-44, 0), { kind: "blackhole", r: 1.6, mu: 5200, at: [-2, 0] }, { kind: "neptune", r: 2.3, mu: 400, at: [40, 2] }],
+        start: 0,
+        target: 2,
+        par: 3,
+    },
+    {
+        name: "Skim the hole",
+        brief: "Deep space. Pass close by the black hole, through the amber ring, and let it throw you on to Saturn.",
+        fact: "Sagittarius A*, the black hole at the centre of the Milky Way, is about 4 million times the mass of the Sun.",
+        bodies: [
+            EARTH(-44, 20),
+            { kind: "blackhole", r: 1.6, mu: 6000, at: [-10, -8], pass: 11 },
+            { kind: "saturn", r: 3.4, mu: 900, at: [38, 18] },
+            ...belt([6, 36], [14, 0], 12, 21),
+        ],
+        start: 0,
+        target: 2,
+        flyby: [1],
+        par: 4,
+    },
+    {
+        name: "Binary",
+        brief: "Deep space. Two black holes circle each other. Find a way through them to Mars.",
+        fact: "In 2015 LIGO first heard gravitational waves, from two black holes merging over a billion light years away.",
+        bodies: [
+            EARTH(-46, -18),
+            { kind: "blackhole", r: 1.4, mu: 3200, orbit: { around: [0, 0], R: 9, period: 10, phase: 0 } },
+            { kind: "blackhole", r: 1.4, mu: 3200, orbit: { around: [0, 0], R: 9, period: 10, phase: Math.PI } },
+            { kind: "mars", r: 1.3, mu: 60, at: [44, 16] },
+        ],
+        start: 0,
+        target: 3,
+        par: 5,
     },
 ];
 

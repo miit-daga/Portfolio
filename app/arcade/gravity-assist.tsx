@@ -15,7 +15,7 @@ import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, launch, passRadius, ringsOf, s
 // round the planets on the way. Drag back from anywhere to aim (the further,
 // the faster), and let go to launch; the dotted line shows where the first
 // stretch will go. Later missions have planets moving round the Sun, and ask
-// for flybys on the way. Fifteen missions, two of them ISRO's, each with up to three stars for
+// for flybys on the way. Eighteen missions (two of them ISRO's, three round black holes), each with up to three stars for
 // arriving in few launches. The physics is in assist-sim.ts.
 
 const PROGRESS_KEY = "arcade-assist";
@@ -38,7 +38,7 @@ function dailyBest(day: string): number | null {
 const fmtTime = (cs: number) => `${(cs / 100).toFixed(2)} s`;
 type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number };
 
-const NAMES: Record<Kind, string> = { sun: "the Sun", mercury: "Mercury", venus: "Venus", uranus: "Uranus", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
+const NAMES: Record<Kind, string> = { blackhole: "the black hole", sun: "the Sun", mercury: "Mercury", venus: "Venus", uranus: "Uranus", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
     earth: "planet-earth.jpg",
     mercury: "planet-mercury.jpg",
@@ -96,6 +96,36 @@ const airFrag = /* glsl */ `
         float dens = exp(-h / (uR * 0.05));
         float s = dot(normalize(p - uCenter), normalize(uSun - uCenter));
         gl_FragColor = vec4(uColour.rgb * dens * smoothstep(-0.35, 0.25, s) * uColour.a * 1.4, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+    }`;
+// A black hole's accretion disk: gas swirling in, faster toward the middle,
+// white-hot at its inner edge and cooling to orange, and brighter on the side
+// coming toward you (the pattern is read round a circle, so it has no seam)
+const diskFrag = /* glsl */ `
+    uniform float uTime;
+    uniform float uIn;
+    uniform float uOut;
+    varying vec2 vP;
+    float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n2(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y);
+    }
+    void main() {
+        float r = length(vP);
+        float t = clamp((r - uIn) / (uOut - uIn), 0.0, 1.0);
+        float a = atan(vP.y, vP.x);
+        float turn = a - uTime * (0.9 / (0.25 + t));
+        vec2 c = vec2(cos(turn), sin(turn));
+        float streak = n2(c * 3.0 + r * 1.4) * 0.6 + n2(c * 7.0 + r * 3.1) * 0.4;
+        float heat = pow(1.0 - t, 2.2);
+        vec3 col = mix(vec3(1.0, 0.33, 0.05), vec3(1.0, 0.93, 0.78), heat);
+        float doppler = 0.5 + 0.5 * sin(a + 0.7);
+        float edge = smoothstep(0.0, 0.05, t) * (1.0 - smoothstep(0.7, 1.0, t));
+        gl_FragColor = vec4(col * (0.18 + heat * 1.2) * (0.35 + streak) * (0.12 + doppler * 1.25) * edge, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
     }`;
@@ -186,6 +216,23 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         const glowWarm = glowTexture("rgba(255,190,110,1)", "rgba(255,110,20,0)");
         const glowProbe = glowTexture("rgba(220,245,255,1)", "rgba(120,200,255,0)");
         const glowBang = glowTexture("rgba(255,230,190,1)", "rgba(255,110,40,0)");
+        // a black hole's photon ring: light bent all the way round, a thin bright circle
+        const photonRing = (() => {
+            const c = document.createElement("canvas");
+            c.width = c.height = 256;
+            const g = c.getContext("2d")!;
+            const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+            grad.addColorStop(0, "rgba(0,0,0,0)");
+            grad.addColorStop(0.6, "rgba(0,0,0,0)");
+            grad.addColorStop(0.69, "rgba(255,236,200,0.95)");
+            grad.addColorStop(0.75, "rgba(255,160,70,0.45)");
+            grad.addColorStop(1, "rgba(255,120,40,0)");
+            g.fillStyle = grad;
+            g.fillRect(0, 0, 256, 256);
+            const t = new THREE.CanvasTexture(c);
+            t.colorSpace = THREE.SRGBColorSpace;
+            return t;
+        })();
         const rockGeos = [5, 17, 29, 43].map(rockGeometry);
         const rockMat = rockMaterial();
         const planetGeo = new THREE.SphereGeometry(1, 96, 48);
@@ -200,7 +247,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         scene.add(sunLight);
 
         // ---- a mission's worlds ---------------------------------------------
-        type Shown = { body: Body; group: THREE.Group; spin?: THREE.Object3D; air?: THREE.ShaderMaterial; ring?: THREE.LineLoop; ringMat?: THREE.LineDashedMaterial; goalMat?: THREE.LineDashedMaterial };
+        type Shown = { body: Body; group: THREE.Group; spin?: THREE.Object3D; hot?: THREE.ShaderMaterial; air?: THREE.ShaderMaterial; ring?: THREE.LineLoop; ringMat?: THREE.LineDashedMaterial; goalMat?: THREE.LineDashedMaterial };
         let level: Level = LEVELS[0];
         let levelIndex = 0;
         let lastMission = 0; // the numbered mission to go back to from the daily one
@@ -245,6 +292,29 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                     m.rotation.set(bi, bi * 2, bi * 3);
                     group.add(m);
                     s.spin = m;
+                } else if (b.kind === "blackhole") {
+                    // the shadow, black: what you see is what you hit
+                    const hole = new THREE.Mesh(planetGeo, new THREE.MeshBasicMaterial({ color: 0x000000 }));
+                    hole.scale.setScalar(b.r);
+                    group.add(hole);
+                    // the disk, flat in the plane of play
+                    const inner = b.r * 1.35;
+                    const outer = b.r * 3.8;
+                    s.hot = new THREE.ShaderMaterial({
+                        uniforms: { uTime: { value: 0 }, uIn: { value: inner }, uOut: { value: outer } },
+                        vertexShader: "varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+                        fragmentShader: diskFrag,
+                        transparent: true,
+                        depthWrite: false,
+                        blending: THREE.AdditiveBlending,
+                        side: THREE.DoubleSide,
+                    });
+                    const disk = new THREE.Mesh(new THREE.RingGeometry(inner, outer, 160, 6), s.hot);
+                    disk.rotation.x = -Math.PI / 2;
+                    group.add(disk);
+                    const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: photonRing, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+                    ring.scale.setScalar(b.r * 3.6);
+                    group.add(ring);
                 } else if (b.kind === "sun") {
                     const m = new THREE.Mesh(
                         planetGeo,
@@ -739,6 +809,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 if (s.spin) s.spin.rotation.y += dt * (s.body.kind === "rock" ? 0.4 : s.body.kind === "sun" ? 0.02 : 0.12);
                 if (s.air) (s.air.uniforms.uCenter.value as THREE.Vector3).copy(s.group.position);
                 if (s.body.kind === "sun") (((s.spin as THREE.Mesh).material as THREE.ShaderMaterial).uniforms.uTime.value = now / 1000);
+                if (s.hot) s.hot.uniforms.uTime.value = now / 1000;
                 if (s.ringMat && probe) s.ringMat.color.set(probe.passed[level.bodies.indexOf(s.body)] ? 0x86efac : 0xfbbf24);
                 if (s.ringMat && !probe) s.ringMat.color.set(0xfbbf24);
                 if (s.goalMat) {
@@ -809,7 +880,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             });
             [trailMat, ghostMat, aimMat, rockMat].forEach((m) => m.dispose());
             [planetGeo, airGeo, ...rockGeos].forEach((g) => g.dispose());
-            [...maps.values(), ringTex, glowWarm, glowProbe, glowBang, sky].forEach((x) => x.dispose());
+            [...maps.values(), ringTex, glowWarm, glowProbe, glowBang, photonRing, sky].forEach((x) => x.dispose());
             renderer.dispose();
             renderer.domElement.remove();
         };
