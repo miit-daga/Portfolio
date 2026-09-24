@@ -49,6 +49,8 @@ type Planet = {
   orbitAngle: number;
   orbitSpeed: number;
   distanceFromCenter: number;
+  /** How much taller than wide the orbit is: 1 is a circle; tall phone screens stretch it */
+  orbitSquash: number;
   originalDistance: number;
   parallaxFactor: number; // NEW: Controls depth perception
   moon?: boolean; // has a small orbiting satellite-moon
@@ -524,8 +526,16 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         // This ensures it stays within the vertical bounds of a laptop screen (0.40 < 0.50).
         { color: "#8b5cf6", ring: false, distMult: 0.40, size: 45, speed: 0.0002, parallax: 40, moon: false },
       ];
+      // On phones the two orbits, sized to the narrow side, are closer together
+      // than the planets are wide: there the orbits stretch into the screen's
+      // height, and the planets keep to opposite sides, circling together, so
+      // they never pass over each other. Wider screens are as they were
+      const narrow = canvas.width < 768;
+      const squash = narrow && canvas.height > canvas.width ? Math.min(1.8, canvas.height / canvas.width) : 1;
+      const firstAngle = Math.random() * Math.PI * 2;
+      const firstSpeed = planetConfigs[0].speed * (Math.random() > 0.5 ? 1 : -1);
       planetConfigs.forEach((cfg, i) => {
-        const angle = Math.random() * Math.PI * 2;
+        const angle = narrow ? firstAngle + i * Math.PI : Math.random() * Math.PI * 2;
         const dist = Math.min(canvas.width, canvas.height) * cfg.distMult;
 
         planets.push({
@@ -538,8 +548,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
           ringColor: "rgba(255, 255, 255, 0.15)", // Slightly more transparent ring
           ringAngle: Math.PI / 4,
           orbitAngle: angle,
-          orbitSpeed: cfg.speed * (Math.random() > 0.5 ? 1 : -1),
+          orbitSpeed: narrow ? firstSpeed : cfg.speed * (Math.random() > 0.5 ? 1 : -1),
           distanceFromCenter: dist,
+          orbitSquash: squash,
           originalDistance: dist,
           parallaxFactor: cfg.parallax, // Store individual parallax
           moon: cfg.moon,
@@ -740,7 +751,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         const offsetY = mouseRef.current.y * planet.parallaxFactor;
 
         planet.x = centerX + Math.cos(planet.orbitAngle) * planet.distanceFromCenter + offsetX;
-        planet.y = centerY + Math.sin(planet.orbitAngle) * planet.distanceFromCenter + offsetY;
+        planet.y = centerY + Math.sin(planet.orbitAngle) * planet.distanceFromCenter * planet.orbitSquash + offsetY;
 
         // Draw the planet (shaded body, cloud bands, ring system)
         drawPlanet(bgCtx, planet, keyLight);
