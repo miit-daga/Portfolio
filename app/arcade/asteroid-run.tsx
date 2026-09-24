@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
+import { alignStars, fbm, glowTexture, perlin, skyTexture, spaceEnvironment, starPoints } from "./space";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
@@ -25,21 +27,57 @@ const POWER_TIME: Record<Power, number> = { star: 6, boost: 4 };
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
 type Hud = { score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
 
-// A lumpy rock: an icosahedron with its corners pushed in and out, the same
-// corner moved the same way on every face that shares it
+// A rock: a finely divided sphere, pushed out and in by layers of noise into
+// a lumpy potato, stretched a little, and pocked with craters (each a bowl
+// with a raised rim). Its colour varies across it, darker in the craters.
+// Three kinds, as asteroids come: dark carbon grey, stony brown, and grey.
+const ROCK_TONES = [
+    [0.19, 0.18, 0.17],
+    [0.34, 0.3, 0.26],
+    [0.29, 0.285, 0.28],
+];
 function rockGeometry(seed: number) {
-    const g = new THREE.IcosahedronGeometry(1, 1);
-    const pos = g.getAttribute("position") as THREE.BufferAttribute;
-    const key = (x: number, y: number, z: number) => `${x.toFixed(3)},${y.toFixed(3)},${z.toFixed(3)}`;
-    const push = new Map<string, number>();
+    const noise = perlin(seed);
     let s = seed;
     const rand = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+    const unit = () => {
+        const z = rand() * 2 - 1;
+        const a = rand() * Math.PI * 2;
+        const r = Math.sqrt(1 - z * z);
+        return new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z);
+    };
+    let g: THREE.BufferGeometry = new THREE.IcosahedronGeometry(1, 14);
+    g.deleteAttribute("normal");
+    g.deleteAttribute("uv");
+    g = mergeVertices(g);
+    const craters = Array.from({ length: 5 + Math.floor(rand() * 7) }, () => ({ c: unit(), r: 0.18 + rand() * 0.4, depth: 0.05 + rand() * 0.09 }));
+    const stretch = new THREE.Vector3(1.05 + rand() * 0.3, 0.78 + rand() * 0.15, 0.9 + rand() * 0.2);
+    const tone = ROCK_TONES[seed % ROCK_TONES.length];
+    const base = new THREE.Color().setRGB(tone[0], tone[1], tone[2], THREE.SRGBColorSpace);
+    const pos = g.getAttribute("position") as THREE.BufferAttribute;
+    const col = new Float32Array(pos.count * 3);
+    const p = new THREE.Vector3();
     for (let i = 0; i < pos.count; i++) {
-        const k = key(pos.getX(i), pos.getY(i), pos.getZ(i));
-        if (!push.has(k)) push.set(k, 0.72 + rand() * 0.5);
-        const f = push.get(k)!;
-        pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f * 0.85, pos.getZ(i) * f);
+        p.fromBufferAttribute(pos, i).normalize();
+        // big lumps, sharp ridges, and fine grit
+        let h = fbm(noise, p.x * 1.2 + 7, p.y * 1.2, p.z * 1.2, 3) * 0.42;
+        h += (0.5 - Math.abs(fbm(noise, p.x * 3 + 11, p.y * 3, p.z * 3 + 5, 3))) * 0.12;
+        h += fbm(noise, p.x * 9, p.y * 9 + 3, p.z * 9, 2) * 0.035;
+        let dark = 0;
+        for (const c of craters) {
+            const d = Math.acos(THREE.MathUtils.clamp(p.dot(c.c), -1, 1)) / c.r;
+            if (d < 1) {
+                h -= c.depth * (1 - d * d);
+                dark = Math.max(dark, (1 - d) * 0.35);
+            } else if (d < 1.5) h += c.depth * 0.4 * (1 - (d - 1) / 0.5);
+        }
+        const v = (0.82 + fbm(noise, p.x * 3 + 20, p.y * 3, p.z * 3, 3) * 0.5) * (1 - dark);
+        pos.setXYZ(i, p.x * (1 + h) * stretch.x, p.y * (1 + h) * stretch.y, p.z * (1 + h) * stretch.z);
+        col[i * 3] = base.r * v;
+        col[i * 3 + 1] = base.g * v;
+        col[i * 3 + 2] = base.b * v;
     }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     g.computeVertexNormals();
     return g;
 }
@@ -48,6 +86,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
     const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
     const [muted, setMutedState] = useState(false);
+    const [loaded, setLoaded] = useState(false);
     const start = useRef<() => void>(() => {});
 
     useEffect(() => {
@@ -64,77 +103,177 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         // ---- the scene -------------------------------------------------------
         const renderer = new THREE.WebGLRenderer({ antialias: window.devicePixelRatio < 2, powerPreference: "high-performance" });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.setClearColor(0x03040a);
+        renderer.setClearColor(0x000000);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
         el.appendChild(renderer.domElement);
         renderer.domElement.style.display = "block";
         const scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0x03040a, 60, 185);
+        // far rocks come out of the dark
+        scene.fog = new THREE.Fog(0x000000, 70, 185);
         const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 400);
         camera.position.set(0, 1.4, 7.5);
+        const manager = new THREE.LoadingManager(() => setLoaded(true));
+        const loader = new THREE.TextureLoader(manager);
 
-        scene.add(new THREE.AmbientLight(0x8090c0, 0.55));
-        const sun = new THREE.DirectionalLight(0xfff1dd, 1.6);
-        sun.position.set(6, 9, 5);
-        scene.add(sun);
-        const rim = new THREE.DirectionalLight(0x2dd4bf, 0.6);
-        rim.position.set(-6, -3, -8);
-        scene.add(rim);
-
-        // Stars, streaming past
-        const STAR_COUNT = 1400;
-        const starPos = new Float32Array(STAR_COUNT * 3);
-        for (let i = 0; i < STAR_COUNT; i++) {
-            starPos[i * 3] = (Math.random() - 0.5) * 160;
-            starPos[i * 3 + 1] = (Math.random() - 0.5) * 100;
-            starPos[i * 3 + 2] = FAR - 60 + Math.random() * 280;
-        }
-        const starGeo = new THREE.BufferGeometry();
-        starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
-        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.35, sizeAttenuation: true, transparent: true, opacity: 0.9, fog: false }));
+        // The sky: the real one, the Milky Way across the way ahead. It is
+        // so far off that flying doesn't move it.
+        const sky = skyTexture(renderer, loader);
+        scene.background = sky;
+        scene.backgroundIntensity = 0.7;
+        scene.backgroundRotation.set(2.503, 0.244, -3.006);
+        const stars = starPoints(350, manager);
+        alignStars(stars, scene.backgroundRotation);
+        (stars.material as THREE.ShaderMaterial).uniforms.uScale.value = renderer.getPixelRatio();
         scene.add(stars);
 
-        // The ship: a pointed hull, swept wings, fins and a glowing engine
+        // Light: the sun, hard, from over the right shoulder; a faint cold
+        // glow from the other side; and reflections of the sun for the ship
+        const SUN = new THREE.Vector3(6, 7, 5).normalize();
+        scene.add(new THREE.AmbientLight(0x8090c0, 0.08));
+        const sun = new THREE.DirectionalLight(0xfff4e6, 3.4);
+        sun.position.copy(SUN);
+        scene.add(sun);
+        const rim = new THREE.DirectionalLight(0x9fb8ff, 0.35);
+        rim.position.set(-6, -3, -8);
+        scene.add(rim);
+        const env = spaceEnvironment(renderer, SUN);
+        scene.environment = env.texture;
+
+        // Dust, streaking past: the only thing near enough to show the speed
+        const DUST = 420;
+        const dustPos = new Float32Array(DUST * 6);
+        const dustCol = new Float32Array(DUST * 6);
+        const placeDust = (i: number, z: number) => {
+            const x = (Math.random() - 0.5) * 60;
+            const y = (Math.random() - 0.5) * 36;
+            dustPos.set([x, y, z, x, y, z], i * 6);
+        };
+        for (let i = 0; i < DUST; i++) {
+            placeDust(i, FAR + Math.random() * (12 - FAR));
+            const b = 0.35 + Math.random() * 0.4;
+            dustCol.set([b, b * 1.04, b * 1.12, 0, 0, 0], i * 6);
+        }
+        const dustGeo = new THREE.BufferGeometry();
+        dustGeo.setAttribute("position", new THREE.BufferAttribute(dustPos, 3));
+        dustGeo.setAttribute("color", new THREE.BufferAttribute(dustCol, 3));
+        const dust = new THREE.LineSegments(dustGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        dust.frustumCulled = false;
+        scene.add(dust);
+
+        // The ship: a smooth hull, swept wings with some thickness, fins, a
+        // dark glass canopy, and an engine burning blue
         const ship = new THREE.Group();
-        const hullMat = new THREE.MeshStandardMaterial({ color: 0xdfe4ea, metalness: 0.55, roughness: 0.35, flatShading: true });
-        const accentMat = new THREE.MeshStandardMaterial({ color: 0x14b8a6, emissive: 0x0d9488, emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.4, flatShading: true });
-        const hull = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.9, 6), hullMat);
-        hull.rotation.x = -Math.PI / 2;
+        const hullMat = new THREE.MeshPhysicalMaterial({ color: 0xe6eaef, metalness: 0.35, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.18 });
+        const accentMat = new THREE.MeshStandardMaterial({ color: 0x14b8a6, emissive: 0x0d9488, emissiveIntensity: 0.25, metalness: 0.4, roughness: 0.35 });
+        const hullProfile = [
+            [0, -1.05],
+            [0.07, -0.92],
+            [0.17, -0.62],
+            [0.26, -0.2],
+            [0.3, 0.3],
+            [0.29, 0.72],
+            [0.23, 0.92],
+            [0, 0.92],
+        ].map(([r, y]) => new THREE.Vector2(r, y));
+        const hullGeo = new THREE.LatheGeometry(hullProfile, 28);
+        hullGeo.rotateX(Math.PI / 2);
+        const hull = new THREE.Mesh(hullGeo, hullMat);
+        hull.scale.set(1, 0.8, 1);
         ship.add(hull);
-        const wingGeo = new THREE.BufferGeometry();
-        wingGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array([0, 0, -0.5, 1.25, 0, 0.55, 0, 0, 0.6, 0, 0, -0.5, 0, 0, 0.6, -1.25, 0, 0.55]), 3));
-        wingGeo.computeVertexNormals();
-        const wings = new THREE.Mesh(wingGeo, new THREE.MeshStandardMaterial({ color: 0xb8c0cc, metalness: 0.6, roughness: 0.4, side: THREE.DoubleSide, flatShading: true }));
+        const wingShape = new THREE.Shape();
+        wingShape.moveTo(0, -0.45);
+        wingShape.lineTo(1.25, 0.5);
+        wingShape.lineTo(1.25, 0.62);
+        wingShape.lineTo(0, 0.62);
+        wingShape.lineTo(-1.25, 0.62);
+        wingShape.lineTo(-1.25, 0.5);
+        wingShape.closePath();
+        const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.02, bevelSegments: 2 });
+        wingGeo.rotateX(Math.PI / 2);
+        wingGeo.translate(0, 0.02, 0);
+        const wings = new THREE.Mesh(wingGeo, new THREE.MeshPhysicalMaterial({ color: 0xb4bcc8, metalness: 0.55, roughness: 0.35, clearcoat: 0.6 }));
         ship.add(wings);
         [-1, 1].forEach((sgn) => {
-            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.26, 0.5), accentMat);
-            tip.position.set(1.2 * sgn, 0.08, 0.45);
+            const tip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.26, 0.5), accentMat);
+            tip.position.set(1.22 * sgn, 0.08, 0.4);
             ship.add(tip);
         });
-        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.55), accentMat);
-        fin.position.set(0, 0.24, 0.55);
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.4, 0.5), accentMat);
+        fin.position.set(0, 0.26, 0.55);
         ship.add(fin);
-        const canopy = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x67e8f9, emissive: 0x0e7490, emissiveIntensity: 0.5, metalness: 0.2, roughness: 0.1 }));
-        canopy.scale.set(1, 0.8, 1.8);
-        canopy.position.set(0, 0.12, -0.1);
+        const canopy = new THREE.Mesh(
+            new THREE.SphereGeometry(0.2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+            new THREE.MeshPhysicalMaterial({ color: 0x0b1726, metalness: 0.2, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 2 }),
+        );
+        canopy.scale.set(1, 0.75, 1.9);
+        canopy.position.set(0, 0.14, -0.15);
         ship.add(canopy);
-        const flameMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.9 });
-        const flame = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.9, 10), flameMat);
+        const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.23, 0.26, 24, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a3f47, metalness: 0.9, roughness: 0.4, side: THREE.DoubleSide }));
+        nozzle.rotation.x = Math.PI / 2;
+        nozzle.position.set(0, 0, 1.0);
+        ship.add(nozzle);
+        // the exhaust: a white-hot core in a blue plume, and its glow
+        const flameMat = new THREE.MeshBasicMaterial({ color: 0x7cc8ff, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false });
+        const flame = new THREE.Group();
+        const plume = new THREE.Mesh(new THREE.ConeGeometry(0.19, 1.1, 16, 1, true), flameMat);
+        const core = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.6, 12, 1, true), new THREE.MeshBasicMaterial({ color: 0xe8f6ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+        // (a cone's point is its +y end: turned so that trails behind)
+        plume.position.y = 0.55;
+        core.position.y = 0.3;
+        flame.add(plume, core);
         flame.rotation.x = Math.PI / 2;
-        flame.position.set(0, 0, 1.3);
+        flame.position.set(0, 0, 1.12);
         ship.add(flame);
-        const engineLight = new THREE.PointLight(0xfbbf24, 2.5, 6);
+        const glowTex = glowTexture("rgba(160,215,255,1)", "rgba(60,140,255,0)");
+        const engineGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+        engineGlow.scale.setScalar(1.1);
+        engineGlow.position.set(0, 0, 1.15);
+        ship.add(engineGlow);
+        const engineLight = new THREE.PointLight(0x7cc8ff, 2.5, 6);
         engineLight.position.set(0, 0, 1.4);
         ship.add(engineLight);
         scene.add(ship);
 
         // The rocks, reused as they pass
-        const rockGeos = [11, 23, 37, 51, 67].map(rockGeometry);
-        const rockMats = [0x8b7d6b, 0x6b6f78, 0x9a8778, 0x5c5f66].map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, metalness: 0.05, flatShading: true }));
+        const rockGeos = [11, 23, 37, 52, 67, 81, 94, 106].map(rockGeometry);
+        const rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
+        // and grit, finer than the geometry can carry: noise over the rock's
+        // surface that roughens its light and speckles its colour
+        rockMat.onBeforeCompile = (sh) => {
+            sh.vertexShader = sh.vertexShader
+                .replace("#include <common>", "#include <common>\nvarying vec3 vRock;")
+                .replace("#include <begin_vertex>", "#include <begin_vertex>\nvRock = position;");
+            sh.fragmentShader = sh.fragmentShader
+                .replace(
+                    "#include <common>",
+                    `#include <common>
+                    varying vec3 vRock;
+                    float rockHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+                    float rockNoise(vec3 x) {
+                        vec3 i = floor(x);
+                        vec3 f = fract(x);
+                        f = f * f * (3.0 - 2.0 * f);
+                        return mix(mix(mix(rockHash(i), rockHash(i + vec3(1, 0, 0)), f.x), mix(rockHash(i + vec3(0, 1, 0)), rockHash(i + vec3(1, 1, 0)), f.x), f.y),
+                                   mix(mix(rockHash(i + vec3(0, 0, 1)), rockHash(i + vec3(1, 0, 1)), f.x), mix(rockHash(i + vec3(0, 1, 1)), rockHash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+                    }
+                    float rockGrit(vec3 p) { return rockNoise(p * 5.0) * 0.55 + rockNoise(p * 13.0) * 0.3 + rockNoise(p * 31.0) * 0.15; }
+                    vec3 rockBump(vec3 pos, vec3 n, vec2 dh, float face) {
+                        vec3 sx = normalize(dFdx(pos));
+                        vec3 sy = normalize(dFdy(pos));
+                        vec3 r1 = cross(sy, n);
+                        vec3 r2 = cross(n, sx);
+                        float det = dot(sx, r1) * face;
+                        return normalize(abs(det) * n - sign(det) * (dh.x * r1 + dh.y * r2));
+                    }`,
+                )
+                .replace("#include <color_fragment>", "#include <color_fragment>\nfloat grit = rockGrit(vRock);\ndiffuseColor.rgb *= 0.78 + grit * 0.4;")
+                .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\nnormal = rockBump(-vViewPosition, normal, vec2(dFdx(grit), dFdy(grit)) * 2.2, faceDirection);");
+        };
         type Rock = { mesh: THREE.Mesh; r: number; spin: THREE.Vector3; live: boolean };
         const rocks: Rock[] = [];
         for (let i = 0; i < ROCKS; i++) {
-            const mesh = new THREE.Mesh(rockGeos[i % rockGeos.length], rockMats[i % rockMats.length]);
+            const mesh = new THREE.Mesh(rockGeos[i % rockGeos.length], rockMat);
             mesh.visible = false;
             scene.add(mesh);
             rocks.push({ mesh, r: 1, spin: new THREE.Vector3(), live: false });
@@ -144,8 +283,12 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const fragGeo = new THREE.OctahedronGeometry(0.42);
         type Frag = { mesh: THREE.Mesh; live: boolean };
         const frags: Frag[] = [];
+        const fragGlow = new THREE.SpriteMaterial({ map: glowTexture("rgba(94,234,212,1)", "rgba(45,212,191,0)"), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.8 });
         for (let i = 0; i < FRAGS; i++) {
             const mesh = new THREE.Mesh(fragGeo, fragMat);
+            const glow = new THREE.Sprite(fragGlow);
+            glow.scale.setScalar(2.2);
+            mesh.add(glow);
             mesh.visible = false;
             scene.add(mesh);
             frags.push({ mesh, live: false });
@@ -198,6 +341,15 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             g.visible = false;
             scene.add(g);
         });
+        // each glowing softly in its colour
+        const halo = (g: THREE.Group, inner: string, outer: string, size: number) => {
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(inner, outer), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.75 }));
+            sprite.scale.setScalar(size);
+            g.add(sprite);
+        };
+        halo(starPickup, "rgba(253,224,71,1)", "rgba(245,158,11,0)", 3);
+        halo(arrowPickup, "rgba(216,180,254,1)", "rgba(168,85,247,0)", 3);
+        halo(shieldRing, "rgba(125,211,252,1)", "rgba(56,189,248,0)", 3.4);
         const pickups: Record<Power, THREE.Group> = { star: starPickup, boost: arrowPickup };
         let pickupLive: Power | null = null;
         let pickupTimer = 0;
@@ -422,8 +574,9 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             ship.rotation.z = THREE.MathUtils.lerp(ship.rotation.z, -vel.x * 0.07, 0.15);
             ship.rotation.x = THREE.MathUtils.lerp(ship.rotation.x, vel.y * 0.04, 0.15);
             ship.visible = !(playing && invulnerable > 0 && Math.floor(now / 90) % 2 === 0);
-            flame.scale.set(1, 0.7 + Math.random() * 0.5 + speed / 90, 1);
-            flameMat.opacity = 0.65 + Math.random() * 0.3;
+            flame.scale.set(1, 0.7 + Math.random() * 0.4 + speed / 90 + (power === "boost" ? 0.8 : 0), 1);
+            flameMat.opacity = 0.55 + Math.random() * 0.3;
+            engineGlow.scale.setScalar(1 + Math.random() * 0.2 + (power === "boost" ? 0.6 : 0));
 
             // the field comes at you
             const dz = speed * dt * (power === "boost" ? 2.2 : 1);
@@ -439,11 +592,18 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 aura.rotation.z += dt * 2;
                 auraMat.opacity = 0.2 + Math.sin(now / 90) * 0.08;
             }
-            for (let i = 0; i < STAR_COUNT; i++) {
-                const z = starPos[i * 3 + 2] + dz * (power === "boost" ? 2.4 : 1.6);
-                starPos[i * 3 + 2] = z > 20 ? FAR - 60 : z;
+            // the dust streaks: longer the faster you go
+            const streak = Math.min(12, 0.15 + (dz / Math.max(dt, 0.001)) * 0.045);
+            for (let i = 0; i < DUST; i++) {
+                const z = dustPos[i * 6 + 2] + dz;
+                if (z > 12) placeDust(i, FAR - Math.random() * 30);
+                else {
+                    dustPos[i * 6 + 2] = z;
+                    dustPos[i * 6 + 5] = z - streak;
+                }
             }
-            starGeo.attributes.position.needsUpdate = true;
+            dustGeo.attributes.position.needsUpdate = true;
+            stars.position.copy(camera.position);
             if (playing) {
                 rockTimer -= dt;
                 if (rockTimer <= 0) {
@@ -607,18 +767,25 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             scene.traverse((o) => {
                 const m = o as THREE.Mesh;
                 m.geometry?.dispose();
-                const mat = m.material as THREE.Material | THREE.Material[] | undefined;
-                if (Array.isArray(mat)) mat.forEach((x) => x.dispose());
-                else mat?.dispose();
+                const mat = m.material as (THREE.Material & { map?: THREE.Texture | null }) | undefined;
+                mat?.map?.dispose();
+                mat?.dispose();
             });
+            sky.dispose();
+            env.dispose();
             renderer.dispose();
             renderer.domElement.remove();
         };
     }, []);
 
     return (
-        <div className="fixed inset-0 z-50 bg-[#03040a] text-white">
-            <div ref={mount} className="absolute inset-0" aria-label="Asteroid Run: a 3D game" role="application" />
+        <div className="fixed inset-0 z-50 bg-black text-white">
+            <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Asteroid Run: a 3D game" role="application" />
+            {!loaded && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <p className="animate-pulse font-mono text-xs uppercase tracking-[0.3em] text-teal-300/80">Fuelling up…</p>
+                </div>
+            )}
             {/* a red flash when hit */}
             {hud.hitAt > 0 && <div key={hud.hitAt} className="pointer-events-none absolute inset-0 animate-[arcade-hit_0.5s_ease-out_forwards] bg-rose-500/25" />}
             {/* and a blue one, and a word, when a shield comes back */}
@@ -679,7 +846,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
 
             {/* the title, and game over */}
             {/* a tap or click anywhere (or the button) launches */}
-            {hud.phase !== "playing" && (
+            {hud.phase !== "playing" && loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                     <div className="max-w-sm rounded-2xl border border-teal-400/25 bg-black/60 p-6 text-center backdrop-blur-md">
                         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Run over" : "Crew arcade · 01"}</p>

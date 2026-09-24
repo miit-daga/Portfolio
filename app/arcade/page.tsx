@@ -34,6 +34,9 @@ export default function ArcadePage() {
                 <CloseButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
             </header>
             <Arcade />
+            <p className="relative z-10 mx-auto mt-auto w-full max-w-5xl px-4 pb-6 font-mono text-[11px] text-neutral-600 md:px-6">
+                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps.
+            </p>
         </main>
     );
 }

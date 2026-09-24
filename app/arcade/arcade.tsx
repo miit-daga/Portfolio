@@ -114,7 +114,7 @@ export function Arcade() {
     );
 }
 
-// Previews in CSS: streaking stars and rocks for the run, the port's cross for the dock
+// Previews in CSS: streaking stars and rocks for the run, and for the stack, modules over the Earth
 function RunPreview() {
     return (
         <>
@@ -134,10 +134,10 @@ function RunPreview() {
 function StackPreview() {
     // a few modules, narrowing as they go up, and one sliding in
     const mods = [
-        { w: 46, x: 0, c: "#5eead4" },
-        { w: 42, x: 2, c: "#67e8f9" },
-        { w: 38, x: 3, c: "#7dd3fc" },
-        { w: 34, x: 1, c: "#93c5fd" },
+        { w: 46, x: 0, c: "#e9e6df" },
+        { w: 42, x: 2, c: "#b9bec6" },
+        { w: 38, x: 3, c: "#e9e6df" },
+        { w: 34, x: 1, c: "#d9a441" },
     ];
     return (
         <>
@@ -145,7 +145,7 @@ function StackPreview() {
             {mods.map((m, i) => (
                 <span key={i} className="absolute left-1/2 block h-4 rounded-[3px]" style={{ width: `${m.w}%`, bottom: `${22 + i * 15}%`, marginLeft: `${-m.w / 2 + m.x}%`, background: m.c }} />
             ))}
-            <span className="absolute left-1/2 block h-4 w-[34%] animate-[arcade-slide_2.4s_ease-in-out_infinite_alternate] rounded-[3px] bg-violet-300 motion-reduce:animate-none" style={{ bottom: `${22 + 4 * 15}%`, marginLeft: "-17%" }} />
+            <span className="absolute left-1/2 block h-4 w-[34%] animate-[arcade-slide_2.4s_ease-in-out_infinite_alternate] rounded-[3px] bg-slate-300 motion-reduce:animate-none" style={{ bottom: `${22 + 4 * 15}%`, marginLeft: "-17%" }} />
         </>
     );
 }
