@@ -69,6 +69,9 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 400);
         camera.position.set(0, 1.4, 7.5);
         const manager = new THREE.LoadingManager(() => setLoaded(true));
+        // (a stalled download mustn't leave it on the loading screen: after a
+        // while it opens anyway, and anything late appears when it arrives)
+        const giveUp = window.setTimeout(() => setLoaded(true), 12_000);
         const loader = new THREE.TextureLoader(manager);
 
         // The sky: the real one, the Milky Way across the way ahead. It is
@@ -685,6 +688,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         pushHud();
 
         return () => {
+            window.clearTimeout(giveUp);
             cancelAnimationFrame(raf);
             ro.disconnect();
             window.removeEventListener("keydown", onKey);

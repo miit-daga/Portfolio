@@ -228,6 +228,9 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(36, 1, 1, 3000);
         const manager = new THREE.LoadingManager(() => setLoaded(true));
+        // (a stalled download mustn't leave it on the loading screen: after a
+        // while it opens anyway, and anything late appears when it arrives)
+        const giveUp = window.setTimeout(() => setLoaded(true), 12_000);
         const loader = new THREE.TextureLoader(manager);
 
         const sky = skyTexture(renderer, loader);
@@ -982,6 +985,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         raf = requestAnimationFrame(loop);
 
         return () => {
+            window.clearTimeout(giveUp);
             cancelAnimationFrame(raf);
             ro.disconnect();
             window.removeEventListener("keydown", onKey);

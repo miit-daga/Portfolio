@@ -259,6 +259,9 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
         const manager = new THREE.LoadingManager(() => setLoaded(true));
+        // (a stalled download mustn't leave it on the loading screen: after a
+        // while it opens anyway, and anything late appears when it arrives)
+        const giveUp = window.setTimeout(() => setLoaded(true), 12_000);
         const loader = new THREE.TextureLoader(manager);
 
         // The sky: the real one, with the Milky Way arching up behind the station
@@ -686,6 +689,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         pushHud();
 
         return () => {
+            window.clearTimeout(giveUp);
             cancelAnimationFrame(raf);
             ro.disconnect();
             window.removeEventListener("keydown", onKey);
