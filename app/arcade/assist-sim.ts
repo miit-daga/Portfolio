@@ -226,24 +226,18 @@ export const LEVELS: Level[] = [
         par: 3,
     },
     {
-        name: "Two giants",
-        brief: "Thread the narrow gap between Jupiter and Saturn's rings, with both giants pulling on you, and let Saturn bend you down to Neptune. The rings are solid.",
-        fact: "Jupiter and Saturn line up in our sky every 20 years or so, the Great Conjunction.",
+        name: "Hairpin",
+        brief: "Neptune is behind you. Fly out, through Jupiter's amber ring, and let it whip you round and back past Earth.",
+        fact: "In 1992 Ulysses flew past Jupiter and was flung up out of the planets' plane, to fly over the Sun's poles.",
         bodies: [
-            EARTH(-44, 4),
-            { kind: "jupiter", r: 4.2, mu: 2600, at: [-4, 10] },
-            // (Saturn below Jupiter, leaving a narrow gap to thread, its rings being
-            // solid; and Neptune off the line through it, so aiming straight at
-            // Neptune never works: the gap and Jupiter's pull have to)
-            // (heavier than the real Saturn is, next to Jupiter: its rings keep the
-            // probe further from it, and it has to be felt as much as Jupiter is)
-            { kind: "saturn", r: 3.4, mu: 5000, at: [-2, -12] },
-            { kind: "neptune", r: 2.3, mu: 400, at: [42, -10] },
+            EARTH(-12, -2),
+            { kind: "jupiter", r: 4.2, mu: 3600, at: [24, -2], pass: 12 },
+            { kind: "neptune", r: 2.3, mu: 1200, at: [-36, 12] },
         ],
         start: 0,
-        target: 3,
-        capture: 6.5, // (close by Neptune, but a ring you can see, clear of its glow)
-        par: 3,
+        target: 2,
+        flyby: [1],
+        par: 4,
     },
     {
         name: "Close to the Sun",
