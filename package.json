@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/check-missions.ts && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:missions": "tsx scripts/check-missions.ts"
   },
   "dependencies": {
     "@emotion/is-prop-valid": "latest",
@@ -39,6 +40,7 @@
     "@types/three": "~0.180.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   },
   "browserslist": [
