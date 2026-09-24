@@ -7,9 +7,39 @@ import { trackEvent } from "@/lib/track";
 // when it is opened, so nothing here costs the rest of the site anything.
 // ?game=run, ?game=stack or ?game=assist opens one straight away.
 
-const AsteroidRun = dynamic(() => import("./asteroid-run"), { ssr: false, loading: () => <Loading /> });
-const StackStation = dynamic(() => import("./stack-station"), { ssr: false, loading: () => <Loading /> });
-const GravityAssist = dynamic(() => import("./gravity-assist"), { ssr: false, loading: () => <Loading /> });
+// Each game's code is its own file, fetched when it's opened. After a new
+// version of the site goes live, a page opened before it asks for the old
+// file, which is gone, and the page would fail. Then it reloads, once, into
+// the new version (and forgets it did, once a game loads)
+const RELOADED = "arcade-reloaded-for-new-version";
+function freshOnFail<T>(load: () => Promise<T>) {
+    return () =>
+        load().then(
+            (m) => {
+                try {
+                    sessionStorage.removeItem(RELOADED);
+                } catch {
+                    /* ignore */
+                }
+                return m;
+            },
+            (e) => {
+                try {
+                    if (!sessionStorage.getItem(RELOADED)) {
+                        sessionStorage.setItem(RELOADED, "1");
+                        window.location.reload();
+                        return new Promise<T>(() => {});
+                    }
+                } catch {
+                    /* ignore */
+                }
+                throw e;
+            },
+        );
+}
+const AsteroidRun = dynamic(freshOnFail(() => import("./asteroid-run")), { ssr: false, loading: () => <Loading /> });
+const StackStation = dynamic(freshOnFail(() => import("./stack-station")), { ssr: false, loading: () => <Loading /> });
+const GravityAssist = dynamic(freshOnFail(() => import("./gravity-assist")), { ssr: false, loading: () => <Loading /> });
 
 function Loading() {
     return (

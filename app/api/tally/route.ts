@@ -8,7 +8,14 @@ import { Octokit } from "@octokit/core";
 // the files it names). Read-modify-write, so two events landing together can
 // lose one count; fine for a tally.
 //
-// POST { event, props } counts one; GET, with the admin key (the same one as
+// Saving is held back: GitHub allows only so many edits to a gist in a
+// while, and editing on every event once used them all up (which stopped the
+// leaderboard saving too). So counts gather in this instance's memory and
+// are saved at most every few minutes (a count can be lost if the instance
+// is recycled first; fine for a tally), and browsers send a visit's events
+// together, once, as they leave.
+//
+// POST { events: [{ event, props }] } (or one { event, props }) counts; GET, with the admin key (the same one as
 // the guestbook's, GUESTBOOK_ADMIN_KEY) in an x-admin-key header, reads it.
 // The page for reading it is /stats.
 
@@ -78,6 +85,24 @@ function keyMatches(supplied: string, expected: string) {
     return diff === 0;
 }
 
+// Counts waiting to be saved, by day, and when this instance last saved
+const pending: Record<string, Record<string, number>> = {};
+let lastSave = 0;
+const SAVE_EVERY_MS = MEMORY ? 0 : 5 * 60_000;
+
+async function save() {
+    if (!Object.keys(pending).length) return;
+    const t = await read();
+    for (const [day, counts] of Object.entries(pending)) {
+        const into = (t.days[day] ??= {});
+        for (const [k, n] of Object.entries(counts)) into[k] = (into[k] ?? 0) + n;
+    }
+    const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString().slice(0, 10);
+    for (const d of Object.keys(t.days)) if (d < cutoff) delete t.days[d];
+    await write(t);
+    for (const d of Object.keys(pending)) delete pending[d];
+}
+
 export async function POST(request: Request) {
     if (!MEMORY && !gistId()) return NextResponse.json({ ok: false }, { status: 503 });
     let body: unknown;
@@ -86,28 +111,32 @@ export async function POST(request: Request) {
     } catch {
         return NextResponse.json({ ok: false }, { status: 400 });
     }
-    const { event, props } = (body ?? {}) as { event?: unknown; props?: Record<string, unknown> };
-    const spec = typeof event === "string" ? EVENTS[event] : undefined;
-    if (!spec) return NextResponse.json({ ok: false }, { status: 400 });
     if (tooMany(request)) return NextResponse.json({ ok: false }, { status: 429 });
-
-    const keys = [event as string];
-    for (const s of spec.split ?? []) {
-        const v = String(props?.[s] ?? "");
-        if (VALUE.test(v)) keys.push(`${event}:${s}=${v}`);
+    const b = (body ?? {}) as { event?: unknown; props?: Record<string, unknown>; events?: unknown };
+    const list = (Array.isArray(b.events) ? b.events : [b]).slice(0, 200) as { event?: unknown; props?: Record<string, unknown> }[];
+    const day = new Date().toISOString().slice(0, 10);
+    const today = (pending[day] ??= {});
+    let counted = 0;
+    for (const { event, props } of list) {
+        const spec = typeof event === "string" ? EVENTS[event] : undefined;
+        if (!spec) continue;
+        counted++;
+        today[event as string] = (today[event as string] ?? 0) + 1;
+        for (const s of spec.split ?? []) {
+            const v = String(props?.[s] ?? "");
+            if (VALUE.test(v)) today[`${event}:${s}=${v}`] = (today[`${event}:${s}=${v}`] ?? 0) + 1;
+        }
     }
+    if (!counted) return NextResponse.json({ ok: false }, { status: 400 });
+    if (Date.now() - lastSave < SAVE_EVERY_MS) return NextResponse.json({ ok: true, held: true });
+    lastSave = Date.now();
     try {
-        const t = await read();
-        const day = new Date().toISOString().slice(0, 10);
-        const today = (t.days[day] ??= {});
-        for (const k of keys) today[k] = (today[k] ?? 0) + 1;
-        const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString().slice(0, 10);
-        for (const d of Object.keys(t.days)) if (d < cutoff) delete t.days[d];
-        await write(t);
+        await save();
         return NextResponse.json({ ok: true });
     } catch (error) {
-        console.error("Tally write failed:", error);
-        return NextResponse.json({ ok: false }, { status: 502 });
+        // (kept for the next try)
+        console.error("Tally save failed:", error);
+        return NextResponse.json({ ok: true, held: true });
     }
 }
 

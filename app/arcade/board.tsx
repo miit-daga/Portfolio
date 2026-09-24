@@ -9,6 +9,43 @@ import { useEffect, useState } from "react";
 
 type Row = { name: string; score: number; at: string };
 const INITIALS_KEY = "arcade-initials";
+// Posts the board couldn't take (busy: GitHub limits how often its gist can be
+// saved), kept here and sent again the next time a board loads
+const PENDING_KEY = "arcade-board-pending";
+type Post = Record<string, unknown>;
+const readPending = (): Post[] => {
+    try {
+        const v = JSON.parse(localStorage.getItem(PENDING_KEY) || "[]");
+        return Array.isArray(v) ? v : [];
+    } catch {
+        return [];
+    }
+};
+const writePending = (p: Post[]) => {
+    try {
+        if (p.length) localStorage.setItem(PENDING_KEY, JSON.stringify(p.slice(-5)));
+        else localStorage.removeItem(PENDING_KEY);
+    } catch {
+        /* ignore */
+    }
+};
+let retrying = false;
+async function retryPending() {
+    if (retrying) return;
+    retrying = true;
+    const left: Post[] = [];
+    for (const post of readPending()) {
+        try {
+            const r = await fetch("/api/leaderboard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(post) });
+            // (busy again: keep it; taken, or refused for good: let it go)
+            if (r.status >= 500 || r.status === 429) left.push(post);
+        } catch {
+            left.push(post);
+        }
+    }
+    writePending(left);
+    retrying = false;
+}
 const PLAYER_KEY = "term-player-id";
 
 function playerId() {
@@ -56,6 +93,7 @@ export function Board({
             /* ignore */
         }
         const ctl = new AbortController();
+        retryPending();
         fetch(`/api/leaderboard?game=${game}${day ? `&day=${day}` : ""}`, { signal: ctl.signal })
             .then((r) => r.json())
             .then((d) => setRows(d?.configured === false || !d?.boards ? null : (d.boards[game] ?? [])))
@@ -77,13 +115,20 @@ export function Board({
         } catch {
             /* ignore */
         }
+        const post = { game, name, score, day, player: playerId(), ...shot };
         try {
             const r = await fetch("/api/leaderboard", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ game, name, score, day, player: playerId(), ...shot }),
+                body: JSON.stringify(post),
             });
             const d = await r.json();
+            if (r.status >= 500 || r.status === 429) {
+                writePending([...readPending(), post]);
+                setState("done");
+                setError("The leaderboard is busy right now. Your score is kept here and will post automatically next time.");
+                return;
+            }
             if (!r.ok) throw new Error(d?.error || "Could not post that.");
             setRows(d.board);
             setRank(d.rank ?? null);
