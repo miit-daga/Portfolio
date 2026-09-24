@@ -357,6 +357,8 @@ export const FloatingNav = ({
     const acc = accentOf(navItem.link);
     const meta = "eyebrow" in acc ? acc : null;
     const isTerminal = navItem.name === "Terminal";
+    const isArcade = navItem.name === "Arcade";
+    const newTab = isTerminal || isArcade;
     return (
       <MagneticWrapper key={navItem.link} strength={0.2}>
         <Link
@@ -375,8 +377,9 @@ export const FloatingNav = ({
           onMouseLeave={() => setPreview((p) => (p === navItem.link ? null : p))}
           onFocus={() => setPreview(navItem.link)}
           onBlur={() => setPreview((p) => (p === navItem.link ? null : p))}
-          target={isTerminal ? "_blank" : undefined}
-          rel={isTerminal ? "noopener noreferrer" : undefined}
+          target={newTab ? "_blank" : undefined}
+          rel={newTab ? "noopener noreferrer" : undefined}
+          aria-label={isArcade ? "Arcade: three space games (opens in a new tab)" : undefined}
           className={cn(
             "relative items-center flex hidden lg:flex px-3 py-1 transition-colors duration-300",
             isActive ? "" : "text-white hover:text-neutral-300"
@@ -400,6 +403,12 @@ export const FloatingNav = ({
           {tool && isTerminal ? (
             <span className="relative z-10 font-mono text-xs font-semibold tracking-wide">
               <span className="text-teal-300/90">&gt;_</span> terminal <span className="text-neutral-500">↗</span>
+            </span>
+          ) : tool && isArcade ? (
+            <span className="relative z-10 font-mono text-xs font-semibold tracking-wide">
+              {/* (just the arrow on narrower screens, where the bar is short of room) */}
+              <span className="text-teal-300/90">▶</span>
+              <span className="hidden min-[1400px]:inline"> arcade</span> <span className="text-neutral-500">↗</span>
             </span>
           ) : (
             <span className="relative z-10 flex items-center gap-1.5 text-sm font-bold">
@@ -427,10 +436,10 @@ export const FloatingNav = ({
                 >
                   <span className="block font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.25em]" style={{ color: acc.light }}>
                     {meta?.index ? `${String(meta.index).padStart(2, "0")} · ` : ""}
-                    {meta?.eyebrow ?? (isTerminal ? "new tab" : "about")}
+                    {meta?.eyebrow ?? (newTab ? "new tab" : "about")}
                   </span>
                   <span className="mt-0.5 block text-xs font-medium leading-snug text-neutral-200">
-                    {isTerminal ? "a real shell, with an arcade" : TEASERS[navItem.link] ?? navItem.name}
+                    {isTerminal ? "a real shell, with an arcade" : isArcade ? "three 3D space games, made for this site" : TEASERS[navItem.link] ?? navItem.name}
                   </span>
                 </span>
               </motion.span>
@@ -681,8 +690,8 @@ export const FloatingNav = ({
                       >
                         <Link
                           href={item.link}
-                          target={item.name === "Terminal" ? "_blank" : undefined}
-                          rel={item.name === "Terminal" ? "noopener noreferrer" : undefined}
+                          target={item.name === "Terminal" || item.name === "Arcade" ? "_blank" : undefined}
+                          rel={item.name === "Terminal" || item.name === "Arcade" ? "noopener noreferrer" : undefined}
                           onClick={(e) => { handleNavClick(e, item.link); toggleMenu(); }}
                           className="relative flex items-center gap-3.5 overflow-hidden rounded-2xl border px-3.5 py-2.5 transition-colors active:bg-white/5"
                           style={{
@@ -699,7 +708,7 @@ export const FloatingNav = ({
                           <span className="min-w-0 flex-1">
                             <span className="block font-mono text-[11px] sm:text-[9px] uppercase tracking-[0.22em]" style={{ color: rgba(acc.rgb, isActive ? 0.95 : 0.6) }}>
                               {meta?.index ? `${String(meta.index).padStart(2, "0")} · ` : ""}
-                              {meta?.eyebrow ?? "about"}
+                              {meta?.eyebrow ?? (item.name === "Arcade" ? "3 space games · new tab" : "about")}
                             </span>
                             <span className="block truncate text-[15px] font-semibold leading-snug" style={{ color: isActive ? acc.light : "#f5f5f5" }}>
                               {item.name}

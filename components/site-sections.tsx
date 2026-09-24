@@ -21,3 +21,4 @@ export { Reveal } from "@/components/ui/reveal";
 export { MobileNotice } from "@/components/ui/mobile-notice";
 export { FlightPath } from "@/components/ui/flight-path";
 export { AmbientGlow } from "@/components/ui/ambient-glow";
+export { ArcadeTeaser } from "@/components/ui/arcade-teaser";

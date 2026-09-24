@@ -12,6 +12,7 @@ import {
   IconMail,
   IconSchool,
   IconTerminal,
+  IconDeviceGamepad2,
 } from "@tabler/icons-react";
 import { EnterScreen } from "@/components/EnterScreen";
 import { CollectiblesProvider, CollectibleHUD, Fragment as Collectible, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
@@ -51,6 +52,7 @@ const Reveal = dynamic(() => sections().then((m) => m.Reveal));
 const MobileNotice = dynamic(() => sections().then((m) => m.MobileNotice));
 const FlightPath = dynamic(() => sections().then((m) => m.FlightPath));
 const AmbientGlow = dynamic(() => sections().then((m) => m.AmbientGlow));
+const ArcadeTeaser = dynamic(() => sections().then((m) => m.ArcadeTeaser));
 
 // Easter eggs and the About puzzle load just after first paint, in their own
 // chunks, rather than in the page bundle every visitor downloads up front.
@@ -247,6 +249,11 @@ const Home = () => {
       icon: <IconTerminal className="h-4 w-4 text-neutral-500 dark:text-white" />,
       isDesktopOnly: true,
     },
+    {
+      name: "Arcade",
+      link: "/arcade",
+      icon: <IconDeviceGamepad2 className="h-4 w-4 text-neutral-500 dark:text-white" />,
+    },
   ];
 
   return (
@@ -374,6 +381,10 @@ const Home = () => {
                   <Projects />
                   <Collectible id="projects" className="top-12 left-8 md:left-20" />
                 </div>
+              </Reveal>
+              {/* the crew arcade, where people will see it */}
+              <Reveal>
+                <ArcadeTeaser />
               </Reveal>
               <SectionDivider variant="galaxy" section="publications" />
               <Reveal>
