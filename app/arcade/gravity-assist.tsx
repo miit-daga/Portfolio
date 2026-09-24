@@ -181,7 +181,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
-    const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void; daily: (l: Level) => void; hint: () => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {}, daily() {}, hint() {} });
+    const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void; daily: (l: Level) => void; hint: () => void; launch: () => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {}, daily() {}, hint() {}, launch() {} });
     // Today's sky: fetched from the server, so everyone flies the same one
     const [today] = useState(() => dayKey());
     const [dailyLevel, setDailyLevel] = useState<Level | null>(null);
@@ -701,6 +701,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
 
         api.current = {
             hint: findHint,
+            launch: () => fire(),
             open,
             begin,
             retry,
@@ -727,6 +728,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 const at = new THREE.Vector3();
                 if (!onPlane(e.clientX, e.clientY, at)) return;
                 drag = { px: e.clientX, py: e.clientY, at };
+                cur.copy(at); // (so a tap isn't read as a drag from last time)
                 renderer.domElement.setPointerCapture(e.pointerId);
             } else if (phase === "flying") fast = true;
         };
@@ -738,6 +740,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             const dy = -(drag.at.z - cur.z);
             const px = Math.hypot(e.clientX - drag.px, e.clientY - drag.py);
             if (px < 6) return;
+            // your own aim now: the hint's course no longer applies
+            if (hint === "shown") {
+                clearHint();
+                pushHud();
+            }
             angle = Math.atan2(dy, dx);
             const r = renderer.domElement.getBoundingClientRect();
             power = THREE.MathUtils.clamp(px / (Math.min(r.width, r.height) * FULL_PULL), 0.1, 1);
@@ -748,7 +755,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             if (!drag) return;
             const moved = Math.hypot(cur.x - drag.at.x, cur.z - drag.at.z) > 0.01;
             drag = null;
-            if (moved) fire();
+            // a drag launches as aimed; a tap, while a hint shows, flies the hint
+            if (moved || hint === "shown") fire();
         };
         const cv = renderer.domElement;
         cv.style.touchAction = "none";
@@ -772,6 +780,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             if (["arrowleft", "arrowright", "arrowup", "arrowdown", " "].includes(k)) e.preventDefault();
             if (phase === "aim") {
                 const fine = e.shiftKey ? 0.2 : 1;
+                if (hint === "shown" && k.startsWith("arrow")) clearHint();
                 if (k === "arrowleft") angle += (fine * Math.PI) / 180;
                 if (k === "arrowright") angle -= (fine * Math.PI) / 180;
                 if (k === "arrowup") power = Math.min(1, power + 0.02 * fine);
@@ -1044,7 +1053,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         <p className="mt-1 text-sm leading-snug text-neutral-300">{L.brief}</p>
                         {hud.hint === "shown" && hud.phase === "aim" && (
                             <p className="mt-1 text-xs leading-snug text-amber-300">
-                                Hint: aimed for you, with the start of the course in gold. Launch when ready. (With a hint, this mission&apos;s best is two stars.)
+                                Hint: aimed for you, the start of its course in gold. Tap anywhere (or Launch hint, or Space) to fly it; dragging aims your own way instead. (With a hint, this mission&apos;s best is two stars.)
                             </p>
                         )}
                     </div>
@@ -1093,11 +1102,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 {hud.phase === "aim" && !isDaily && (
                     <button
                         type="button"
-                        onClick={() => api.current.hint()}
-                        disabled={hud.hint === "searching" || hud.hint === "shown"}
+                        onClick={() => (hud.hint === "shown" ? api.current.launch() : api.current.hint())}
+                        disabled={hud.hint === "searching"}
                         className="rounded-full border border-amber-300/30 bg-black/50 px-4 py-2 text-sm text-amber-200 backdrop-blur hover:border-amber-300/60 disabled:opacity-60"
                     >
-                        {hud.hint === "searching" ? "Plotting…" : hud.hint === "shown" ? "Hint shown" : hud.hint === "none" ? "No course from here" : "Hint"}
+                        {hud.hint === "searching" ? "Plotting…" : hud.hint === "shown" ? "Launch hint ▶" : hud.hint === "none" ? "No course from here" : "Hint"}
                     </button>
                 )}
                 <button
