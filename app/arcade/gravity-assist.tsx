@@ -208,6 +208,9 @@ const sunFrag = /* glsl */ `
 
 export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
+    // the power, shown by the finger (or pointer) while dragging back, set
+    // straight on the element so dragging never re-renders the page
+    const pullRef = useRef<HTMLDivElement>(null);
     const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0, hint: "idle", challenge: null });
     // a challenge link that no longer flies true (the mission has changed), or has closed
     const [challengeNote, setChallengeNote] = useState<string | null>(null);
@@ -855,10 +858,24 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             angle = Math.atan2(dy, dx);
             const r = renderer.domElement.getBoundingClientRect();
             power = THREE.MathUtils.clamp(px / (Math.min(r.width, r.height) * FULL_PULL), 0.1, 1);
+            // above the finger, clear of the hand, kept on screen
+            const tag = pullRef.current;
+            if (tag) {
+                const touch = e.pointerType === "touch";
+                const x = THREE.MathUtils.clamp(e.clientX - r.left, 44, r.width - 44);
+                const y = Math.max(28, e.clientY - r.top - (touch ? 84 : 36));
+                tag.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+                tag.style.opacity = "1";
+                const full = power >= 0.999;
+                tag.firstElementChild!.textContent = `${Math.round(power * 100)}%`;
+                tag.lastElementChild!.textContent = full ? "full power" : `${(power * VMAX * KMS).toFixed(1)} km/s`;
+                tag.dataset.full = full ? "1" : "";
+            }
             pushHud();
         };
         const onUp = () => {
             fast = false;
+            if (pullRef.current) pullRef.current.style.opacity = "0";
             if (!drag) return;
             const moved = Math.hypot(cur.x - drag.at.x, cur.z - drag.at.z) > 0.01;
             drag = null;
@@ -1168,6 +1185,15 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
             <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Gravity Assist: a 3D game" role="application" />
+            {/* the pull's power, by the finger */}
+            <div
+                ref={pullRef}
+                aria-hidden
+                className="pointer-events-none absolute left-0 top-0 z-10 flex flex-col items-center rounded-xl border border-teal-300/40 bg-black/70 px-3 py-1.5 font-mono opacity-0 backdrop-blur transition-opacity duration-150 data-[full=1]:border-amber-300/60"
+            >
+                <span className="text-lg font-bold leading-none text-teal-200">55%</span>
+                <span className="mt-0.5 text-[10px] uppercase tracking-[0.15em] text-neutral-400">km/s</span>
+            </div>
             {!loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <p className="animate-pulse font-mono text-xs uppercase tracking-[0.3em] text-teal-300/80">Fuelling up…</p>
