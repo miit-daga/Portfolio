@@ -160,7 +160,7 @@ export function Arcade() {
                     key={g.id}
                     type="button"
                     onClick={() => open(g.id)}
-                    className="group relative overflow-hidden rounded-3xl border border-white/10 bg-neutral-950/70 p-6 text-left transition-colors hover:border-[rgba(var(--hue),0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--hue),0.7)]"
+                    className="group relative flex flex-col justify-start overflow-hidden rounded-3xl border border-white/10 bg-neutral-950/70 p-6 text-left transition-colors hover:border-[rgba(var(--hue),0.5)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(var(--hue),0.7)]"
                     style={{ ["--hue" as string]: g.hue }}
                 >
                     {/* a glimpse of the game: a still from it */}
@@ -183,7 +183,8 @@ export function Arcade() {
                     <h2 className="font-display mt-2 text-2xl font-bold text-white">{g.title}</h2>
                     <p className="mt-2 text-sm leading-relaxed text-neutral-300">{g.blurb}</p>
                     <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.15em] text-neutral-500">{g.how}</p>
-                    <div className="mt-5 flex items-center justify-between">
+                    {/* (at the foot of the card, whatever the length of its text) */}
+                    <div className="mt-auto flex items-center justify-between pt-5">
                         <span className="rounded-full px-4 py-2 text-sm font-semibold text-neutral-950 transition-transform group-hover:scale-105" style={{ background: `rgb(${g.hue})` }}>
                             Play
                         </span>
