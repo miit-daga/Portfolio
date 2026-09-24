@@ -5,7 +5,18 @@ import { useEffect, useState } from "react";
 // sessionStorage, never sent anywhere but /api/tally)
 type Tally = { days: Record<string, Record<string, number>> };
 type Problems = { days: Record<string, Record<string, number>>; latest: { at: string; game: string; kind: string; message: string; browser: string }[] };
-const GAME_NAME: Record<string, string> = { assist: "Gravity Assist", run: "Asteroid Run", stack: "Stack the Station", arcade: "Arcade page" };
+const GAME_NAME: Record<string, string> = {
+    assist: "Gravity Assist",
+    run: "Asteroid Run",
+    stack: "Stack the Station",
+    arcade: "Arcade page",
+    home: "Home page",
+    desk: "Terminal desk",
+    terminal: "Terminal",
+    resume: "Resume",
+    stats: "Stats",
+    page: "Other page",
+};
 const KIND_NAME: Record<string, string> = {
     crash: "crashed",
     "no-webgl": "no 3D graphics",

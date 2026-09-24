@@ -14,6 +14,27 @@
             } catch (e) {}
         })();
     </script>
+    <script>
+        // Stray errors reported for the site's /stats (app/api/errors), as
+        // the rest of the site does: which page, the message, and the browser
+        // (read by the server). Once per distinct error; never throws.
+        (function () {
+            var sent = {};
+            function report(kind, err) {
+                try {
+                    var msg = err && err.message ? (err.name || 'Error') + ': ' + err.message : String(err || '');
+                    if (!msg || msg === 'Script error.' || sent[kind + msg]) return;
+                    sent[kind + msg] = 1;
+                    var body = JSON.stringify({ game: 'terminal', kind: kind, message: msg.slice(0, 300) });
+                    if (!(navigator.sendBeacon && navigator.sendBeacon('/api/errors', new Blob([body], { type: 'application/json' })))) {
+                        fetch('/api/errors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }).catch(function () {});
+                    }
+                } catch (e) {}
+            }
+            window.addEventListener('error', function (e) { if (e.message !== 'Script error.') report('error', e.error || e.message); });
+            window.addEventListener('unhandledrejection', function (e) { report('rejection', e.reason); });
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Miit Daga - Terminal</title>

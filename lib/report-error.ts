@@ -1,8 +1,8 @@
-// Quietly tells the site something went wrong in the arcade (app/api/errors),
+// Quietly tells the site something went wrong (app/api/errors),
 // for /stats. One report per distinct problem per page, a beacon so it gets
 // out even as the page reloads or closes, and it never throws.
 
-type Game = "assist" | "run" | "stack" | "arcade";
+type Game = "assist" | "run" | "stack" | "arcade" | "home" | "desk" | "resume" | "stats" | "page";
 type Kind = "crash" | "no-webgl" | "load-failed" | "error" | "rejection" | "stuck-loading";
 const sent = new Set<string>();
 

@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import Script from "next/script"
 import { Outfit, Space_Grotesk } from "next/font/google"
 import { Analytics } from "@vercel/analytics/react"
+import { ErrorReporter } from "@/components/error-reporter"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
@@ -104,6 +105,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         />
       </head>
       <body className={`${outfit.className} ${spaceGrotesk.variable}`}>
+        <ErrorReporter />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           {/* Cinematic grade: animated film grain + edge vignette */}
           <div className="bg-noise" />

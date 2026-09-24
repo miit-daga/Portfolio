@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasKv, kvPipeline } from "@/lib/store";
 
-// Crash reports from the arcade (lib/report-error.ts), so problems show on
+// Crash reports from the site (lib/report-error.ts, and terminal.html's own), so problems show on
 // /stats before anyone has to send a screenshot. Kept: which game, what went
 // wrong (the error's message, cut short), and the browser and system, read
 // from the user agent here. Not kept: IPs, ids, or the user agent itself.
@@ -14,7 +14,8 @@ import { hasKv, kvPipeline } from "@/lib/store";
 export const dynamic = "force-dynamic";
 
 const KEEP_DAYS = 30;
-const GAMES = new Set(["assist", "run", "stack", "arcade"]);
+// where it happened: an arcade game, the arcade page, or another page of the site
+const GAMES = new Set(["assist", "run", "stack", "arcade", "home", "desk", "resume", "stats", "page", "terminal"]);
 const KINDS = new Set(["crash", "no-webgl", "load-failed", "error", "rejection", "stuck-loading"]);
 const MEMORY = process.env.NODE_ENV !== "production" && process.env.LEADERBOARD_MEMORY === "1";
 const memory = { days: {} as Record<string, Record<string, number>>, latest: [] as string[] };
