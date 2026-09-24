@@ -10,7 +10,7 @@ import { Board } from "./board";
 import { dailyMission, dayKey } from "./assist-daily";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
-import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
+import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, fly, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
 
 // Gravity Assist: send a probe from Earth to another world, bending its path
 // round the planets on the way. Drag back from anywhere to aim (the further,
@@ -37,7 +37,8 @@ function dailyBest(day: string): number | null {
     }
 }
 const fmtTime = (cs: number) => `${(cs / 100).toFixed(2)} s`;
-type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number };
+type Hint = "idle" | "searching" | "shown" | "none";
+type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number; hint: Hint };
 
 const NAMES: Record<Kind, string> = { blackhole: "the black hole", sun: "the Sun", mercury: "Mercury", venus: "Venus", uranus: "Uranus", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
@@ -97,6 +98,8 @@ const unlocked = (stars: number[], i: number) => {
 /** "Mars", "Jupiter and Saturn": the flybys named. */
 const listNames = (names: string[]) => (names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names[0] ?? "");
 const bare = (k: Kind) => NAMES[k].replace(/^the /, "");
+/** What a body is called: its own name out in deep space, else its planet's. */
+const called = (b: Body) => b.name ?? NAMES[b.kind];
 
 // The glow of a world's air against space: the density of air along each line
 // of sight, thinning with height, lit on the side toward the sun
@@ -174,11 +177,11 @@ const sunFrag = /* glsl */ `
 
 export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0 });
+    const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0, hint: "idle" });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
-    const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void; daily: (l: Level) => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {}, daily() {} });
+    const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void; daily: (l: Level) => void; hint: () => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {}, daily() {}, hint() {} });
     // Today's sky: fetched from the server, so everyone flies the same one
     const [today] = useState(() => dayKey());
     const [dailyLevel, setDailyLevel] = useState<Level | null>(null);
@@ -480,6 +483,22 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         let fast = false;
         let warnAt = 0;
         let shot = { angle: 0, power: 0 };
+        // The hint: a winning shot found by flying the nearest ones first, set
+        // as the aim, with the start of its course drawn in gold. While it's
+        // shown, moving planets wait, so it stays true until the launch. A
+        // mission flown with a hint is worth two stars at most
+        let hint: Hint = "idle";
+        let hintUsed = false;
+        let hintJob = 0;
+        let hintFreeze = false;
+        let hintLine: Line2 | null = null;
+        const hintMat = new LineMaterial({ color: 0xfcd34d, linewidth: 3, transparent: true, opacity: 0.75, depthWrite: false });
+        const clearHint = () => {
+            hintJob++;
+            hintFreeze = false;
+            hintLine = drop(hintLine);
+            if (hint !== "idle") hint = "idle";
+        };
         let stepAcc = 0;
         let sinceTrail = 0;
         const pushHud = () =>
@@ -494,6 +513,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 stars: stars.slice(),
                 passed: (level.flyby ?? []).map((k) => !!probe?.passed[k]),
                 warn: warnAt,
+                hint,
             });
         // the first aim: straight at the target, at a middling speed
         const aimAtTarget = () => {
@@ -503,6 +523,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             power = 0.55;
         };
         const open = (i: number, given?: Level) => {
+            clearHint();
+            hintUsed = false;
             build(i, given);
             phase = "menu";
             probe = null;
@@ -520,6 +542,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             pushHud();
         };
         const retry = () => {
+            clearHint();
             // the last attempt stays, faintly, to learn from
             if (path.length > 6) {
                 ghost = drop(ghost);
@@ -546,6 +569,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         };
         const fire = () => {
             if (phase !== "aim") return;
+            clearHint();
             probe = launch(level, angle, power, t);
             shot = { angle, power };
             launches += 1;
@@ -575,11 +599,12 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         /* ignore */
                     }
                 }
-                result = { kind: "arrived", body: NAMES[level.bodies[level.target].kind], top: p.fastest * KMS, time: cs, shot };
+                result = { kind: "arrived", body: called(level.bodies[level.target]), top: p.fastest * KMS, time: cs, shot };
                 trackEvent("gravity_assist_daily", { day, seconds: Math.round(p.flight), launches });
                 sfxArrive();
             } else if (p.state === "arrived") {
-                const s = launches <= level.par ? 3 : launches <= level.par + 2 ? 2 : 1;
+                const earned = launches <= level.par ? 3 : launches <= level.par + 2 ? 2 : 1;
+                const s = hintUsed ? Math.min(2, earned) : earned;
                 if (s > stars[levelIndex]) {
                     stars[levelIndex] = s;
                     try {
@@ -589,11 +614,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         /* ignore */
                     }
                 }
-                result = { kind: "arrived", body: NAMES[level.bodies[level.target].kind], stars: s, top: p.fastest * KMS };
+                result = { kind: "arrived", body: called(level.bodies[level.target]), stars: s, top: p.fastest * KMS };
                 trackEvent("gravity_assist_arrived", { mission: levelIndex + 1, name: level.name, stars: s, launches });
                 sfxArrive();
             } else if (p.state === "crashed") {
-                result = { kind: "crashed", body: hit ? (p.rings ? "Saturn's rings" : NAMES[hit.kind]) : "", skipped, rings: p.rings, tooFast: p.tooFast ? p.tooFast * KMS : undefined };
+                result = { kind: "crashed", body: hit ? (p.rings ? (hit.name ? `${hit.name}'s rings` : "Saturn's rings") : called(hit)) : "", skipped, rings: p.rings, tooFast: p.tooFast ? p.tooFast * KMS : undefined };
                 bang.visible = true;
                 bangAge = 0;
                 toWorld(p.x, p.y, bang.position);
@@ -606,7 +631,70 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             phase = "done";
             pushHud();
         };
+        const findHint = () => {
+            if (phase !== "aim" || levelIndex === DAILY || hint === "searching") return;
+            clearHint();
+            const job = hintJob;
+            hintFreeze = true;
+            hint = "searching";
+            pushHud();
+            const at = t;
+            // nearest first: angles out from the current aim, each at powers out from the current power
+            const angles: number[] = [];
+            for (let d = 0; d <= 180; d++) {
+                angles.push(angle + (d * Math.PI) / 180);
+                if (d && d < 180) angles.push(angle - (d * Math.PI) / 180);
+            }
+            const powers: number[] = [];
+            for (let k = 0; k <= 45; k++)
+                for (const sg of k ? [1, -1] : [1]) {
+                    const pw = power + sg * k * 0.02;
+                    if (pw >= 0.2 - 1e-9 && pw <= 1 + 1e-9) powers.push(pw);
+                }
+            let ai = 0;
+            let pi = 0;
+            const work = () => {
+                if (job !== hintJob || phase !== "aim") return;
+                // a little at a time, so nothing freezes, even on a phone
+                const until = performance.now() + 10;
+                while (performance.now() < until) {
+                    if (ai >= angles.length) {
+                        hint = "none";
+                        hintFreeze = false;
+                        pushHud();
+                        return;
+                    }
+                    const a = angles[ai];
+                    const pw = powers[pi];
+                    if (++pi >= powers.length) {
+                        pi = 0;
+                        ai++;
+                    }
+                    if (fly(level, a, pw, at).state !== "arrived") continue;
+                    angle = a;
+                    power = pw;
+                    hintUsed = true;
+                    hint = "shown";
+                    // the first 40% of its course
+                    const p = launch(level, a, pw, at);
+                    const pts: number[] = [p.x, 0.07, -p.y];
+                    const whole = fly(level, a, pw, at).flight;
+                    let k = 0;
+                    while (p.state === "flying" && p.flight < whole * 0.4) {
+                        step(level, p);
+                        if (++k % 3 === 0) pts.push(p.x, 0.07, -p.y);
+                    }
+                    if (pts.length >= 6) hintLine = makeLine(pts, hintMat);
+                    pushHud();
+                    return;
+                }
+                window.setTimeout(work, 0);
+            };
+            work();
+        };
+
         api.current = {
+            hint: findHint,
             open,
             begin,
             retry,
@@ -683,6 +771,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 if (k === "arrowup") power = Math.min(1, power + 0.02 * fine);
                 if (k === "arrowdown") power = Math.max(0.1, power - 0.02 * fine);
                 if ((k === " " || k === "enter") && !e.repeat) fire();
+                if (k === "h" && !e.repeat) findHint();
                 pushHud();
             } else if (phase === "flying") {
                 if (k === " " || k === "f") fast = true;
@@ -703,7 +792,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             renderer.domElement.style.width = "100%";
             renderer.domElement.style.height = "100%";
             camera.aspect = w / h;
-            [trailMat, ghostMat, aimMat].forEach((m) => m.resolution.set(w, h));
+            [trailMat, ghostMat, aimMat, hintMat].forEach((m) => m.resolution.set(w, h));
             // what must be seen: every body with its rings, and every orbit
             let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
             const add = (x: number, y: number, r: number) => {
@@ -831,7 +920,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                     hudTimer = 0.1;
                     pushHud();
                 }
-            } else if (phase !== "done") t += dt;
+            } else if (phase !== "done" && !(hintFreeze && phase === "aim")) t += dt;
             // the worlds, where they are now, turning
             for (const s of shown) {
                 bodyAt(s.body, t, bp);
@@ -902,13 +991,13 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             cv.removeEventListener("pointerup", onUp);
             cv.removeEventListener("pointercancel", onUp);
             clearWorld();
-            [trail, ghost, aimLine].forEach(drop);
+            [trail, ghost, aimLine, hintLine].forEach(drop);
             scene.traverse((o) => {
                 const m = o as THREE.Mesh;
                 m.geometry?.dispose();
                 (m.material as THREE.Material | undefined)?.dispose?.();
             });
-            [trailMat, ghostMat, aimMat, rockMat].forEach((m) => m.dispose());
+            [trailMat, ghostMat, aimMat, hintMat, rockMat].forEach((m) => m.dispose());
             [planetGeo, airGeo, ...rockGeos].forEach((g) => g.dispose());
             [...maps.values(), ringTex, glowWarm, glowProbe, glowBang, photonRing, sky].forEach((x) => x.dispose());
             renderer.dispose();
@@ -946,6 +1035,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         </p>
                         <p className="font-display mt-1 text-xl font-bold sm:text-2xl">{L.name}</p>
                         <p className="mt-1 text-sm leading-snug text-neutral-300">{L.brief}</p>
+                        {hud.hint === "shown" && hud.phase === "aim" && (
+                            <p className="mt-1 text-xs leading-snug text-amber-300">
+                                Hint: aimed for you, with the start of the course in gold. Launch when ready. (With a hint, this mission&apos;s best is two stars.)
+                            </p>
+                        )}
                     </div>
                     <div className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-400">
                         <p>
@@ -987,6 +1081,16 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 {hud.phase !== "menu" && (
                     <button type="button" onClick={() => api.current.menu()} className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm text-neutral-200 backdrop-blur hover:border-white/30 hover:text-white">
                         Missions
+                    </button>
+                )}
+                {hud.phase === "aim" && !isDaily && (
+                    <button
+                        type="button"
+                        onClick={() => api.current.hint()}
+                        disabled={hud.hint === "searching" || hud.hint === "shown"}
+                        className="rounded-full border border-amber-300/30 bg-black/50 px-4 py-2 text-sm text-amber-200 backdrop-blur hover:border-amber-300/60 disabled:opacity-60"
+                    >
+                        {hud.hint === "searching" ? "Plotting…" : hud.hint === "shown" ? "Hint shown" : hud.hint === "none" ? "No course from here" : "Hint"}
                     </button>
                 )}
                 <button
@@ -1143,21 +1247,21 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                     {hud.result.tooFast && L.arrive
                                         ? L.arrive.as === "land"
                                             ? `${L.arrive.craft} came down too fast`
-                                            : `${L.arrive.craft} was too fast for ${NAMES[L.bodies[L.target].kind]} to catch`
+                                            : `${L.arrive.craft} was too fast for ${called(L.bodies[L.target])} to catch`
                                         : hud.result.kind === "crashed"
                                           ? `The probe hit ${hud.result.body}`
                                           : "The probe drifted off into deep space"}
                                 </h2>
                                 {hud.result.tooFast && L.arrive && (
                                     <p className="mt-2 text-sm text-amber-200">
-                                        It came in at {hud.result.tooFast.toFixed(1)} km/s against {NAMES[L.bodies[L.target].kind]}: it needs to be under {(L.arrive.under * KMS).toFixed(1)}. Launch
+                                        It came in at {hud.result.tooFast.toFixed(1)} km/s against {called(L.bodies[L.target])}: it needs to be under {(L.arrive.under * KMS).toFixed(1)}. Launch
                                         gentler, and let gravity do the work.
                                     </p>
                                 )}
                                 {hud.result.rings && <p className="mt-2 text-sm text-amber-200">Saturn&apos;s rings are ice and rock: go round them, not through.</p>}
                                 {hud.result.skipped && (
                                     <p className="mt-2 text-sm text-amber-200">
-                                        It reached {NAMES[L.bodies[L.target].kind]}, but this mission needs a flyby of {hud.result.skipped} first: pass through the amber ring.
+                                        It reached {called(L.bodies[L.target])}, but this mission needs a flyby of {hud.result.skipped} first: pass through the amber ring.
                                     </p>
                                 )}
                                 <p className="mt-2 text-sm text-neutral-400">Your last path stays on the map, faintly.</p>
