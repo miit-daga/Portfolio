@@ -28,15 +28,26 @@ type Phase = "ready" | "playing" | "over";
 type Power = "star" | "boost";
 const POWER_TIME: Record<Power, number> = { star: 6, boost: 4 };
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
-type Hud = { daily: boolean; score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
+// Today's real asteroids, from NASA (app/api/space-today)
+type Neo = { name: string; d: number; v: number; ld: number; hazardous: boolean };
+const neoLabel = (n: Neo) => `${n.name} · ≈${n.d} m · ${n.v} km/s${n.hazardous ? " · potentially hazardous" : ""}`;
+type Hud = { dodged: Neo[]; hitBy: Neo | null; coming: Neo | null; daily: boolean; score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
 
 export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ daily: false, score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
+    const [hud, setHud] = useState<Hud>({ dodged: [], hitBy: null, coming: null, daily: false, score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
     const start = useRef<(daily?: boolean) => void>(() => {});
+    // today's asteroids, and the one passing now (its caption)
+    const [neos, setNeos] = useState<Neo[] | null>(null);
+    const [passing, setPassing] = useState<{ neo: Neo; at: number } | null>(null);
+    useEffect(() => {
+        if (!passing) return;
+        const id = window.setTimeout(() => setPassing(null), 4500);
+        return () => window.clearTimeout(id);
+    }, [passing]);
 
     useEffect(() => {
         const el = mount.current;
@@ -217,7 +228,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         // The rocks, reused as they pass
         const rockGeos = [11, 23, 37, 52, 67, 81, 94, 106].map(rockGeometry);
         const rockMat = rockMaterial();
-        type Rock = { mesh: THREE.Mesh; r: number; spin: THREE.Vector3; live: boolean };
+        type Rock = { mesh: THREE.Mesh; r: number; spin: THREE.Vector3; live: boolean; neo?: Neo };
         const rocks: Rock[] = [];
         for (let i = 0; i < ROCKS; i++) {
             const mesh = new THREE.Mesh(rockGeos[i % rockGeos.length], rockMat);
@@ -225,6 +236,49 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             scene.add(mesh);
             rocks.push({ mesh, r: 1, spin: new THREE.Vector3(), live: false });
         }
+        // Today's field brings today's real asteroids (NASA's list of those
+        // passing Earth today), one after another, each sized from its real
+        // diameter; the potentially hazardous ones glow red
+        const hazardMat = rockMaterial();
+        hazardMat.emissive.set(0x991b1b);
+        hazardMat.emissiveIntensity = 0.8;
+        const named: Rock[] = [];
+        for (let i = 0; i < 8; i++) {
+            const mesh = new THREE.Mesh(rockGeos[(i * 3) % rockGeos.length], rockMat);
+            mesh.visible = false;
+            scene.add(mesh);
+            named.push({ mesh, r: 1, spin: new THREE.Vector3(), live: false });
+        }
+        let todays: Neo[] = [];
+        let neoNext = 0;
+        let neoTimer = 0;
+        let dodged: Neo[] = [];
+        let hitBy: Neo | null = null;
+        fetch("/api/space-today")
+            .then((r) => r.json())
+            .then((d: { asteroids?: Neo[] | null }) => {
+                todays = Array.isArray(d?.asteroids) ? d.asteroids.slice(0, 8) : [];
+                setNeos(todays);
+            })
+            .catch(() => setNeos([]));
+        const spawnNamed = () => {
+            const n = todays[neoNext];
+            const r = named[neoNext];
+            neoNext += 1;
+            if (!n || !r) return;
+            // 20 m to 500 m across, as 1.8 to 3.4 times a middling rock
+            const scale = 1.8 + 1.6 * Math.min(1, Math.max(0, (Math.log10(Math.max(1, n.d)) - 1.3) / 1.4));
+            r.r = scale * 0.92;
+            r.neo = n;
+            r.mesh.material = n.hazardous ? hazardMat : rockMat;
+            r.mesh.scale.setScalar(scale);
+            r.mesh.position.set((rnd() - 0.5) * BOUNDS.x * 1.4, (rnd() - 0.5) * BOUNDS.y * 1.4, FAR);
+            r.mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
+            r.spin.set((rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.8);
+            r.live = true;
+            r.mesh.visible = true;
+            setPassing({ neo: n, at: Date.now() });
+        };
         // The fragments: small glowing gems
         const fragMat = new THREE.MeshStandardMaterial({ color: 0x99f6e4, emissive: 0x2dd4bf, emissiveIntensity: 1.4, metalness: 0.2, roughness: 0.2, flatShading: true });
         const fragGeo = new THREE.OctahedronGeometry(0.42);
@@ -334,6 +388,11 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
 
         const clearField = () => {
             rocks.forEach((r) => ((r.live = false), (r.mesh.visible = false)));
+            named.forEach((r) => ((r.live = false), (r.mesh.visible = false)));
+            neoNext = 0;
+            neoTimer = 8;
+            dodged = [];
+            hitBy = null;
             frags.forEach((f) => ((f.live = false), (f.mesh.visible = false)));
             ringLive = false;
             shieldRing.visible = false;
@@ -366,7 +425,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         };
         const score = () => Math.floor(distance / 10) + bonus;
         const pushHud = () =>
-            setHud({ daily, score: score(), shields, speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt, power, powerLeft });
+            setHud({ dodged: dodged.slice(), hitBy, coming: named.find((r) => r.live)?.neo ?? null, daily, score: score(), shields, speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt, power, powerLeft });
 
         const begin = (asDaily = daily) => {
             daily = asDaily;
@@ -506,7 +565,9 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 shipPos.x = THREE.MathUtils.clamp(shipPos.x + vel.x * dt, -BOUNDS.x, BOUNDS.x);
                 shipPos.y = THREE.MathUtils.clamp(shipPos.y + vel.y * dt, -BOUNDS.y, BOUNDS.y);
                 time += dt;
-                speed = Math.min(88, 26 + time * 1.15);
+                // (today's field goes at a pace set by today's asteroids' real speeds)
+                const pace = daily && todays.length ? Math.min(1.15, Math.max(0.9, 0.9 + (todays.reduce((a, n) => a + n.v, 0) / todays.length - 10) / 100)) : 1;
+                speed = Math.min(88, (26 + time * 1.15) * pace);
                 // a boost: over twice as fast, and its distance counts double
                 distance += speed * dt * (power === "boost" ? 4.4 : 1);
                 if (power) {
@@ -572,14 +633,23 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                     spawnFrag();
                     fragTimer = 2.2 + rnd() * 1.6;
                 }
+                if (daily && neoNext < todays.length) {
+                    neoTimer -= dt;
+                    if (neoTimer <= 0) {
+                        spawnNamed();
+                        neoTimer = 12;
+                    }
+                }
             }
-            for (const r of rocks) {
+            for (const r of [...rocks, ...named]) {
                 if (!r.live) continue;
                 r.mesh.position.z += dz;
                 r.mesh.rotation.x += r.spin.x * dt;
                 r.mesh.rotation.y += r.spin.y * dt;
                 r.mesh.rotation.z += r.spin.z * dt;
                 if (r.mesh.position.z > 12) {
+                    // (one of today's real asteroids, got past)
+                    if (r.neo && playing) dodged.push(r.neo);
                     r.live = false;
                     r.mesh.visible = false;
                     continue;
@@ -601,6 +671,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                     if (tmp.distanceTo(r.mesh.position) < r.r + 0.55) {
                         shields -= 1;
                         invulnerable = 1.4;
+                        if (r.neo) hitBy = r.neo;
                         if (!ringLive) ringTimer = Math.min(ringTimer, soonRing());
                         shake = reduce ? 0 : 0.5;
                         r.live = false;
@@ -772,6 +843,15 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 </div>
             </div>
 
+            {/* one of today's real asteroids, coming */}
+            {hud.phase === "playing" && passing && (
+                <div key={passing.at} className="pointer-events-none absolute inset-x-0 top-24 flex animate-[arcade-hit_4.5s_ease-in_forwards] justify-center px-4 sm:top-28">
+                    <p className={`rounded-full border bg-black/60 px-4 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.15em] backdrop-blur ${passing.neo.hazardous ? "border-rose-400/50 text-rose-200" : "border-sky-300/40 text-sky-100"}`}>
+                        Real asteroid, passing Earth today · {neoLabel(passing.neo)}
+                    </p>
+                </div>
+            )}
+
             {/* the power-up running now, and its time */}
             {hud.phase === "playing" && hud.power && (
                 <div className="pointer-events-none absolute left-1/2 top-4 w-48 -translate-x-1/2 text-center font-mono text-[11px] uppercase tracking-[0.25em] sm:top-6">
@@ -835,7 +915,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                             >
                                 {hud.phase === "over" ? "Fly again" : "Launch"}
                             </button>
-                            {/* the same field for everyone today, with its own board */}
+                            {/* the same field for everyone today, with today's real asteroids, and its own board */}
                             <button
                                 type="button"
                                 onClick={() => start.current(!(hud.phase === "over" && hud.daily))}
@@ -844,6 +924,27 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                                 {hud.phase === "over" && hud.daily ? "Play the open field" : "Today's field"}
                             </button>
                         </div>
+                        {hud.phase !== "over" && !!neos?.length && (
+                            <p className="mt-3 text-xs leading-snug text-sky-200/80">
+                                Today&apos;s field brings the {neos.length} real asteroids passing Earth today, from NASA
+                                {neos.some((n) => n.hazardous) ? `, ${neos.filter((n) => n.hazardous).length} of them potentially hazardous` : ""}.
+                            </p>
+                        )}
+                        {hud.phase === "over" && hud.daily && !!neos?.length && (
+                            <p className="mt-3 text-xs leading-snug text-sky-200/90">
+                                {hud.dodged.length
+                                    ? (() => {
+                                          const n = hud.dodged.reduce((a, b) => (b.d > a.d ? b : a));
+                                          const more = hud.dodged.length - 1;
+                                          return `You got past ${n.name} (≈${n.d} m${n.hazardous ? ", potentially hazardous" : ""}), which passed Earth today at ${n.v} km/s, ${Math.round(n.ld)} times the Moon's distance away${more ? `, and ${more} more of today's ${neos.length}` : ""}.`;
+                                      })()
+                                    : hud.hitBy
+                                      ? `${hud.hitBy.name}, one of today's real asteroids (≈${hud.hitBy.d} m${hud.hitBy.hazardous ? ", potentially hazardous" : ""}), got you. It passed Earth today at ${hud.hitBy.v} km/s, ${Math.round(hud.hitBy.ld)} times the Moon's distance away.`
+                                      : hud.coming
+                                        ? `${hud.coming.name}, one of today's real asteroids (≈${hud.coming.d} m), was still on its way when your run ended. It passed Earth today at ${hud.coming.v} km/s.`
+                                        : `You didn't reach any of today's ${neos.length} real asteroids this time: the first comes 8 seconds in.`}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}

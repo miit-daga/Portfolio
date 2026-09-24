@@ -8,6 +8,7 @@ import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
 import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { subscribeIss } from "@/lib/iss";
 import { BASE, H, drop as dropModule, movingAt, newStack, roundTime, type Stack } from "./stack-sim";
 
 // Stack the Station: build a space station above the Earth, one module at a
@@ -27,6 +28,84 @@ const EARTH_AT = new THREE.Vector3(-Math.SQRT1_2 * Math.cos(0.87), -Math.sin(0.8
 // The sun, from over the right shoulder: it lights the station's near faces
 // and top, and sets along the Earth's far left edge
 const SUN = new THREE.Vector3(0.8, 0.5, 0.36).normalize();
+
+// Today's station floats over wherever the real ISS is right now, in real
+// daylight or darkness, under today's real aurora
+/** Where a place is on the Earth's sphere (in the Earth's own frame). */
+const placeOnEarth = (lat: number, lon: number) => {
+    const phi = ((lon + 180) / 360) * Math.PI * 2;
+    const theta = ((90 - lat) / 180) * Math.PI;
+    return new THREE.Vector3(-Math.cos(phi) * Math.sin(theta), Math.cos(theta), Math.sin(phi) * Math.sin(theta));
+};
+/** Where the Sun is overhead at a moment (the usual low-precision series: to a fraction of a degree). */
+function subsolar(date: Date) {
+    const n = (date.getTime() - Date.UTC(2000, 0, 1, 12)) / 86_400_000;
+    const R = Math.PI / 180;
+    const L = 280.46 + 0.9856474 * n;
+    const g = (357.528 + 0.9856003 * n) * R;
+    const lambda = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * R;
+    const eps = (23.439 - 4e-7 * n) * R;
+    const dec = Math.asin(Math.sin(eps) * Math.sin(lambda));
+    const ra = Math.atan2(Math.cos(eps) * Math.sin(lambda), Math.cos(lambda)) / R;
+    const gmst = 280.46061837 + 360.98564736629 * n;
+    return { lat: dec / R, lon: ((((ra - gmst) % 360) + 540) % 360) - 180 };
+}
+/** The Earth's turn that puts a place under the station (and the Sun, if given, where it really is). */
+function earthTurn(lat: number, lon: number, sun: { lat: number; lon: number } | null) {
+    const nL = placeOnEarth(lat, lon);
+    const nW = EARTH_AT.clone().normalize().negate();
+    let tL: THREE.Vector3;
+    let tW: THREE.Vector3;
+    const north = () => {
+        const phi = ((lon + 180) / 360) * Math.PI * 2;
+        const theta = ((90 - lat) / 180) * Math.PI;
+        tL = new THREE.Vector3(Math.cos(phi) * Math.cos(theta), Math.sin(theta), -Math.sin(phi) * Math.cos(theta));
+        tW = new THREE.Vector3(0, 1, 0).addScaledVector(nW, -nW.y).normalize();
+    };
+    if (sun) {
+        const sL = placeOnEarth(sun.lat, sun.lon);
+        tL = sL.addScaledVector(nL, -sL.dot(nL));
+        tW = SUN.clone().addScaledVector(nW, -SUN.dot(nW));
+        if (tL.lengthSq() < 1e-6 || tW.lengthSq() < 1e-6) north();
+        else {
+            tL.normalize();
+            tW.normalize();
+        }
+    } else north();
+    const local = new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(tL!, nL), tL!, nL);
+    const world = new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(tW!, nW), tW!, nW);
+    return new THREE.Quaternion().setFromRotationMatrix(world.multiply(local.transpose()));
+}
+// The aurora: an oval round each magnetic pole, wider and brighter as the
+// planetary K index rises (quiet below 4, a storm from 5), on the night side
+/** The K index, in words (NOAA's scale: G1 to G5 are storms). */
+const kpWords = (kp: number) =>
+    kp >= 9 ? "an extreme geomagnetic storm (G5)" : kp >= 8 ? "a severe geomagnetic storm (G4)" : kp >= 7 ? "a strong geomagnetic storm (G3)" : kp >= 6 ? "a moderate geomagnetic storm (G2)" : kp >= 5 ? "a minor geomagnetic storm (G1)" : kp >= 4 ? "unsettled" : "quiet";
+const auroraFrag = /* glsl */ `
+    uniform float uKp;
+    uniform float uTime;
+    uniform vec3 uMagN;
+    uniform vec3 uMagS;
+    uniform vec3 uSun;
+    varying vec3 vP;
+    varying vec3 vN;
+    float band(vec3 pole, float colat, float width) {
+        float a = acos(clamp(dot(vP, pole), -1.0, 1.0));
+        return exp(-pow((a - colat) / width, 2.0));
+    }
+    void main() {
+        float colat = radians(17.0 + 1.6 * uKp);
+        float width = radians(2.2 + 0.5 * uKp);
+        float b = band(uMagN, colat, width) + band(uMagS, colat, width);
+        // curtains: a slow ripple along the oval
+        float ripple = 0.55 + 0.45 * sin(uTime * 0.9 + vP.x * 23.0 + vP.z * 17.0) * sin(uTime * 0.37 + vP.y * 31.0);
+        float night = smoothstep(0.15, -0.25, dot(normalize(vN), normalize(uSun)));
+        float strength = clamp((uKp - 1.0) / 5.0, 0.1, 1.0);
+        vec3 c = mix(vec3(0.15, 1.0, 0.45), vec3(0.75, 0.3, 0.9), smoothstep(0.6, 1.0, b) * 0.35);
+        gl_FragColor = vec4(c * b * ripple * night * strength * 1.8, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+    }`;
 
 type Phase = "ready" | "playing" | "over";
 type Hud = { drops: number[]; daily: boolean; score: number; best: number; phase: Phase; perfect: number; streak: number; newBest: boolean };
@@ -228,6 +307,10 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
     const [noGl, setNoGl] = useState(false);
     const drop = useRef<() => void>(() => {});
     const start = useRef<(daily?: boolean) => void>(() => {});
+    // today's space: the space weather, and the people up there now
+    const [space, setSpace] = useState<{ kp: number | null; people: number | null } | null>(null);
+    // where the real ISS is, under today's station
+    const [over, setOver] = useState<{ lat: number; lon: number; shadow: boolean } | null>(null);
 
     useEffect(() => {
         const el = mount.current;
@@ -298,7 +381,10 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
 
         // Light: the sun, hard and white, with shadows; the Earth's blue glow
         // from below; and almost nothing else, as in space
-        scene.add(new THREE.AmbientLight(0x8090b0, 0.12));
+        const ambient = new THREE.AmbientLight(0x8090b0, 0.12);
+        scene.add(ambient);
+        // (where the sunlight comes from: fixed, or on today's station the real Sun)
+        const sunDir = SUN.clone();
         const sun = new THREE.DirectionalLight(0xfff6ea, 3.2);
         sun.castShadow = true;
         sun.shadow.mapSize.set(2048, 2048);
@@ -321,28 +407,80 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 uNight: { value: loadTexture(renderer, loader, "earth-night.jpg") },
                 uWater: { value: loadTexture(renderer, loader, "earth-water.jpg", false) },
                 uClouds: { value: loadTexture(renderer, loader, "earth-clouds.jpg", false) },
-                uSun: { value: SUN },
+                uSun: { value: sunDir },
                 uCloudShift: { value: 0 },
             },
             vertexShader: earthVert,
             fragmentShader: earthFrag,
         });
         const earth = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R, 160, 120), earthMat);
-        // turned so that Kolkata faces the station, with north toward the horizon
-        {
-            const phi = ((88.36 + 180) / 360) * Math.PI * 2;
-            const theta = ((90 - 22.57) / 180) * Math.PI;
-            const nL = new THREE.Vector3(-Math.cos(phi) * Math.sin(theta), Math.cos(theta), Math.sin(phi) * Math.sin(theta));
-            const tL = new THREE.Vector3(Math.cos(phi) * Math.cos(theta), Math.sin(theta), -Math.sin(phi) * Math.cos(theta));
-            const nW = EARTH_AT.clone().normalize().negate();
-            const tW = new THREE.Vector3(0, 1, 0).addScaledVector(nW, -nW.y).normalize();
-            const local = new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(tL, nL), tL, nL);
-            const world = new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(tW, nW), tW, nW);
-            earth.quaternion.setFromRotationMatrix(world.multiply(local.transpose()));
-        }
+        // turned so that Kolkata faces the station, with north toward the horizon;
+        // on today's station, turned to wherever the real ISS is, with the real Sun
+        earth.quaternion.copy(earthTurn(22.57, 88.36, null));
         scene.add(earth);
+        let live = false;
+        const liveTurn = new THREE.Quaternion();
+        let liveSnap = true;
+        let haveFix = false;
+        const sunLocal = new THREE.Vector3(); // the Sun's overhead point, on the Earth's own sphere
+        const upW = EARTH_AT.clone().normalize().negate();
+        let stopIss: (() => void) | null = null;
+        const followIss = (on: boolean) => {
+            stopIss?.();
+            stopIss = null;
+            live = on;
+            if (!on) {
+                earth.quaternion.copy(earthTurn(22.57, 88.36, null));
+                sunDir.copy(SUN);
+                sun.intensity = 3.2;
+                ambient.intensity = 0.12;
+                setOver(null);
+                aurora.visible = false;
+                return;
+            }
+            liveSnap = true;
+            haveFix = false;
+            aurora.visible = true;
+            stopIss = subscribeIss(5000, (fix) => {
+                const ss = subsolar(new Date());
+                liveTurn.copy(earthTurn(fix.latitude, fix.longitude, ss));
+                sunLocal.copy(placeOnEarth(ss.lat, ss.lon));
+                haveFix = true;
+                // is the real ISS in Earth's shadow? (the Sun more than ~20 degrees below its horizon)
+                const shadow = placeOnEarth(fix.latitude, fix.longitude).dot(sunLocal) < -0.34;
+                setOver({ lat: fix.latitude, lon: fix.longitude, shadow });
+                // (for checking: where the Earth has been turned to)
+                el.dataset.iss = `${fix.latitude.toFixed(1)},${fix.longitude.toFixed(1)}`;
+            });
+        };
+        // the aurora, riding on the Earth (so its poles turn with it)
+        const auroraMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uKp: { value: 2 },
+                uTime: { value: 0 },
+                uMagN: { value: placeOnEarth(80.7, -72.7) },
+                uMagS: { value: placeOnEarth(-80.7, 107.3) },
+                uSun: { value: sunDir },
+            },
+            vertexShader: "varying vec3 vP; varying vec3 vN; void main(){ vP = normalize(position); vN = mat3(modelMatrix) * normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+            fragmentShader: auroraFrag,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+        });
+        const aurora = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.004, 128, 64), auroraMat);
+        aurora.visible = false;
+        earth.add(aurora);
+        fetch("/api/space-today")
+            .then((r) => r.json())
+            .then((d: { kp?: number | null; people?: number | null }) => {
+                const kp = typeof d?.kp === "number" ? d.kp : null;
+                if (kp !== null) auroraMat.uniforms.uKp.value = kp;
+                setSpace({ kp, people: typeof d?.people === "number" ? d.people : null });
+            })
+            .catch(() => setSpace({ kp: null, people: null }));
         const airMat = new THREE.ShaderMaterial({
-            uniforms: { uCenter: { value: new THREE.Vector3() }, uR: { value: EARTH_R }, uH: { value: EARTH_R * 0.012 }, uSun: { value: SUN } },
+            uniforms: { uCenter: { value: new THREE.Vector3() }, uR: { value: EARTH_R }, uH: { value: EARTH_R * 0.012 }, uSun: { value: sunDir } },
             vertexShader: "varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }",
             fragmentShader: airFrag,
             side: THREE.BackSide,
@@ -507,6 +645,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         const pushHud = () => setHud({ drops: phase === "over" ? drops.slice() : [], daily, score: score(), best, phase, perfect: perfectAt, streak, newBest });
 
         const begin = (asDaily = daily) => {
+            if (asDaily !== live) followIss(asDaily);
             daily = asDaily;
             sim = newStack(daily ? todayKey() : null);
             drops = [];
@@ -669,13 +808,27 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 c.updateProjectionMatrix();
             }
             sun.target.position.set(0, camTarget.y, 0);
-            sun.position.copy(SUN).multiplyScalar(size * 2 + 30).add(sun.target.position);
+            sun.position.copy(sunDir).multiplyScalar(size * 2 + 30).add(sun.target.position);
             // the Earth and the sky stay where they are as the build rises
             earth.position.copy(EARTH_AT).add(camTarget);
             air.position.copy(earth.position);
             airMat.uniforms.uCenter.value.copy(earth.position);
             stars.position.copy(camera.position);
-            earth.rotateY(dt * 0.004);
+            if (live) {
+                // (the ISS moves on: the Earth turns after it, smoothly)
+                if (haveFix) {
+                    if (liveSnap) earth.quaternion.copy(liveTurn);
+                    else earth.quaternion.slerp(liveTurn, Math.min(1, dt * 0.8));
+                    liveSnap = false;
+                    // the real Sun, where it is from here; in Earth's shadow the
+                    // station dims too (a soft fill stays, so it can be played)
+                    sunDir.copy(sunLocal).applyQuaternion(earth.quaternion).normalize();
+                    const lit = THREE.MathUtils.smoothstep(sunDir.dot(upW), -0.42, -0.26);
+                    sun.intensity += (0.35 + 2.85 * lit - sun.intensity) * Math.min(1, dt * 2);
+                    ambient.intensity = 0.12 + 0.25 * (1 - lit);
+                }
+                auroraMat.uniforms.uTime.value = now / 1000;
+            } else earth.rotateY(dt * 0.004);
             earthMat.uniforms.uCloudShift.value += dt * 0.0004;
             renderer.render(scene, camera);
         };
@@ -685,6 +838,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         pushHud();
 
         return () => {
+            stopIss?.();
             window.clearTimeout(giveUp);
             cancelAnimationFrame(raf);
             ro.disconnect();
@@ -720,6 +874,12 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Modules</p>
                 <p className="font-display text-5xl font-bold">{hud.score}</p>
                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">Best {hud.best}</p>
+                {hud.daily && over && (
+                    <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.15em] text-sky-200/80">
+                        The real ISS is over {Math.abs(over.lat).toFixed(1)}° {over.lat >= 0 ? "N" : "S"}, {Math.abs(over.lon).toFixed(1)}° {over.lon >= 0 ? "E" : "W"}
+                        {over.shadow ? " · in Earth's shadow" : " · in sunlight"}
+                    </p>
+                )}
                 {hud.perfect > 0 && hud.phase === "playing" && (
                     <p key={hud.perfect} className="mt-3 animate-[arcade-hit_1.1s_ease-out_forwards] font-mono text-sm uppercase tracking-[0.3em] text-amber-300">
                         Perfect{hud.streak > 1 ? ` ×${hud.streak}` : ""}
@@ -779,6 +939,20 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                                 {hud.phase === "over" && hud.daily ? "Build the open one" : "Today's station"}
                             </button>
                         </div>
+                        {hud.phase !== "over" && (
+                            <p className="mt-3 text-xs leading-snug text-sky-200/80">
+                                Today&apos;s station floats over wherever the real ISS is right now, in real daylight or darkness
+                                {space?.kp != null ? `, under today's aurora: space weather is ${kpWords(space.kp)} (Kp ${space.kp})` : ""}.
+                                {space?.people ? ` ${space.people} people are in space right now: stack ${space.people} to fit them all.` : ""}
+                            </p>
+                        )}
+                        {hud.phase === "over" && hud.daily && !!space?.people && (
+                            <p className={`mt-3 text-xs leading-snug ${hud.score >= space.people ? "text-emerald-300" : "text-sky-200/80"}`}>
+                                {hud.score >= space.people
+                                    ? `Everyone aboard: ${space.people} people are in space right now, and your station holds them all.`
+                                    : `${space.people} people are in space right now: ${space.people - hud.score} more ${space.people - hud.score === 1 ? "module" : "modules"} to fit them all.`}
+                            </p>
+                        )}
                     </div>
                 </div>
             )}
