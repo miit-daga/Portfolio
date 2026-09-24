@@ -9,4 +9,14 @@ export function trackEvent(name: string, props?: Record<string, string | number 
     } catch {
         /* ignore */
     }
+    // ...and to the site's own tally (app/api/tally), which any plan keeps,
+    // read at /stats. A beacon, so it survives the page moving on
+    try {
+        const body = JSON.stringify({ event: name, props });
+        if (!navigator.sendBeacon?.("/api/tally", new Blob([body], { type: "application/json" }))) {
+            fetch("/api/tally", { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true }).catch(() => {});
+        }
+    } catch {
+        /* ignore */
+    }
 }
