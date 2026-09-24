@@ -10,6 +10,9 @@
 // accepting a fake one.
 
 export type GameKey =
+  | "asteroid-run"
+  | "stack-station"
+  | "assist-daily"
   | "snake"
   | "invaders"
   | "dodge"
@@ -25,9 +28,38 @@ export type GameMeta = {
   max: number;
   /** Shown when a score is rejected, so the limit is never arbitrary. */
   why: string;
+  /** The 3D arcade's boards (app/arcade): kept out of the terminal's list,
+   *  signed with initials (so grouped by player, not by name). */
+  arcade?: boolean;
+  /** Lower is better (a time). */
+  lower?: boolean;
 };
 
 export const GAMES: Record<GameKey, GameMeta> = {
+  "asteroid-run": {
+    label: "Asteroid Run",
+    storageKey: "arcade-run-best",
+    // at most about 90 points a second flat out, boosts and fragments included
+    max: 400000,
+    why: "that is over an hour flat out without a scratch",
+    arcade: true,
+  },
+  "stack-station": {
+    label: "Stack the Station",
+    storageKey: "arcade-stack-best",
+    max: 5000,
+    why: "that is a module a second for well over an hour",
+    arcade: true,
+  },
+  "assist-daily": {
+    label: "Gravity Assist, today's sky",
+    storageKey: "arcade-assist-daily",
+    // a flight's time in hundredths of a second, checked by flying it again
+    max: 4000,
+    why: "a flight gives up after 40 seconds",
+    arcade: true,
+    lower: true,
+  },
   snake: {
     label: "Snake",
     storageKey: "snake-highscore",

@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { Octokit } from "@octokit/core";
 import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
+import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
+import { fly } from "@/app/arcade/assist-sim";
 
 // Arcade leaderboards, stored as a second file inside the guestbook's gist.
 // A PATCH only touches the files it names, so leaderboard writes never disturb
 // guestbook.json.
+//
+// The 3D arcade's boards ride along (constants/games.ts, arcade: true): kept
+// out of the terminal's listing, signed with initials, and for Gravity
+// Assist's mission of the day, one board per day ranked by the fastest
+// arrival. That one is the exception to what follows: the client sends the
+// shot (angle and power), and the server flies it again and times it itself.
 //
 // Honest about what this is: scores originate on the client, so they cannot be
 // verified. The ceilings in constants/games.ts and the rate limit below only
@@ -34,7 +42,8 @@ type Entry = {
    *  rotates and would cost a returning player their own name. */
   player?: string;
 };
-type Board = Partial<Record<GameKey, Entry[]>>;
+// (keyed by game, or for the daily mission "assist-daily:YYYY-MM-DD")
+type Board = Record<string, Entry[]>;
 type Stored = { boards: Board; recent: { ipHash: string; at: string }[] };
 type PublicEntry = { name: string; score: number; at: string };
 
@@ -43,7 +52,13 @@ const BLOCKLIST = [
   "slut", "whore", "nigger", "faggot", "retard", "rape",
 ];
 
+// For trying the boards locally without the gist: LEADERBOARD_MEMORY=1 keeps
+// them in this process's memory instead (never in production)
+const MEMORY = process.env.NODE_ENV !== "production" && process.env.LEADERBOARD_MEMORY === "1";
+let memory: Stored | null = null;
+
 function gistId(): string | undefined {
+  if (MEMORY) return "memory";
   return process.env.LEADERBOARD_GIST_ID || process.env.GUESTBOOK_GIST_ID;
 }
 
@@ -85,6 +100,7 @@ function octokit() {
 const EMPTY: Stored = { boards: {}, recent: [] };
 
 async function read(): Promise<Stored> {
+  if (MEMORY) return structuredClone(memory ?? EMPTY);
   const id = gistId();
   if (!id) return EMPTY;
   const res = await octokit().request("GET /gists/{gist_id}", {
@@ -105,6 +121,10 @@ async function read(): Promise<Stored> {
 }
 
 async function write(data: Stored): Promise<void> {
+  if (MEMORY) {
+    memory = structuredClone(data);
+    return;
+  }
   const id = gistId();
   if (!id) throw new Error("no gist id configured");
   await octokit().request("PATCH /gists/{gist_id}", {
@@ -116,10 +136,21 @@ async function write(data: Stored): Promise<void> {
 
 const strip = (e: Entry): PublicEntry => ({ name: e.name, score: e.score, at: e.at });
 
+// The daily mission's board key, for today or yesterday (someone's evening
+// can be the next day in UTC); reading any past day is allowed
+const today = () => dayKey();
+const yesterday = () => dayKey(new Date(Date.now() - 86_400_000));
+const boardKey = (game: GameKey, day?: string | null) => (game === "assist-daily" ? `assist-daily:${day}` : game);
+
 export async function GET(request: Request) {
   if (!gistId()) return NextResponse.json({ configured: false, boards: {} });
 
-  const game = new URL(request.url).searchParams.get("game");
+  const params = new URL(request.url).searchParams;
+  const game = params.get("game");
+  const day = params.get("day") ?? today();
+  if (game === "assist-daily" && !isDayKey(day)) {
+    return NextResponse.json({ error: "A day is YYYY-MM-DD." }, { status: 400 });
+  }
   if (game && !isGameKey(game)) {
     return NextResponse.json(
       { error: `Unknown game '${game}'.`, games: GAME_KEYS },
@@ -129,10 +160,11 @@ export async function GET(request: Request) {
 
   try {
     const data = await read();
-    const wanted = game ? [game as GameKey] : GAME_KEYS;
+    // (the 3D arcade's boards only when asked for by name)
+    const wanted = game ? [game as GameKey] : GAME_KEYS.filter((k) => !GAMES[k].arcade);
     const boards: Record<string, PublicEntry[]> = {};
     for (const key of wanted) {
-      boards[key] = (data.boards[key] ?? []).slice(0, TOP_N).map(strip);
+      boards[key] = (data.boards[boardKey(key, day)] ?? []).slice(0, TOP_N).map(strip);
     }
     return NextResponse.json({ configured: true, boards });
   } catch (error) {
@@ -152,8 +184,9 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "Malformed request." }, { status: 400 });
   }
-  const { game, name: rawName, score: rawScore, player: rawPlayer } =
+  const { game, name: rawName, score: rawScoreIn, player: rawPlayer, day: rawDay, angle, power } =
     (body ?? {}) as Record<string, unknown>;
+  let rawScore = rawScoreIn;
   const player = typeof rawPlayer === "string" && /^[a-f0-9]{8,32}$/i.test(rawPlayer)
     ? rawPlayer
     : undefined;
@@ -165,6 +198,28 @@ export async function POST(request: Request) {
     );
   }
   const meta = GAMES[game];
+  const better = (a: number, b: number) => (meta.lower ? a < b : a > b);
+  const bestOf = (xs: number[]) => (meta.lower ? Math.min(...xs) : Math.max(...xs));
+  const worstOf = (xs: number[]) => (meta.lower ? Math.max(...xs) : Math.min(...xs));
+
+  // The mission of the day: fly the shot again, and time it here
+  let day: string | undefined;
+  if (game === "assist-daily") {
+    if (!isDayKey(rawDay) || (rawDay !== today() && rawDay !== yesterday())) {
+      return NextResponse.json({ error: "That mission of the day has closed." }, { status: 400 });
+    }
+    day = rawDay;
+    const a = Number(angle);
+    const pw = Number(power);
+    if (!Number.isFinite(a) || !Number.isFinite(pw) || pw < 0.1 || pw > 1) {
+      return NextResponse.json({ error: "Send the winning shot: its angle and power." }, { status: 400 });
+    }
+    const flight = fly(dailyMission(day), a, pw, 0);
+    if (flight.state !== "arrived") {
+      return NextResponse.json({ error: "That shot doesn't arrive when flown again here." }, { status: 400 });
+    }
+    rawScore = Math.max(1, Math.round(flight.flight * 100));
+  }
 
   const score = typeof rawScore === "number" ? rawScore : Number(rawScore);
   if (!Number.isInteger(score) || score <= 0) {
@@ -199,13 +254,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "That is enough for today." }, { status: 429 });
     }
 
-    const board = data.boards[game] ?? [];
-    const sameName = board.filter((e) => e.name.toLowerCase() === name.toLowerCase());
+    const key = boardKey(game, day);
+    const board = data.boards[key] ?? [];
+    // One player's rows: by name on the terminal's boards, where a name is a
+    // claimed identity; by player on the arcade's, where initials are not
+    const whose = (e: Entry) => (meta.arcade ? (e.player ?? e.ipHash) === (player ?? ipHash) : e.name.toLowerCase() === name.toLowerCase());
+    const sameName = board.filter(whose);
 
     // A name belongs to whoever used it first. Entries predating this field are
     // treated as unclaimed and adopted by the next writer.
     const owner = sameName.find((e) => e.player)?.player;
-    if (owner && player && owner !== player) {
+    if (!meta.arcade && owner && player && owner !== player) {
       return NextResponse.json(
         {
           error: `"${name}" is taken on this board by someone else. Pick another.`,
@@ -220,8 +279,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         ok: true,
         improved: false,
-        best: Math.max(...sameName.map((e) => e.score)),
-        rank: board.filter((e) => e.score > score).length + 1,
+        best: bestOf(sameName.map((e) => e.score)),
+        rank: board.filter((e) => better(e.score, score)).length + 1,
         board: board.slice(0, TOP_N).map(strip),
       });
     }
@@ -229,14 +288,14 @@ export async function POST(request: Request) {
     // Up to PER_NAME rows each: enough to show progress, not enough for one
     // player to own a board that only sees a handful of visitors.
     const weakest = sameName.length >= PER_NAME
-      ? Math.min(...sameName.map((e) => e.score))
+      ? worstOf(sameName.map((e) => e.score))
       : null;
-    if (weakest !== null && score <= weakest) {
+    if (weakest !== null && !better(score, weakest)) {
       return NextResponse.json({
         ok: true,
         improved: false,
-        best: Math.max(...sameName.map((e) => e.score)),
-        rank: board.filter((e) => e.score > score).length + 1,
+        best: bestOf(sameName.map((e) => e.score)),
+        rank: board.filter((e) => better(e.score, score)).length + 1,
         board: board.slice(0, TOP_N).map(strip),
       });
     }
@@ -245,20 +304,25 @@ export async function POST(request: Request) {
     // Equal scores are ranked by who got there first. Relying on array order
     // would have re-shuffled ties every time the board was rebuilt.
     const byScoreThenAge = (a: Entry, b: Entry) =>
-      b.score - a.score || Date.parse(a.at) - Date.parse(b.at);
+      (meta.lower ? a.score - b.score : b.score - a.score) || Date.parse(a.at) - Date.parse(b.at);
 
     const kept = [...sameName, entry].sort(byScoreThenAge).slice(0, PER_NAME);
-    const others = board.filter((e) => e.name.toLowerCase() !== name.toLowerCase());
+    const others = board.filter((e) => !whose(e));
     const next = [...others, ...kept].sort(byScoreThenAge).slice(0, TOP_N);
 
-    data.boards[game] = next;
+    data.boards[key] = next;
+    // (the daily boards of more than a week ago go)
+    for (const k of Object.keys(data.boards)) {
+      if (k.startsWith("assist-daily:") && k.slice(13) < dayKey(new Date(Date.now() - 7 * 86_400_000))) delete data.boards[k];
+    }
     data.recent = [...data.recent, { ipHash, at: new Date().toISOString() }].slice(-RECENT_CAP);
     await write(data);
 
     return NextResponse.json({
       ok: true,
       improved: true,
-      previous: sameName.length ? Math.max(...sameName.map((e) => e.score)) : null,
+      previous: sameName.length ? bestOf(sameName.map((e) => e.score)) : null,
+      score,
       rank: next.findIndex((e) => e === entry) + 1,
       board: next.map(strip),
     });

@@ -5,6 +5,8 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { trackEvent } from "@/lib/track";
+import { Board } from "./board";
+import { dailyMission, dayKey } from "./assist-daily";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
 import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
@@ -21,12 +23,27 @@ const STARS_KEY = "arcade-assist-stars"; // the total, for the arcade's card
 const FULL_PULL = 0.3; // a pull this much of the screen's shorter side is full power
 
 type Phase = "menu" | "aim" | "flying" | "done";
-type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number; skipped?: string; rings?: boolean; tooFast?: number };
+type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number; skipped?: string; rings?: boolean; tooFast?: number; time?: number; shot?: { angle: number; power: number } };
+// The mission of the day is level -1; the best time today is kept here
+const DAILY = -1;
+const DAILY_BEST_KEY = "arcade-assist-daily";
+function dailyBest(day: string): number | null {
+    try {
+        const b = JSON.parse(localStorage.getItem(DAILY_BEST_KEY) || "null");
+        return b && b.day === day ? Number(b.cs) : null;
+    } catch {
+        return null;
+    }
+}
+const fmtTime = (cs: number) => `${(cs / 100).toFixed(2)} s`;
 type Hud = { phase: Phase; level: number; launches: number; power: number; speed: number; against: number; result: Result | null; stars: number[]; passed: boolean[]; warn: number };
 
-const NAMES: Record<Kind, string> = { sun: "the Sun", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
+const NAMES: Record<Kind, string> = { sun: "the Sun", mercury: "Mercury", venus: "Venus", uranus: "Uranus", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
     earth: "planet-earth.jpg",
+    mercury: "planet-mercury.jpg",
+    venus: "planet-venus.jpg",
+    uranus: "planet-uranus.jpg",
     moon: "planet-moon.jpg",
     mars: "planet-mars.jpg",
     jupiter: "planet-jupiter.jpg",
@@ -40,9 +57,11 @@ const AIR: Partial<Record<Kind, [number, number, number, number]>> = {
     jupiter: [0.95, 0.85, 0.7, 0.35],
     saturn: [0.95, 0.88, 0.7, 0.3],
     mars: [1, 0.65, 0.45, 0.35],
+    venus: [1, 0.9, 0.65, 0.9],
+    uranus: [0.6, 0.9, 1, 0.7],
 };
 // (Saturn stands upright, so its rings lie flat in the plane of play: what you see is what you hit)
-const TILT: Partial<Record<Kind, number>> = { earth: 0.41, mars: 0.44, jupiter: 0.05, neptune: 0.49, moon: 0.03 };
+const TILT: Partial<Record<Kind, number>> = { earth: 0.41, mars: 0.44, jupiter: 0.05, neptune: 0.49, moon: 0.03, uranus: 1.71, venus: 3.1 };
 
 // the simulation's plane (x across, y up) in the scene: y becomes -z
 const toWorld = (x: number, y: number, v = new THREE.Vector3()) => v.set(x, 0, -y);
@@ -110,7 +129,29 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
     const [hud, setHud] = useState<Hud>({ phase: "menu", level: 0, launches: 0, power: 0, speed: 0, against: 0, result: null, stars: LEVELS.map(() => 0), passed: [], warn: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
-    const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {} });
+    const api = useRef<{ open: (i: number) => void; begin: () => void; retry: () => void; next: () => void; menu: () => void; daily: (l: Level) => void }>({ open() {}, begin() {}, retry() {}, next() {}, menu() {}, daily() {} });
+    // Today's sky: fetched from the server, so everyone flies the same one
+    const [today] = useState(() => dayKey());
+    const [dailyLevel, setDailyLevel] = useState<Level | null>(null);
+    const [dailyState, setDailyState] = useState<"idle" | "loading">("idle");
+    const [bestToday, setBestToday] = useState<number | null>(null);
+    useEffect(() => setBestToday(dailyBest(today)), [today, hud.result]);
+    const playDaily = async () => {
+        if (dailyLevel) return api.current.daily(dailyLevel);
+        setDailyState("loading");
+        let level: Level;
+        try {
+            const r = await fetch(`/api/assist-daily?day=${today}`);
+            level = (await r.json()).level;
+            if (!level?.bodies) throw new Error("no level");
+        } catch {
+            // (offline: the same mission, laid out here)
+            level = dailyMission(today);
+        }
+        setDailyLevel(level);
+        setDailyState("idle");
+        api.current.daily(level);
+    };
 
     useEffect(() => {
         const el = mount.current;
@@ -162,6 +203,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         type Shown = { body: Body; group: THREE.Group; spin?: THREE.Object3D; air?: THREE.ShaderMaterial; ring?: THREE.LineLoop; ringMat?: THREE.LineDashedMaterial; goalMat?: THREE.LineDashedMaterial };
         let level: Level = LEVELS[0];
         let levelIndex = 0;
+        let lastMission = 0; // the numbered mission to go back to from the daily one
         let shown: Shown[] = [];
         const world = new THREE.Group();
         scene.add(world);
@@ -183,10 +225,11 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             world.clear();
             shown = [];
         };
-        const build = (i: number) => {
+        const build = (i: number, given?: Level) => {
             clearWorld();
             levelIndex = i;
-            level = LEVELS[i];
+            level = given ?? LEVELS[i];
+            if (i !== DAILY) lastMission = i;
             const sun = level.bodies.find((b) => b.kind === "sun");
             farSun.visible = !sun;
             sunLight.visible = !!sun;
@@ -280,6 +323,12 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 }
                 shown.push(s);
             });
+            // faint orbits, where a mission draws them (today's sky)
+            for (const g of level.guides ?? []) {
+                const o = circle(g.R, new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.07 }));
+                toWorld(g.around[0], g.around[1], o.position);
+                world.add(o);
+            }
             fit();
         };
 
@@ -334,6 +383,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         let path: number[] = [];
         let fast = false;
         let warnAt = 0;
+        let shot = { angle: 0, power: 0 };
         let stepAcc = 0;
         let sinceTrail = 0;
         const pushHud = () =>
@@ -356,8 +406,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             angle = Math.atan2(g[1] - e[1], g[0] - e[0]);
             power = 0.55;
         };
-        const open = (i: number) => {
-            build(i);
+        const open = (i: number, given?: Level) => {
+            build(i, given);
             phase = "menu";
             probe = null;
             result = null;
@@ -389,6 +439,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             pushHud();
         };
         const next = () => {
+            if (levelIndex === DAILY) return open(lastMission);
             const n = Math.min(LEVELS.length - 1, levelIndex + 1);
             open(n);
             begin();
@@ -396,6 +447,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         const fire = () => {
             if (phase !== "aim") return;
             probe = launch(level, angle, power, t);
+            shot = { angle, power };
             launches += 1;
             phase = "flying";
             path = [];
@@ -411,7 +463,22 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             const hit = p.hit >= 0 ? level.bodies[p.hit] : null;
             // it got to the target too soon: say which flybys it skipped
             const skipped = p.early ? listNames((level.flyby ?? []).filter((k) => !p.passed[k]).map((k) => bare(level.bodies[k].kind))) : undefined;
-            if (p.state === "arrived") {
+            if (p.state === "arrived" && levelIndex === DAILY) {
+                // today's sky: a time, not stars
+                const cs = Math.max(1, Math.round(p.flight * 100));
+                const day = dayKey();
+                const had = dailyBest(day);
+                if (had === null || cs < had) {
+                    try {
+                        localStorage.setItem(DAILY_BEST_KEY, JSON.stringify({ day, cs }));
+                    } catch {
+                        /* ignore */
+                    }
+                }
+                result = { kind: "arrived", body: NAMES[level.bodies[level.target].kind], top: p.fastest * KMS, time: cs, shot };
+                trackEvent("gravity_assist_daily", { day, seconds: Math.round(p.flight), launches });
+                sfxArrive();
+            } else if (p.state === "arrived") {
                 const s = launches <= level.par ? 3 : launches <= level.par + 2 ? 2 : 1;
                 if (s > stars[levelIndex]) {
                     stars[levelIndex] = s;
@@ -439,7 +506,17 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             phase = "done";
             pushHud();
         };
-        api.current = { open, begin, retry, next, menu: () => open(levelIndex) };
+        api.current = {
+            open,
+            begin,
+            retry,
+            next,
+            menu: () => open(levelIndex === DAILY ? lastMission : levelIndex),
+            daily: (l: Level) => {
+                open(DAILY, l);
+                begin();
+            },
+        };
 
         // ---- controls ---------------------------------------------------------
         const ray = new THREE.Raycaster();
@@ -486,6 +563,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         cv.addEventListener("pointerup", onUp);
         cv.addEventListener("pointercancel", onUp);
         const onKey = (e: KeyboardEvent) => {
+            // (not while signing the leaderboard)
+            if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
             const k = e.key.toLowerCase();
             if (e.type === "keyup") {
                 if (k === " " || k === "f") fast = false;
@@ -736,7 +815,8 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         };
     }, []);
 
-    const L = LEVELS[hud.level];
+    const L = hud.level === DAILY && dailyLevel ? dailyLevel : LEVELS[Math.max(0, hud.level)];
+    const isDaily = hud.level === DAILY;
     const total = hud.stars.reduce((a, b) => a + b, 0);
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
@@ -752,7 +832,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-4 sm:p-6">
                     <div className="max-w-md">
                         <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-violet-300/90">
-                            Mission {hud.level + 1} of {LEVELS.length}
+                            {isDaily ? `Mission of the day · ${today}` : `Mission ${hud.level + 1} of ${LEVELS.length}`}
                         </p>
                         <p className="font-display mt-1 text-xl font-bold sm:text-2xl">{L.name}</p>
                         <p className="mt-1 text-sm leading-snug text-neutral-300">{L.brief}</p>
@@ -837,7 +917,21 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                         <p className="mt-2 text-sm leading-relaxed text-neutral-300">
                             Send a probe from Earth to another world, bending its path round the planets on the way. Drag back to aim, and let go to launch. A planet on the move can fling you on faster.
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {/* today's sky, above the numbered missions */}
+                        <button
+                            type="button"
+                            onClick={playDaily}
+                            disabled={dailyState === "loading"}
+                            className="mt-4 block w-full rounded-xl border border-teal-300/40 bg-teal-400/[0.08] px-4 py-3 text-left transition-colors hover:border-teal-300/70 disabled:opacity-70"
+                        >
+                            <span className="block font-mono text-[10px] uppercase tracking-[0.25em] text-teal-300">Mission of the day · {today}</span>
+                            <span className="mt-0.5 block text-base font-semibold text-white">{dailyState === "loading" ? "Charting today's sky…" : "Today's sky"}</span>
+                            <span className="mt-0.5 block text-xs leading-snug text-neutral-400">
+                                The planets where they really are today, the same for everyone, with a leaderboard for the fastest arrival.
+                                {bestToday ? <span className="text-amber-300"> Your best today {fmtTime(bestToday)}.</span> : null}
+                            </span>
+                        </button>
+                        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                             {LEVELS.map((l, i) => {
                                 const open = unlocked(hud.stars, i);
                                 return (
@@ -878,19 +972,26 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                             <>
                                 <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-emerald-300">Arrived</p>
                                 <h2 className="font-display mt-2 text-3xl font-bold">You made it to {hud.result.body}</h2>
-                                <p className="mt-2 text-2xl tracking-widest text-amber-300">
-                                    {"★".repeat(hud.result.stars ?? 1)}
-                                    <span className="text-white/15">{"★".repeat(3 - (hud.result.stars ?? 1))}</span>
-                                </p>
+                                {isDaily && hud.result.time ? (
+                                    <p className="mt-2 font-display text-3xl font-bold text-amber-300">{fmtTime(hud.result.time)}</p>
+                                ) : (
+                                    <p className="mt-2 text-2xl tracking-widest text-amber-300">
+                                        {"★".repeat(hud.result.stars ?? 1)}
+                                        <span className="text-white/15">{"★".repeat(3 - (hud.result.stars ?? 1))}</span>
+                                    </p>
+                                )}
                                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-400">
-                                    {hud.launches} {hud.launches === 1 ? "launch" : "launches"} · par {L.par} · top speed {hud.result.top?.toFixed(1)} km/s
+                                    {isDaily ? "flight time" : `${hud.launches} ${hud.launches === 1 ? "launch" : "launches"} · par ${L.par}`} · top speed {hud.result.top?.toFixed(1)} km/s
                                 </p>
                                 <p className="mt-3 text-sm leading-relaxed text-neutral-300">{L.fact}</p>
+                                {isDaily && hud.result.time && hud.result.shot && (
+                                    <Board game="assist-daily" day={today} score={hud.result.time} shot={hud.result.shot} lower format={fmtTime} title="Today's fastest" />
+                                )}
                                 <div className="mt-5 flex justify-center gap-2">
                                     <button type="button" onClick={() => api.current.retry()} className="rounded-full border border-white/20 px-5 py-2.5 text-sm text-neutral-200 hover:border-white/40">
                                         Fly it again
                                     </button>
-                                    {hud.level < LEVELS.length - 1 ? (
+                                    {hud.level < LEVELS.length - 1 && !isDaily ? (
                                         <button type="button" onClick={() => api.current.next()} className="rounded-full bg-violet-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-violet-300">
                                             Next mission
                                         </button>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { trackEvent } from "@/lib/track";
+import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
 import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints } from "./space";
 
@@ -568,6 +569,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
 
         // ---- controls: a tap, a click, Space or Enter -------------------------
         const onKey = (e: KeyboardEvent) => {
+            // (not while signing the leaderboard)
+            if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
             const k = e.key.toLowerCase();
             if (k === "m") {
                 setMuted(!isMuted());
@@ -744,6 +747,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Build over" : "Crew arcade · 02"}</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score} modules` : "Stack the Station"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">Your tallest station yet!</p>}
+                        {hud.phase === "over" && <Board game="stack-station" score={hud.score} format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
                             Drop each module onto the one below. Whatever hangs over the edge is sliced off, so line them up. Land one exactly for a Perfect.
                         </p>

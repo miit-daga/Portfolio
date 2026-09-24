@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { trackEvent } from "@/lib/track";
+import { Board } from "./board";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
 import { alignStars, glowTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints } from "./space";
 
@@ -373,6 +374,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const keys = new Set<string>();
         const aim = { x: 0, y: 0, active: false };
         const onKey = (e: KeyboardEvent) => {
+            // (not while signing the leaderboard)
+            if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
             const k = e.key.toLowerCase();
             if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
             if (e.type === "keydown") {
@@ -766,6 +769,11 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Run over" : "Crew arcade · 01"}</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score.toLocaleString()} points` : "Asteroid Run"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">A new best!</p>}
+                        {hud.phase === "over" && (
+                            <div className="pointer-events-auto">
+                                <Board game="asteroid-run" score={hud.score} />
+                            </div>
+                        )}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
                             Dodge the rocks, grab the glowing fragments for points. A blue ring restores a lost shield, a golden star makes you invincible, and a violet arrow boosts you forward. It gets faster the longer you last.
                         </p>

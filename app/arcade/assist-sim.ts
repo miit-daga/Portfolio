@@ -9,7 +9,7 @@
 // system. Touch a body and the probe is lost; reach the target's capture ring
 // (after any flybys the mission asks for) and it has arrived.
 
-export type Kind = "sun" | "earth" | "moon" | "mars" | "jupiter" | "saturn" | "neptune" | "rock";
+export type Kind = "sun" | "mercury" | "venus" | "earth" | "moon" | "mars" | "jupiter" | "saturn" | "uranus" | "neptune" | "rock";
 export type Orbit = { around: [number, number]; R: number; period: number; phase: number };
 // (pass: how close counts as a flyby, where a mission wants it closer than usual)
 export type Body = { kind: Kind; r: number; mu: number; at?: [number, number]; orbit?: Orbit; pass?: number };
@@ -25,6 +25,7 @@ export type Level = {
     // arriving no faster than this against the target: a lander setting down
     // (faster is a crash), or an orbiter being caught (faster flies past)
     arrive?: { under: number; as: "land" | "orbit"; craft: string };
+    guides?: { around: [number, number]; R: number }[]; // faint orbits drawn, for looks only
     par: number; // launches for three stars
 };
 
@@ -75,7 +76,7 @@ export function bodyVel(b: Body, t: number, out: [number, number] = [0, 0]): [nu
 }
 
 // A wall of rocks along a line, with a little scatter: the same every time
-function belt(from: [number, number], to: [number, number], count: number, seed: number): Body[] {
+export function belt(from: [number, number], to: [number, number], count: number, seed: number): Body[] {
     let s = seed;
     const rand = () => ((s = (s * 16807) % 2147483647) / 2147483647);
     return Array.from({ length: count }, (_, i) => {

@@ -49,7 +49,7 @@ export default function ArcadePage() {
             </header>
             <Arcade />
             <p className="relative z-10 mx-auto mt-auto w-full max-w-5xl px-4 pb-6 lg:max-w-6xl font-mono text-[11px] text-neutral-600 md:px-6">
-                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps. Mars, Jupiter, Saturn and Neptune are from Solar System Scope, under CC BY 4.0.
+                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps. Mercury, Venus, Mars, Jupiter, Saturn, Uranus and Neptune are from Solar System Scope, under CC BY 4.0. Today's sky places the planets with JPL's orbital elements.
             </p>
         </main>
     );
