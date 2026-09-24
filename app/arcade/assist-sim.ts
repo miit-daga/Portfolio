@@ -70,7 +70,7 @@ const EARTH = (x: number, y: number): Body => ({ kind: "earth", r: 1.6, mu: 30, 
 export const LEVELS: Level[] = [
     {
         name: "First flight",
-        brief: "Drag back from Earth to aim, and let go to launch. Reach Mars.",
+        brief: "Press anywhere and drag back to aim, and let go to launch. Reach Mars.",
         fact: "Mariner 4 made the first flyby of Mars in 1965, and sent back 22 photographs.",
         bodies: [EARTH(-40, -6), { kind: "mars", r: 1.3, mu: 60, at: [34, 10] }],
         start: 0,

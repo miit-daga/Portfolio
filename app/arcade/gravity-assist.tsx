@@ -18,6 +18,7 @@ import { BOUNDS, LEVELS, VMAX, bodyAt, captureRadius, flybyRadius, launch, step,
 const PROGRESS_KEY = "arcade-assist";
 const STARS_KEY = "arcade-assist-stars"; // the total, for the arcade's card
 const KMS = 2.2; // the probe's speed, shown in km/s
+const FULL_PULL = 0.3; // a pull this much of the screen's shorter side is full power
 
 type Phase = "menu" | "aim" | "flying" | "done";
 type Result = { kind: "arrived" | "crashed" | "lost"; body?: string; stars?: number; top?: number };
@@ -453,7 +454,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             if (px < 6) return;
             angle = Math.atan2(dy, dx);
             const r = renderer.domElement.getBoundingClientRect();
-            power = THREE.MathUtils.clamp(px / (Math.min(r.width, r.height) * 0.38), 0.1, 1);
+            power = THREE.MathUtils.clamp(px / (Math.min(r.width, r.height) * FULL_PULL), 0.1, 1);
             pushHud();
         };
         const onUp = () => {
@@ -521,9 +522,6 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 if (b.orbit) add(b.orbit.around[0], b.orbit.around[1], b.orbit.R + b.r * 2);
                 else add(b.at![0], b.at![1], level.flyby?.includes(level.bodies.indexOf(b)) ? flybyRadius(b.r) : b.kind === "sun" ? b.r * 2 : captureRadius(b.r));
             }
-            const cx = (x0 + x1) / 2;
-            const cy = (y0 + y1) / 2;
-            const centre = toWorld(cx, cy, new THREE.Vector3());
             // on a tall screen the view turns, so the long way runs up it
             const tall = w / h < 0.9;
             const pitch = (62 * Math.PI) / 180;
@@ -531,33 +529,66 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             camera.up.set(tall ? 1 : 0, tall ? 0 : 1, 0);
             camera.fov = 36;
             camera.updateProjectionMatrix();
-            const corners = [
-                [x0, y0],
-                [x0, y1],
-                [x1, y0],
-                [x1, y1],
-            ].map(([x, y]) => toWorld(x, y, new THREE.Vector3()));
             // room for the words at the top and the buttons below
             const top = 1 - 220 / h;
             const bottom = -1 + 130 / h;
-            let lo = 20;
-            let hi = 800;
-            for (let k = 0; k < 30; k++) {
-                const d = (lo + hi) / 2;
-                camera.position.copy(centre).addScaledVector(back, d);
+            const centre = new THREE.Vector3();
+            const frame = (extra: [number, number][]) => {
+                let a0 = x0, a1 = x1, b0 = y0, b1 = y1;
+                for (const [x, y] of extra) {
+                    a0 = Math.min(a0, x);
+                    a1 = Math.max(a1, x);
+                    b0 = Math.min(b0, y);
+                    b1 = Math.max(b1, y);
+                }
+                toWorld((a0 + a1) / 2, (b0 + b1) / 2, centre);
+                const corners = [
+                    [a0, b0],
+                    [a0, b1],
+                    [a1, b0],
+                    [a1, b1],
+                ].map(([x, y]) => toWorld(x, y, new THREE.Vector3()));
+                let lo = 20;
+                let hi = 800;
+                for (let k = 0; k < 30; k++) {
+                    const d = (lo + hi) / 2;
+                    camera.position.copy(centre).addScaledVector(back, d);
+                    camera.lookAt(centre);
+                    camera.updateMatrixWorld();
+                    const ok = corners.every((c) => {
+                        tmp.copy(c).project(camera);
+                        return Math.abs(tmp.x) < 0.94 && tmp.y < top && tmp.y > bottom;
+                    });
+                    if (ok) hi = d;
+                    else lo = d;
+                }
+                camera.position.copy(centre).addScaledVector(back, hi);
                 camera.lookAt(centre);
                 camera.updateMatrixWorld();
-                const ok = corners.every((c) => {
-                    tmp.copy(c).project(camera);
-                    return Math.abs(tmp.x) < 0.94 && tmp.y < top && tmp.y > bottom;
-                });
-                if (ok) hi = d;
-                else lo = d;
+            };
+            frame([]);
+            // and room behind Earth for a full-strength pull with the mouse:
+            // pulling back goes away from the rest of the mission, so the
+            // frame takes in a pull's length that way (and 40° either side),
+            // measured in pixels at the current zoom, a few times over
+            const [ex, ey] = level.bodies[level.start].at!;
+            let ox = ex - (x0 + x1) / 2;
+            let oy = ey - (y0 + y1) / 2;
+            const ol = Math.hypot(ox, oy) || 1;
+            ox /= ol;
+            oy /= ol;
+            for (let pass = 0; pass < 3; pass++) {
+                const a = toWorld(ex, ey, new THREE.Vector3()).project(camera);
+                const b = toWorld(ex + 1, ey, new THREE.Vector3()).project(camera);
+                const perUnit = Math.hypot(((b.x - a.x) * w) / 2, ((b.y - a.y) * h) / 2);
+                const reach = (FULL_PULL * Math.min(w, h) + 24) / perUnit;
+                frame(
+                    [-0.7, 0, 0.7].map((t): [number, number] => [
+                        ex + (ox * Math.cos(t) - oy * Math.sin(t)) * reach,
+                        ey + (ox * Math.sin(t) + oy * Math.cos(t)) * reach,
+                    ]),
+                );
             }
-            camera.position.copy(centre).addScaledVector(back, hi);
-            // aimed a little high, so the frame sits between the words and the buttons
-            camera.lookAt(centre);
-            camera.updateMatrixWorld();
             starField.position.copy(camera.position);
         };
         const ro = new ResizeObserver(fit);
