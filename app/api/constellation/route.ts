@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Octokit } from "@octokit/core";
+import { readFile, storeReady, writeFile } from "@/lib/store";
 import { isFigureId } from "@/constants/constellations";
 
 // How many visitors have charted each of the About section's constellations
@@ -24,7 +24,7 @@ const SEEN_CAP = 5000; // dedupe ledger length
 type Stored = { counts: Record<string, number>; seen: string[] };
 
 const useGist = () =>
-    !!process.env.GUESTBOOK_GIST_ID && (process.env.NODE_ENV === "production" || process.env.CONSTELLATION_USE_GIST === "1");
+    storeReady() && (process.env.NODE_ENV === "production" || process.env.CONSTELLATION_USE_GIST === "1");
 
 // Dev store, per server process
 const memory: Stored = { counts: {}, seen: [] };
@@ -46,15 +46,9 @@ async function hashIp(ip: string): Promise<string> {
         .join("");
 }
 
-const octokit = () => new Octokit({ auth: process.env.GITHUB_API_TOKEN });
-
 async function read(): Promise<Stored> {
     if (!useGist()) return memory;
-    const res = await octokit().request("GET /gists/{gist_id}", {
-        gist_id: process.env.GUESTBOOK_GIST_ID!,
-        headers: { "X-GitHub-Api-Version": "2022-11-28" },
-    });
-    const raw = res.data.files?.[GIST_FILE]?.content;
+    const raw = await readFile(GIST_FILE);
     if (!raw) return { counts: {}, seen: [] };
     try {
         const parsed = JSON.parse(raw);
@@ -73,11 +67,7 @@ async function write(data: Stored): Promise<void> {
         memory.seen = data.seen;
         return;
     }
-    await octokit().request("PATCH /gists/{gist_id}", {
-        gist_id: process.env.GUESTBOOK_GIST_ID!,
-        files: { [GIST_FILE]: { content: JSON.stringify(data, null, 2) } },
-        headers: { "X-GitHub-Api-Version": "2022-11-28" },
-    });
+    await writeFile(GIST_FILE, JSON.stringify(data, null, 2));
 }
 
 /** GET ?fig=<id>: how many have charted it. */

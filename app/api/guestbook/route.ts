@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Octokit } from "@octokit/core";
+import { readFile, storeReady, writeFile } from "@/lib/store";
 
 // Terminal guestbook, stored as a JSON file inside a GitHub gist so it needs no
 // extra service. Requires:
@@ -69,18 +69,8 @@ function hasBlockedWord(text: string): boolean {
   return BLOCKLIST.some((word) => new RegExp(`\\b${word}`, "i").test(lowered));
 }
 
-function octokit() {
-  return new Octokit({ auth: process.env.GITHUB_API_TOKEN });
-}
-
 async function readEntries(): Promise<Entry[]> {
-  const gistId = process.env.GUESTBOOK_GIST_ID;
-  if (!gistId) return [];
-  const res = await octokit().request("GET /gists/{gist_id}", {
-    gist_id: gistId,
-    headers: { "X-GitHub-Api-Version": "2022-11-28" },
-  });
-  const raw = res.data.files?.[GIST_FILE]?.content;
+  const raw = await readFile(GIST_FILE);
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -91,13 +81,7 @@ async function readEntries(): Promise<Entry[]> {
 }
 
 async function writeEntries(entries: Entry[]): Promise<void> {
-  const gistId = process.env.GUESTBOOK_GIST_ID;
-  if (!gistId) throw new Error("GUESTBOOK_GIST_ID is not set");
-  await octokit().request("PATCH /gists/{gist_id}", {
-    gist_id: gistId,
-    files: { [GIST_FILE]: { content: JSON.stringify({ entries }, null, 2) } },
-    headers: { "X-GitHub-Api-Version": "2022-11-28" },
-  });
+  await writeFile(GIST_FILE, JSON.stringify({ entries }, null, 2));
 }
 
 const strip = (e: Entry): PublicEntry => ({
@@ -108,7 +92,7 @@ const strip = (e: Entry): PublicEntry => ({
 });
 
 export async function GET(request: Request) {
-  if (!process.env.GUESTBOOK_GIST_ID) {
+  if (!storeReady()) {
     return NextResponse.json({ configured: false, entries: [] });
   }
   const limitParam = Number(new URL(request.url).searchParams.get("limit"));
@@ -149,7 +133,7 @@ function keyMatches(supplied: string, expected: string): boolean {
  * what actually gates it, so treat it like a password.
  */
 export async function DELETE(request: Request) {
-  if (!process.env.GUESTBOOK_GIST_ID) {
+  if (!storeReady()) {
     return NextResponse.json({ error: "The guestbook is not configured yet." }, { status: 503 });
   }
   const adminKey = process.env.GUESTBOOK_ADMIN_KEY;
@@ -203,7 +187,7 @@ export async function DELETE(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!process.env.GUESTBOOK_GIST_ID) {
+  if (!storeReady()) {
     return NextResponse.json(
       { error: "The guestbook is not configured yet." },
       { status: 503 },

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Octokit } from "@octokit/core";
+import { readFile, storeReady, writeFile } from "@/lib/store";
 import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
 import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
 import { fly } from "@/app/arcade/assist-sim";
@@ -57,9 +57,10 @@ const BLOCKLIST = [
 const MEMORY = process.env.NODE_ENV !== "production" && process.env.LEADERBOARD_MEMORY === "1";
 let memory: Stored | null = null;
 
+// (anywhere to keep the boards: Redis, the gist, or this process's memory)
 function gistId(): string | undefined {
   if (MEMORY) return "memory";
-  return process.env.LEADERBOARD_GIST_ID || process.env.GUESTBOOK_GIST_ID;
+  return storeReady() ? "store" : undefined;
 }
 
 function clientIp(req: Request): string {
@@ -93,21 +94,11 @@ function hasBlockedWord(text: string): boolean {
   return BLOCKLIST.some((w) => new RegExp(`\\b${w}`, "i").test(text.toLowerCase()));
 }
 
-function octokit() {
-  return new Octokit({ auth: process.env.GITHUB_API_TOKEN });
-}
-
 const EMPTY: Stored = { boards: {}, recent: [] };
 
 async function read(): Promise<Stored> {
   if (MEMORY) return structuredClone(memory ?? EMPTY);
-  const id = gistId();
-  if (!id) return EMPTY;
-  const res = await octokit().request("GET /gists/{gist_id}", {
-    gist_id: id,
-    headers: { "X-GitHub-Api-Version": "2022-11-28" },
-  });
-  const raw = res.data.files?.[GIST_FILE]?.content;
+  const raw = await readFile(GIST_FILE);
   if (!raw) return EMPTY;
   try {
     const parsed = JSON.parse(raw);
@@ -125,13 +116,7 @@ async function write(data: Stored): Promise<void> {
     memory = structuredClone(data);
     return;
   }
-  const id = gistId();
-  if (!id) throw new Error("no gist id configured");
-  await octokit().request("PATCH /gists/{gist_id}", {
-    gist_id: id,
-    files: { [GIST_FILE]: { content: JSON.stringify(data, null, 2) } },
-    headers: { "X-GitHub-Api-Version": "2022-11-28" },
-  });
+  await writeFile(GIST_FILE, JSON.stringify(data, null, 2));
 }
 
 const strip = (e: Entry): PublicEntry => ({ name: e.name, score: e.score, at: e.at });

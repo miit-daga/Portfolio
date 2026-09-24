@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Octokit } from "@octokit/core";
+import { hasKv, kvPipeline, readFile, storeReady, writeFile } from "@/lib/store";
 
 // A tally of the arcade's analytics events, kept by the site itself, for
 // hosting plans where Vercel doesn't keep custom events. lib/track.ts sends
@@ -14,6 +14,10 @@ import { Octokit } from "@octokit/core";
 // are saved at most every few minutes (a count can be lost if the instance
 // is recycled first; fine for a tally), and browsers send a visit's events
 // together, once, as they leave.
+//
+// With Redis (lib/store.ts) each day is a hash, tally:YYYY-MM-DD, and counts
+// go straight in with HINCRBY, which can't lose one; nothing is held back.
+// Without it, the gist, as above.
 //
 // POST { events: [{ event, props }] } (or one { event, props }) counts; GET, with the admin key (the same one as
 // the guestbook's, GUESTBOOK_ADMIN_KEY) in an x-admin-key header, reads it.
@@ -41,14 +45,24 @@ type Tally = { days: Record<string, Record<string, number>> };
 const MEMORY = process.env.NODE_ENV !== "production" && process.env.LEADERBOARD_MEMORY === "1";
 let memory: Tally = { days: {} };
 
-const gistId = () => process.env.LEADERBOARD_GIST_ID || process.env.GUESTBOOK_GIST_ID;
-const octokit = () => new Octokit({ auth: process.env.GITHUB_API_TOKEN });
+const dayKey = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString().slice(0, 10);
 
 async function read(): Promise<Tally> {
     if (MEMORY) return structuredClone(memory);
-    const res = await octokit().request("GET /gists/{gist_id}", { gist_id: gistId()!, headers: { "X-GitHub-Api-Version": "2022-11-28" } });
+    if (hasKv()) {
+        const days = Array.from({ length: KEEP_DAYS }, (_, i) => dayKey(i));
+        const rows = await kvPipeline<string[]>(days.map((d) => ["HGETALL", `tally:${d}`]));
+        const out: Tally = { days: {} };
+        rows.forEach((flat, i) => {
+            if (!flat?.length) return;
+            const counts: Record<string, number> = {};
+            for (let k = 0; k < flat.length; k += 2) counts[flat[k]] = Number(flat[k + 1]);
+            out.days[days[i]] = counts;
+        });
+        return out;
+    }
     try {
-        const parsed = JSON.parse(res.data.files?.[FILE]?.content || "{}");
+        const parsed = JSON.parse((await readFile(FILE)) || "{}");
         return { days: parsed?.days && typeof parsed.days === "object" ? parsed.days : {} };
     } catch {
         return { days: {} };
@@ -59,11 +73,7 @@ async function write(t: Tally) {
         memory = structuredClone(t);
         return;
     }
-    await octokit().request("PATCH /gists/{gist_id}", {
-        gist_id: gistId()!,
-        files: { [FILE]: { content: JSON.stringify(t) } },
-        headers: { "X-GitHub-Api-Version": "2022-11-28" },
-    });
+    await writeFile(FILE, JSON.stringify(t));
 }
 
 // A light brake per visitor, in this instance's memory: enough against a loop
@@ -88,10 +98,26 @@ function keyMatches(supplied: string, expected: string) {
 // Counts waiting to be saved, by day, and when this instance last saved
 const pending: Record<string, Record<string, number>> = {};
 let lastSave = 0;
-const SAVE_EVERY_MS = MEMORY ? 0 : 5 * 60_000;
+const SAVE_EVERY_MS = MEMORY || hasKv() ? 0 : 5 * 60_000;
 
 async function save() {
     if (!Object.keys(pending).length) return;
+    if (hasKv() && !MEMORY) {
+        const cmds: (string | number)[][] = [];
+        for (const [day, counts] of Object.entries(pending)) {
+            for (const [k, n] of Object.entries(counts)) cmds.push(["HINCRBY", `tally:${day}`, k, n]);
+            cmds.push(["EXPIRE", `tally:${day}`, (KEEP_DAYS + 5) * 86_400]);
+        }
+        // (cleared only once Redis has them, so a failed save is tried again)
+        const sent = structuredClone(pending);
+        await kvPipeline(cmds);
+        for (const [day, counts] of Object.entries(sent)) for (const [k, n] of Object.entries(counts)) {
+            pending[day][k] -= n;
+            if (pending[day][k] <= 0) delete pending[day][k];
+        }
+        for (const d of Object.keys(pending)) if (!Object.keys(pending[d]).length) delete pending[d];
+        return;
+    }
     const t = await read();
     for (const [day, counts] of Object.entries(pending)) {
         const into = (t.days[day] ??= {});
@@ -104,7 +130,7 @@ async function save() {
 }
 
 export async function POST(request: Request) {
-    if (!MEMORY && !gistId()) return NextResponse.json({ ok: false }, { status: 503 });
+    if (!MEMORY && !storeReady()) return NextResponse.json({ ok: false }, { status: 503 });
     let body: unknown;
     try {
         body = await request.json();
@@ -147,7 +173,7 @@ export async function GET(request: Request) {
         await new Promise((r) => setTimeout(r, 600));
         return NextResponse.json({ error: "Rejected." }, { status: 401 });
     }
-    if (!MEMORY && !gistId()) return NextResponse.json({ error: "No gist configured." }, { status: 503 });
+    if (!MEMORY && !storeReady()) return NextResponse.json({ error: "Nowhere to keep the tally." }, { status: 503 });
     try {
         return NextResponse.json(await read(), { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
