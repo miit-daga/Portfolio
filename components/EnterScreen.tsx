@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
-import { motion, AnimatePresence, useReducedMotion, useMotionValue, useMotionTemplate, useTransform, animate } from "framer-motion"
+import { m, AnimatePresence, useReducedMotion, useMotionValue, useMotionTemplate, useTransform, cubicBezier, frame, cancelFrame, type MotionValue } from "framer-motion"
 import { Porthole } from "./ui/porthole"
 
 interface EnterScreenProps {
@@ -33,6 +33,23 @@ const SPARKS = Array.from({ length: 34 }, (_, i) => {
 // Through the porthole: the glass becomes a window onto the site, and it grows
 // until it fills the screen, stars streaking past its rim as you go through
 const PORTHOLE_MS = 1300
+
+// A motion value eased to a target over a duration, on the given cubic-bezier
+// curve: what framer's animate() does for these two tweens, without the whole
+// animation engine it brings into the first screen's bundle
+// It runs on framer's own frame loop, as animate() does, so each step is
+// drawn in the frame it is computed in
+function tween(value: MotionValue<number>, to: number, ms: number, curve: [number, number, number, number]) {
+    const from = value.get()
+    const ease = cubicBezier(...curve)
+    const t0 = performance.now()
+    const step = () => {
+        const p = Math.min(1, (performance.now() - t0) / ms)
+        value.set(from + (to - from) * ease(p))
+        if (p >= 1) cancelFrame(step)
+    }
+    frame.update(step, true)
+}
 const ENTRIES = [
     { id: "porthole", label: "Porthole", hint: "fly through the window" },
     { id: "bang", label: "Big Bang", hint: "collapse, then bang (with sound)" },
@@ -334,7 +351,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
             setOrigin(`${x}px ${y}px`)
             const reach = Math.max(Math.hypot(x, y), Math.hypot(window.innerWidth - x, y), Math.hypot(x, window.innerHeight - y), Math.hypot(window.innerWidth - x, window.innerHeight - y)) + 40
             radius.set(r ? r.width / 2 - 10 : 50)
-            animate(radius, reach, { duration: PORTHOLE_MS / 1000, ease: [0.7, 0, 0.2, 1] })
+            tween(radius, reach, PORTHOLE_MS, [0.7, 0, 0.2, 1])
             playPorthole()
             setTimeout(onAnimationComplete, PORTHOLE_MS + 50)
             return
@@ -342,7 +359,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
         playBigBang()
         setTimeout(() => {
             setBanged(true)
-            animate(radius, Math.hypot(window.innerWidth, window.innerHeight) / 2 + 40, { duration: RING_MS / 1000, ease: [0.16, 1, 0.3, 1] })
+            tween(radius, Math.hypot(window.innerWidth, window.innerHeight) / 2 + 40, RING_MS, [0.16, 1, 0.3, 1])
         }, BANG_AT)
         setTimeout(onAnimationComplete, ENTER_MS)
     }, [onAnimationComplete, onReveal, reduce, radius, porthole, holeX, holeY])
@@ -522,7 +539,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
     }, [reduce, porthole])
 
     return (
-        <motion.div
+        <m.div
             data-enter-screen
             className="fixed inset-0 z-[9999] overflow-hidden"
             initial={false}
@@ -531,7 +548,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
             transition={{ duration: 0.45 }}
         >
           {/* The void: the sky and the portal. The bang cuts it away from the middle out */}
-          <motion.div
+          <m.div
             className="absolute inset-0 bg-black"
             // cut away from the click: the Big Bang from the middle out (a hole of nothing
             // until the bang), the porthole from the glass itself
@@ -550,7 +567,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
             />
 
             {/* Center content - the name paints immediately (LCP), no opacity-0 entrance */}
-            <motion.div
+            <m.div
                 className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center"
                 initial={false}
                 // the Big Bang draws it in to the centre with the stars; through the
@@ -574,7 +591,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                 </p>
 
                 {/* Portal button */}
-                <motion.button
+                <m.button
                     ref={buttonRef}
                     onClick={handleEnterClick}
                     disabled={isTransitioning}
@@ -595,9 +612,9 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                     <span className="relative z-10 text-sm font-medium uppercase tracking-[0.3em] text-teal-200 transition-colors group-hover:text-white">
                         Enter
                     </span>
-                </motion.button>
+                </m.button>
 
-                <motion.p
+                <m.p
                     className="mt-8 font-mono text-[11px] uppercase tracking-[0.25em] text-slate-500"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -610,10 +627,10 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                         <span className="enter-key-mac">Return &#9166;</span> to begin
                     </span>
                     <span className="enter-hint-tap">tap the portal to begin</span>
-                </motion.p>
+                </m.p>
 
                 {/* The visitor's pick of entry */}
-                <motion.div
+                <m.div
                     data-entry-choice
                     role="radiogroup"
                     aria-label="How to enter"
@@ -639,15 +656,15 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                             </button>
                         ))}
                     </span>
-                </motion.div>
-            </motion.div>
+                </m.div>
+            </m.div>
 
-          </motion.div>
+          </m.div>
 
             {/* The singularity: everything in one bright point, pulsing, then the bang */}
             <AnimatePresence>
                 {isTransitioning && !reduce && !porthole && (
-                    <motion.div
+                    <m.div
                         key="point"
                         aria-hidden
                         className="pointer-events-none absolute left-1/2 top-1/2 h-48 w-48 rounded-full"
@@ -661,7 +678,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
 
             {/* The porthole's rim, riding the edge of the window as it grows */}
             {porthole && isTransitioning && !reduce && (
-                <motion.div
+                <m.div
                     aria-hidden
                     className="pointer-events-none absolute rounded-full"
                     style={{
@@ -683,7 +700,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
             {/* The shockwave, and the sparks it throws out */}
             {banged && (
                 <div aria-hidden className="pointer-events-none absolute inset-0">
-                    <motion.div
+                    <m.div
                         className="absolute left-1/2 top-1/2 rounded-full"
                         style={{
                             width: ringSize,
@@ -698,7 +715,7 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                         transition={{ duration: RING_MS / 1000, times: [0, 0.6, 1] }}
                     />
                     {SPARKS.map((sp, i) => (
-                        <motion.span
+                        <m.span
                             key={i}
                             className="absolute left-1/2 top-1/2 rounded-full"
                             style={{ width: sp.s, height: sp.s, background: sp.c, boxShadow: `0 0 8px ${sp.c}` }}
@@ -709,6 +726,6 @@ export const EnterScreen = ({ onAnimationComplete, onReveal, variant }: EnterScr
                     ))}
                 </div>
             )}
-        </motion.div>
+        </m.div>
     )
 }

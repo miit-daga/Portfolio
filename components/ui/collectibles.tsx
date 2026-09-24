@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { motion, AnimatePresence, useReducedMotion, useInView } from "framer-motion";
+import { m, AnimatePresence, useReducedMotion, useInView } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 export const FRAGMENT_IDS = ["workex", "education", "skills", "projects", "publications"] as const;
@@ -147,21 +147,21 @@ export function Fragment({ id, className }: { id: string; className?: string }) 
         >
             {/* Pulsing halo */}
             {!reduce && !picked && live && (
-                <motion.span
+                <m.span
                     className="absolute h-7 w-7 rounded-full bg-teal-400/20 blur-md"
                     animate={{ scale: [1, 1.6, 1], opacity: [0.5, 0, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
                 />
             )}
             {/* The shard */}
-            <motion.span
+            <m.span
                 className="block h-3.5 w-3.5 rotate-45 rounded-[3px] bg-gradient-to-br from-teal-100 to-teal-500 shadow-[0_0_12px_rgba(45,212,191,0.85)] transition-transform group-hover:scale-125"
                 animate={picked ? { scale: [1, 2.2], opacity: [1, 0], rotate: 225 } : reduce ? undefined : live ? { y: [0, -3, 0] } : { y: 0 }}
                 transition={picked ? { duration: 0.36, ease: "easeOut" } : live ? { duration: 2.4, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
             />
             {/* Burst ring on pickup */}
             {picked && (
-                <motion.span
+                <m.span
                     className="absolute h-3.5 w-3.5 rounded-full border border-teal-300"
                     initial={{ scale: 1, opacity: 0.9 }}
                     animate={{ scale: 4, opacity: 0 }}
@@ -195,7 +195,7 @@ export function CollectibleHUD({ isImploding = false, onCosmicReset }: { isImplo
         <>
             <AnimatePresence>
                 {count > 0 && !isImploding && (
-                    <motion.div
+                    <m.div
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 16 }}
@@ -205,20 +205,20 @@ export function CollectibleHUD({ isImploding = false, onCosmicReset }: { isImplo
                         <span className="font-mono text-xs text-teal-200">
                             {count} / {total}
                         </span>
-                    </motion.div>
+                    </m.div>
                 )}
             </AnimatePresence>
 
             <AnimatePresence>
                 {showReward && !isImploding && (
-                    <motion.div
+                    <m.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="fixed inset-0 z-[99999] flex items-center justify-center px-4"
                     >
                         <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={dismiss} />
-                        <motion.div
+                        <m.div
                             initial={{ scale: 0.9, y: 20, opacity: 0 }}
                             animate={{ scale: 1, y: 0, opacity: 1 }}
                             exit={{ scale: 0.9, y: 20, opacity: 0 }}
@@ -247,8 +247,8 @@ export function CollectibleHUD({ isImploding = false, onCosmicReset }: { isImplo
                                     Nice.
                                 </button>
                             </div>
-                        </motion.div>
-                    </motion.div>
+                        </m.div>
+                    </m.div>
                 )}
             </AnimatePresence>
         </>
@@ -280,7 +280,7 @@ export function useFragmentGift() {
     const node = (
         <AnimatePresence>
             {flight && (
-                <motion.span
+                <m.span
                     key={flight.key}
                     aria-hidden
                     className="pointer-events-none fixed left-0 top-0 z-[5001] block h-3.5 w-3.5 rounded-[3px] bg-gradient-to-br from-teal-100 to-teal-500 shadow-[0_0_14px_rgba(45,212,191,0.9)]"

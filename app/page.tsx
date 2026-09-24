@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
+import { m, AnimatePresence, LazyMotion, domAnimation } from "framer-motion";
 import { aboutme } from "@/constants";
 import {
   IconHome,
@@ -250,6 +250,10 @@ const Home = () => {
   ];
 
   return (
+    // Framer's slim core for the first screen: the entry screen, the fragments and
+    // the black hole animate with m components and only the features they use
+    // (domAnimation). The sections, in their own chunk, bring the rest with them
+    <LazyMotion features={domAnimation}>
     <CollectiblesProvider>
       {/* Progress Bar - Hide during implosion */}
       {!showEnterScreen && !isImploding && <ScrollProgress />}
@@ -268,7 +272,7 @@ const Home = () => {
           <AnimatedBackground isImploding={isImploding}>
 
             {/* 
-              FIX: BackToTop moved OUTSIDE the transformed motion.div so 'position: fixed' works correctly.
+              FIX: BackToTop moved OUTSIDE the transformed m.div so 'position: fixed' works correctly.
               We add a transition wrapper so it still disappears during the black hole event.
             */}
             <div className={`relative z-50 transition-opacity duration-500 ${isImploding ? "opacity-0" : "opacity-100"}`}>
@@ -294,7 +298,7 @@ const Home = () => {
             {!isImploding && <IdleAlien />}
 
             {/* This Motion Div handles the Spaghettification of the UI */}
-            <motion.div
+            <m.div
               initial={{ opacity: 0 }}
               animate={isImploding ? {
                 // Resist, shudder, then spaghettify into the hole: the centre is
@@ -383,11 +387,12 @@ const Home = () => {
                 <Contact />
               </Reveal>
 
-            </motion.div>
+            </m.div>
           </AnimatedBackground>
         )}
       </AnimatePresence>
     </CollectiblesProvider>
+    </LazyMotion>
   );
 };
 

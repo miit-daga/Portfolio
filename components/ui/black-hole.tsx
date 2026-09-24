@@ -1,5 +1,5 @@
 "use client";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 // Visible singularity for the Konami "cosmic reset": an event-horizon core with a
 // spinning accretion disk forms at viewport centre, matter streaks fall in, and it
@@ -14,7 +14,7 @@ const STREAKS = Array.from({ length: 10 }, (_, i) => ({
 export const BlackHoleOverlay = () => (
     <div className="pointer-events-none fixed inset-0 z-[5500] flex items-center justify-center" aria-hidden>
         {/* Closing vignette */}
-        <motion.div
+        <m.div
             className="absolute inset-0"
             style={{ background: "radial-gradient(circle at center, transparent 25%, rgba(0,0,0,0.9) 72%)" }}
             initial={{ opacity: 0 }}
@@ -25,7 +25,7 @@ export const BlackHoleOverlay = () => (
         {/* Infalling matter streaks */}
         {STREAKS.map((s, i) => (
             <div key={i} className="absolute" style={{ transform: `rotate(${s.angle}deg)` }}>
-                <motion.span
+                <m.span
                     className="absolute h-[1.5px] rounded-full"
                     style={{
                         width: 56,
@@ -40,7 +40,7 @@ export const BlackHoleOverlay = () => (
         ))}
 
         {/* Accretion disk */}
-        <motion.div
+        <m.div
             className="absolute rounded-full"
             style={{
                 width: 280,
@@ -60,7 +60,7 @@ export const BlackHoleOverlay = () => (
         />
 
         {/* Event-horizon core */}
-        <motion.div
+        <m.div
             className="absolute rounded-full bg-black"
             style={{
                 width: 130,
@@ -74,7 +74,7 @@ export const BlackHoleOverlay = () => (
         />
 
         {/* Photon ring shimmer */}
-        <motion.div
+        <m.div
             className="absolute rounded-full"
             style={{ width: 150, height: 150, border: "1.5px solid rgba(153,246,228,0.8)", filter: "blur(1px)" }}
             initial={{ scale: 0, opacity: 0 }}
@@ -83,7 +83,7 @@ export const BlackHoleOverlay = () => (
         />
 
         {/* Nothing escapes: total darkness into the reload */}
-        <motion.div
+        <m.div
             className="absolute inset-0 bg-black"
             initial={{ opacity: 0 }}
             animate={{ opacity: [0, 0, 1] }}
