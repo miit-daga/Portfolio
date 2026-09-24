@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { trackEvent } from "@/lib/track";
 
 // The arcade: two 3D games, each in its own chunk with three.js, loaded only
 // when it is opened, so nothing here costs the rest of the site anything.
@@ -59,7 +60,10 @@ export function Arcade() {
     useEffect(() => {
         const q = new URLSearchParams(window.location.search).get("game");
         // (the docking game this replaced was ?game=dock)
-        if (q === "run" || q === "stack" || q === "assist") setGame(q);
+        if (q === "run" || q === "stack" || q === "assist") {
+            setGame(q);
+            trackEvent("arcade_game_open", { game: q, via: "link" });
+        }
         else if (q === "dock") {
             setGame("stack");
             window.history.replaceState(null, "", "/arcade?game=stack");
@@ -76,6 +80,7 @@ export function Arcade() {
     }, [game]);
     const open = (g: Game | null) => {
         setGame(g);
+        if (g) trackEvent("arcade_game_open", { game: g, via: "card" });
         window.history.replaceState(null, "", g ? `/arcade?game=${g}` : "/arcade");
     };
     // Esc leaves a game for the arcade

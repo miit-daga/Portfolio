@@ -1,3 +1,6 @@
+"use client";
+import { trackEvent } from "@/lib/track";
+
 // A slim card between the sections pointing to the crew arcade (app/arcade):
 // a line on what it is, and a still from each game, each opening that game.
 // The stills are the arcade cards' own, small and loaded only as it nears view.
@@ -20,6 +23,7 @@ export function ArcadeTeaser() {
                         href="/arcade"
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => trackEvent("arcade_link", { from: "teaser" })}
                         className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-teal-400 px-4 py-1.5 text-sm font-semibold text-neutral-950 transition-colors hover:bg-teal-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
                     >
                         ▶ Open the arcade
@@ -32,6 +36,7 @@ export function ArcadeTeaser() {
                             href={`/arcade?game=${g.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={() => trackEvent("arcade_link", { from: "teaser", game: g.id })}
                             aria-label={`Play ${g.title}`}
                             className="group block focus:outline-none"
                             style={{ ["--hue" as string]: g.hue }}

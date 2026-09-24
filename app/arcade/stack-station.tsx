@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { trackEvent } from "@/lib/track";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
 import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints } from "./space";
 
@@ -551,6 +552,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         const end = () => {
             phase = "over";
             const s = score();
+            trackEvent("stack_station_over", { modules: s });
             if (s > best) {
                 best = s;
                 newBest = true;

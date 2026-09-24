@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Command } from "cmdk";
+import { trackEvent } from "@/lib/track";
 import * as Dialog from "@radix-ui/react-dialog";
 import {
     IconHome,
@@ -481,7 +482,7 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 <Item value="get lost in space meteor dodge game 404" icon={<IconMeteor />} hint="the 404 page is a game" onSelect={() => runCommand(() => (window.location.href = "/lost-in-space"))}>
                                                     Get lost in space
                                                 </Item>
-                                                <Item value="arcade 3d games play asteroid run stack the station gravity assist planets space" external icon={<IconDeviceGamepad2 />} hint="3D · three space games" onSelect={() => runCommand(() => window.open("/arcade", "_blank"))}>
+                                                <Item value="arcade 3d games play asteroid run stack the station gravity assist planets space" external icon={<IconDeviceGamepad2 />} hint="3D · three space games" onSelect={() => runCommand(() => (trackEvent("arcade_link", { from: "command-menu" }), window.open("/arcade", "_blank")))}>
                                                     Arcade
                                                 </Item>
                                                 <Item value="arcade games terminal snake invaders tetris" external icon={<IconDeviceGamepad2 />} hint="snake, invaders, tetris and more" onSelect={() => runCommand(() => window.open("/terminal.html?cmd=play", "_blank"))}>

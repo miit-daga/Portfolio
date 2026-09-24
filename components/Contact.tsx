@@ -6,6 +6,7 @@ import Heading from "./Heading";
 import Socials from "./Socials";
 import { IconMail, IconPhone, IconCheck, IconCopy, IconSend, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
+import { trackEvent } from "@/lib/track";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import { useMailCourier } from "./ui/mail-courier";
@@ -219,6 +220,7 @@ export function Contact() {
                 {/* The 3D games (app/arcade) */}
                 <a
                     href="/arcade"
+                    onClick={() => trackEvent("arcade_link", { from: "footer" })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"

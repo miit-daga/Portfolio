@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { trackEvent } from "@/lib/track";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
 import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
@@ -422,6 +423,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                     }
                 }
                 result = { kind: "arrived", body: NAMES[level.bodies[level.target].kind], stars: s, top: p.fastest * KMS };
+                trackEvent("gravity_assist_arrived", { mission: levelIndex + 1, name: level.name, stars: s, launches });
                 sfxArrive();
             } else if (p.state === "crashed") {
                 result = { kind: "crashed", body: hit ? (p.rings ? "Saturn's rings" : NAMES[hit.kind]) : "", skipped, rings: p.rings, tooFast: p.tooFast ? p.tooFast * KMS : undefined };

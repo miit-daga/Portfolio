@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { trackEvent } from "@/lib/track";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
 import { alignStars, glowTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints } from "./space";
 
@@ -353,6 +354,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const end = () => {
             phase = "over";
             const s = score();
+            trackEvent("asteroid_run_over", { score: s, seconds: Math.round(time) });
             if (s > best) {
                 best = s;
                 newBest = true;

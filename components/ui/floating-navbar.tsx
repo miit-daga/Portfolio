@@ -18,6 +18,7 @@ import { IconFileText } from "@tabler/icons-react";
 import { kolkataNow } from "@/lib/kolkata";
 import { scrollToSection } from "@/lib/scroll-to-section";
 import { MagneticWrapper } from "./magnetic-wrapper";
+import { trackEvent } from "@/lib/track";
 import { getSection, type SectionId } from "@/constants/sections";
 
 // Desktop: the full bar at the top of the page and whenever you scroll up;
@@ -379,6 +380,7 @@ export const FloatingNav = ({
           // as one wasted a request and logged a 404 on every page load
           prefetch={false}
           onClick={(e) => {
+            if (isArcade) trackEvent("arcade_link", { from: "navbar" });
             fireTrail(activeSection, navItem.link);
             handleNavClick(e, navItem.link);
           }}
@@ -710,7 +712,11 @@ export const FloatingNav = ({
                           href={item.link}
                           target={item.name === "Terminal" || item.name === "Arcade" ? "_blank" : undefined}
                           rel={item.name === "Terminal" || item.name === "Arcade" ? "noopener noreferrer" : undefined}
-                          onClick={(e) => { handleNavClick(e, item.link); toggleMenu(); }}
+                          onClick={(e) => {
+                            if (item.name === "Arcade") trackEvent("arcade_link", { from: "phone-menu" });
+                            handleNavClick(e, item.link);
+                            toggleMenu();
+                          }}
                           className="relative flex items-center gap-3.5 overflow-hidden rounded-2xl border px-3.5 py-2.5 transition-colors active:bg-white/5"
                           style={{
                             borderColor: isActive ? rgba(acc.rgb, 0.4) : "transparent",
