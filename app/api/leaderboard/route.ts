@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readFile, storeReady, writeFile } from "@/lib/store";
+import { hasKv, kv, kvPipeline, readFile, storeReady, writeFile } from "@/lib/store";
 import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
 import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
 import { fly } from "@/app/arcade/assist-sim";
@@ -121,6 +121,32 @@ async function write(data: Stored): Promise<void> {
 
 const strip = (e: Entry): PublicEntry => ({ name: e.name, score: e.score, at: e.at });
 
+// ---- Redis: collision-proof boards ------------------------------------------
+// Each board is a hash, lbe:<board>, one field per row (a random id, the row's
+// JSON). A post adds only its own field, atomically, then removes the rows
+// that fell off (past the top ten, or past three for one player): removing a
+// named field is safe however many posts land at once, so no post can undo
+// another. The rate limits are Redis counters with expiry, atomic too.
+const REDIS = () => hasKv() && !MEMORY;
+type Row = Entry & { id: string };
+const rowsOf = (flat: string[] | null): Row[] => {
+  const out: Row[] = [];
+  for (let k = 0; flat && k < flat.length; k += 2) {
+    try {
+      out.push({ ...(JSON.parse(flat[k + 1]) as Entry), id: flat[k] });
+    } catch {
+      /* skip a damaged row */
+    }
+  }
+  return out;
+};
+const order = (lower?: boolean) => (a: Entry, b: Entry) =>
+  (lower ? a.score - b.score : b.score - a.score) || Date.parse(a.at) - Date.parse(b.at);
+async function redisBoards(keys: string[]): Promise<Row[][]> {
+  const res = await kvPipeline<string[]>(keys.map((k) => ["HGETALL", `lbe:${k}`]));
+  return res.map(rowsOf);
+}
+
 // The daily mission's board key, for today or yesterday (someone's evening
 // can be the next day in UTC); reading any past day is allowed
 const today = () => dayKey();
@@ -144,10 +170,15 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await read();
     // (the 3D arcade's boards only when asked for by name)
     const wanted = game ? [game as GameKey] : GAME_KEYS.filter((k) => !GAMES[k].arcade);
     const boards: Record<string, PublicEntry[]> = {};
+    if (REDIS()) {
+      const rows = await redisBoards(wanted.map((k) => boardKey(k, day)));
+      wanted.forEach((k, i) => (boards[k] = rows[i].sort(order(GAMES[k].lower)).slice(0, TOP_N).map(strip)));
+      return NextResponse.json({ configured: true, boards });
+    }
+    const data = await read();
     for (const key of wanted) {
       boards[key] = (data.boards[boardKey(key, day)] ?? []).slice(0, TOP_N).map(strip);
     }
@@ -223,6 +254,76 @@ export async function POST(request: Request) {
   }
 
   const ipHash = await hashIp(clientIp(request));
+
+  if (REDIS()) {
+    try {
+      // the limits: ten seconds between posts, twenty a day
+      const today0 = new Date().toISOString().slice(0, 10);
+      const [gap, count] = await kvPipeline<string | number | null>([
+        ["SET", `lbgap:${ipHash}`, "1", "NX", "PX", MIN_INTERVAL_MS],
+        ["INCR", `lbday:${ipHash}:${today0}`],
+        ["EXPIRE", `lbday:${ipHash}:${today0}`, 86_400],
+      ]);
+      if (gap === null) return NextResponse.json({ error: "Easy there. Ten seconds between submissions." }, { status: 429 });
+      if (Number(count) > MAX_PER_DAY) return NextResponse.json({ error: "That is enough for today." }, { status: 429 });
+
+      const key = boardKey(game, day);
+      const sort = order(meta.lower);
+      const board = (await redisBoards([key]))[0].sort(sort);
+      const whose = (e: Entry) => (meta.arcade ? (e.player ?? e.ipHash) === (player ?? ipHash) : e.name.toLowerCase() === name.toLowerCase());
+      const sameName = board.filter(whose);
+      const owner = sameName.find((e) => e.player)?.player;
+      if (!meta.arcade && owner && player && owner !== player) {
+        return NextResponse.json({ error: `"${name}" is taken on this board by someone else. Pick another.`, code: "name_taken" }, { status: 409 });
+      }
+      const unchanged = () =>
+        NextResponse.json({
+          ok: true,
+          improved: false,
+          best: bestOf(sameName.map((e) => e.score)),
+          rank: board.filter((e) => better(e.score, score)).length + 1,
+          board: board.slice(0, TOP_N).map(strip),
+        });
+      if (sameName.some((e) => e.score === score)) return unchanged();
+      const weakest = sameName.length >= PER_NAME ? worstOf(sameName.map((e) => e.score)) : null;
+      if (weakest !== null && !better(score, weakest)) return unchanged();
+
+      // add this row, on its own
+      const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      const entry: Entry = { name, score, at: new Date().toISOString(), ipHash, player };
+      await kvPipeline([
+        ["HSET", `lbe:${key}`, id, JSON.stringify(entry)],
+        ...(game === "assist-daily" ? [["EXPIRE", `lbe:${key}`, 8 * 86_400] as (string | number)[]] : []),
+      ]);
+      // then take away whatever has fallen off, as the board stands now
+      const now = (await redisBoards([key]))[0].sort(sort);
+      const perPlayer = new Map<string, number>();
+      const keep: Row[] = [];
+      const drop: string[] = [];
+      for (const r of now) {
+        const who = meta.arcade ? (r.player ?? r.ipHash) : r.name.toLowerCase();
+        const n = perPlayer.get(who) ?? 0;
+        if (n >= PER_NAME || keep.length >= TOP_N) drop.push(r.id);
+        else {
+          perPlayer.set(who, n + 1);
+          keep.push(r);
+        }
+      }
+      if (drop.length) await kv(["HDEL", `lbe:${key}`, ...drop]);
+      const rank = keep.findIndex((r) => r.id === id) + 1;
+      return NextResponse.json({
+        ok: true,
+        improved: true,
+        previous: sameName.length ? bestOf(sameName.map((e) => e.score)) : null,
+        score,
+        rank: rank || null,
+        board: keep.map(strip),
+      });
+    } catch (error) {
+      console.error("Leaderboard write failed:", error);
+      return NextResponse.json({ error: "Could not update the leaderboard." }, { status: 502 });
+    }
+  }
 
   try {
     const data = await read();
@@ -345,8 +446,13 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Which board?" }, { status: 400 });
   }
   try {
-    const data = await read();
     const k = boardKey(game, day as string | undefined);
+    if (REDIS()) {
+      const removed = (await redisBoards([k]))[0].length;
+      await kv(["DEL", `lbe:${k}`]);
+      return NextResponse.json({ ok: true, board: k, removed });
+    }
+    const data = await read();
     const removed = data.boards[k]?.length ?? 0;
     delete data.boards[k];
     await write(data);
