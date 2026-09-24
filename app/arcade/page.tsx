@@ -4,7 +4,7 @@ import { Arcade } from "./arcade";
 
 export const metadata: Metadata = {
     title: "Arcade",
-    description: "Three small 3D space games: Asteroid Run, Stack the Station, and Gravity Assist.",
+    description: "Three small 3D space games: Gravity Assist, Asteroid Run, and Stack the Station.",
     alternates: { canonical: "/arcade" },
     // (the share picture is opengraph-image.jpg, beside this file)
     openGraph: {

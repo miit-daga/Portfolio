@@ -6,9 +6,9 @@ import { trackEvent } from "@/lib/track";
 // The stills are the arcade cards' own, small and loaded only as it nears view.
 
 const GAMES = [
+    { id: "assist", title: "Gravity Assist", hue: "167,139,250" },
     { id: "run", title: "Asteroid Run", hue: "45,212,191" },
     { id: "stack", title: "Stack the Station", hue: "251,191,36" },
-    { id: "assist", title: "Gravity Assist", hue: "167,139,250" },
 ];
 
 export function ArcadeTeaser() {
@@ -18,7 +18,7 @@ export function ArcadeTeaser() {
                 <div className="md:w-64 md:shrink-0">
                     <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Off duty · crew arcade</p>
                     <p className="font-display mt-1.5 text-xl font-bold leading-snug text-white">Three space games, built for this site</p>
-                    <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">Real NASA skies and planets, right in the browser. Fly, build, or slingshot a probe.</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-neutral-400">Real NASA skies and planets, right in the browser. Slingshot a probe, fly, or build.</p>
                     <a
                         href="/arcade"
                         target="_blank"

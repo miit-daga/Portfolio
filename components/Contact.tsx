@@ -225,7 +225,7 @@ export function Contact() {
                     rel="noopener noreferrer"
                     className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"
                 >
-                    ▶ Crew arcade · Asteroid Run · Stack the Station · Gravity Assist
+                    ▶ Crew arcade · Gravity Assist · Asteroid Run · Stack the Station
                 </a>
                 <BigCrunchKeys />
             </div>

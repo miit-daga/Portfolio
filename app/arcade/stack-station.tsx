@@ -744,7 +744,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 // a tap anywhere starts, as well as the button
                 <div className="pointer-events-none absolute inset-0 flex items-end justify-center p-6 pb-24 sm:items-center sm:pb-6">
                     <div className="pointer-events-auto max-w-sm rounded-2xl border border-teal-400/25 bg-black/60 p-6 text-center backdrop-blur-md">
-                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Build over" : "Crew arcade · 02"}</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Build over" : "Crew arcade · 03"}</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score} modules` : "Stack the Station"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">Your tallest station yet!</p>}
                         {hud.phase === "over" && <Board game="stack-station" score={hud.score} format={(n) => `${n} ${n === 1 ? "module" : "modules"}`} />}

@@ -445,15 +445,25 @@ export const SignalGlobe = () => {
                 ctx.restore();
             }
 
-            // Continents, as dots, dimmer on the night side
+            // Continents, as dots, dimmer on the night side. Drawn grouped by
+            // their colour (the same rounded alpha as ever), one colour change
+            // a group rather than one a dot: same-coloured dots blend alike in
+            // any order, so the picture is the same, for far less work
             const dotSize = 1.15 * Math.min(1.6, v.zoom);
+            const dotGroups = new Map<string, number[]>();
             for (const d of LAND_DOTS) {
                 const p = rot(d);
                 if (p[2] < 0.04) continue;
                 const lit = d[0] * sunW[0] + d[1] * sunW[1] + d[2] * sunW[2] > 0;
-                ctx.fillStyle = `rgba(203,213,225,${((lit ? 0.5 : 0.22) * (0.35 + 0.65 * p[2])).toFixed(3)})`;
-                ctx.fillRect(CX - Rz * p[0] - dotSize / 2, CY - Rz * p[1] - dotSize / 2, dotSize, dotSize);
+                const a = ((lit ? 0.5 : 0.22) * (0.35 + 0.65 * p[2])).toFixed(3);
+                let g = dotGroups.get(a);
+                if (!g) dotGroups.set(a, (g = []));
+                g.push(CX - Rz * p[0] - dotSize / 2, CY - Rz * p[1] - dotSize / 2);
             }
+            dotGroups.forEach((xy, a) => {
+                ctx.fillStyle = `rgba(203,213,225,${a})`;
+                for (let i = 0; i < xy.length; i += 2) ctx.fillRect(xy[i], xy[i + 1], dotSize, dotSize);
+            });
 
             // Grid
             ctx.lineWidth = 0.6;

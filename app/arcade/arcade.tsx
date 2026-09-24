@@ -22,8 +22,18 @@ function Loading() {
 type Game = "run" | "stack" | "assist";
 const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; best: string; bestKey: string; hue: string }[] = [
     {
-        id: "run",
+        id: "assist",
         no: "01",
+        title: "Gravity Assist",
+        blurb: "Send a probe from Earth to other worlds, bending its path round the planets on the way, and catch a moving one to be flung on faster, as Voyager was. Eighteen missions, among them ISRO's Chandrayaan-3 and Mangalyaan and three round black holes, and a mission of the day in the real sky.",
+        how: "Drag back to aim, let go to launch · the same on a phone",
+        best: "Stars",
+        bestKey: "arcade-assist-stars",
+        hue: "167,139,250",
+    },
+    {
+        id: "run",
+        no: "02",
         title: "Asteroid Run",
         blurb: "Fly through an asteroid field, dodge the rocks and grab the glowing fragments. Look out for shield rings, invincibility stars and boosts. It gets faster the longer you last.",
         how: "Arrows, WASD or the mouse · drag on a phone",
@@ -33,23 +43,13 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
     },
     {
         id: "stack",
-        no: "02",
+        no: "03",
         title: "Stack the Station",
         blurb: "Build a space station above the Earth, one module at a time. Whatever hangs over the edge is sliced off, so line them up. Land one exactly for a Perfect.",
         how: "Space, Enter or click · tap on a phone",
         best: "Tallest",
         bestKey: "arcade-stack-best",
         hue: "251,191,36",
-    },
-    {
-        id: "assist",
-        no: "03",
-        title: "Gravity Assist",
-        blurb: "Send a probe from Earth to other worlds, bending its path round the planets on the way, and catch a moving one to be flung on faster, as Voyager was. Eighteen missions, among them ISRO's Chandrayaan-3 and Mangalyaan and three round black holes, and a mission of the day in the real sky.",
-        how: "Drag back to aim, let go to launch · the same on a phone",
-        best: "Stars",
-        bestKey: "arcade-assist-stars",
-        hue: "167,139,250",
     },
 ];
 

@@ -331,3 +331,43 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Could not update the leaderboard." }, { status: 502 });
   }
 }
+
+/**
+ * Clear one board: { game, day?, key }. Authorised by GUESTBOOK_ADMIN_KEY,
+ * the guestbook's admin key, which lives only on the server.
+ */
+export async function DELETE(request: Request) {
+  if (!gistId()) return NextResponse.json({ error: "The leaderboard is not configured yet." }, { status: 503 });
+  const adminKey = process.env.GUESTBOOK_ADMIN_KEY;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Malformed request." }, { status: 400 });
+  }
+  const { game, day, key } = (body ?? {}) as Record<string, unknown>;
+  const matches = (a: string, b: string) => {
+    if (a.length !== b.length) return false;
+    let d = 0;
+    for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    return d === 0;
+  };
+  if (!adminKey || typeof key !== "string" || !matches(key, adminKey)) {
+    await new Promise((r) => setTimeout(r, 600));
+    return NextResponse.json({ error: "Rejected." }, { status: 401 });
+  }
+  if (!isGameKey(game) || (game === "assist-daily" && !isDayKey(day))) {
+    return NextResponse.json({ error: "Which board?" }, { status: 400 });
+  }
+  try {
+    const data = await read();
+    const k = boardKey(game, day as string | undefined);
+    const removed = data.boards[k]?.length ?? 0;
+    delete data.boards[k];
+    await write(data);
+    return NextResponse.json({ ok: true, board: k, removed });
+  } catch (error) {
+    console.error("Leaderboard clear failed:", error);
+    return NextResponse.json({ error: "Could not update the leaderboard." }, { status: 502 });
+  }
+}

@@ -766,7 +766,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             {hud.phase !== "playing" && loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                     <div className="max-w-sm rounded-2xl border border-teal-400/25 bg-black/60 p-6 text-center backdrop-blur-md">
-                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Run over" : "Crew arcade · 01"}</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? "Run over" : "Crew arcade · 02"}</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score.toLocaleString()} points` : "Asteroid Run"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">A new best!</p>}
                         {hud.phase === "over" && (

@@ -983,7 +983,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             {hud.phase === "menu" && loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-end justify-center overflow-y-auto p-4 pb-20 sm:items-center sm:p-6">
                     <div className="pointer-events-auto max-h-[calc(100dvh-6rem)] w-full max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-violet-400/25 bg-black/65 p-5 backdrop-blur-md sm:p-6">
-                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-violet-300/90">Crew arcade · 03</p>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-violet-300/90">Crew arcade · 01</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">Gravity Assist</h1>
                         <p className="mt-2 text-sm leading-relaxed text-neutral-300">
                             Send a probe from Earth to another world, bending its path round the planets on the way. Drag back to aim, and let go to launch. A planet on the move can fling you on faster.
