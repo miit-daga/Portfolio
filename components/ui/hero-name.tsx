@@ -31,6 +31,11 @@ import { cn } from "@/lib/utils";
 
 const NAME = "Miit Daga";
 const LETTERS = Array.from(NAME).filter((c) => c !== " ").length;
+// Where each word starts and ends in NAME (the space between is its own letter)
+const WORDS = NAME.split(" ").reduce<{ start: number; end: number }[]>((acc, word) => {
+    const start = acc.length ? acc[acc.length - 1].end + 1 : 0;
+    return [...acc, { start, end: start + word.length }];
+}, []);
 
 // How the name is said: shown in the chip, and spoken by the browser
 const SAY = { phonetic: "meet · DAH-gah", spoken: "Meet Daaga" };
@@ -115,10 +120,12 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
                         ink = { x0: -m.actualBoundingBoxLeft, x1: m.actualBoundingBoxRight, y0: base - m.actualBoundingBoxAscent, y1: base + m.actualBoundingBoxDescent };
                     }
                     // Across the name: measured from the letter's outermost
-                    // wrapper, the one placed directly in the h1
+                    // wrapper, placed in its word (or, the space, in the h1),
+                    // plus where that word sits
                     let outer: HTMLElement | null = el;
-                    while (outer && outer.parentElement !== h) outer = outer.parentElement;
-                    return { left: outer?.offsetLeft ?? 0, width: el.offsetWidth, height: el.offsetHeight, ink };
+                    while (outer && outer.parentElement !== h && !outer.parentElement?.hasAttribute("data-word")) outer = outer.parentElement;
+                    const word = outer?.parentElement?.hasAttribute("data-word") ? outer.parentElement : null;
+                    return { left: (outer?.offsetLeft ?? 0) + (word?.offsetLeft ?? 0), width: el.offsetWidth, height: el.offsetHeight, ink };
                 }),
             );
         };
@@ -266,7 +273,9 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
             ref={ref}
             aria-label={NAME}
             className={cn(
-                "font-display pointer-events-auto relative select-none text-6xl md:text-8xl lg:text-9xl drop-shadow-2xl text-white tracking-tight font-bold",
+                // on one line: from 1280px wide it is as big as ever (8rem); narrower,
+                // it shrinks with the screen, so it fits the hero's half-width column
+                "font-display pointer-events-auto relative select-none text-6xl md:text-8xl lg:text-[clamp(5rem,calc(15.3vw-68px),8rem)] drop-shadow-2xl text-white tracking-tight font-bold",
                 glitching && "text-glitch",
             )}
             onPointerEnter={(e) => {
@@ -359,28 +368,38 @@ export function HeroName({ glitching, reduce }: { glitching: boolean; reduce: bo
                 </span>
             )}
 
-            {Array.from(NAME).map((ch, i) => (
-                <Letter
-                    key={i}
-                    ch={ch}
-                    index={i}
-                    box={boxes[i]}
-                    nameWidth={nameWidth}
-                    mx={mx}
-                    my={my}
-                    sweep={sweep}
-                    starlines={hover}
-                    reduce={reduce}
-                    champion={champion}
-                    registerFx={registerFx}
-                    lean={leans[i]}
-                    onDriftStart={onDriftStart}
-                    onDriftEnd={onDriftEnd}
-                    allowKnock={allowKnock}
-                    spanRef={(el) => (letterRefs.current[i] = el)}
-                    baseRef={(el) => (baseRefs.current[i] = el)}
-                />
-            ))}
+            {/* Each word held together (whitespace-nowrap), so the name can
+                only ever break at its space, never inside "Daga" */}
+            {WORDS.map(({ start, end }, w) => {
+                const letter = (i: number) => (
+                    <Letter
+                        key={i}
+                        ch={NAME[i]}
+                        index={i}
+                        box={boxes[i]}
+                        nameWidth={nameWidth}
+                        mx={mx}
+                        my={my}
+                        sweep={sweep}
+                        starlines={hover}
+                        reduce={reduce}
+                        champion={champion}
+                        registerFx={registerFx}
+                        lean={leans[i]}
+                        onDriftStart={onDriftStart}
+                        onDriftEnd={onDriftEnd}
+                        allowKnock={allowKnock}
+                        spanRef={(el) => (letterRefs.current[i] = el)}
+                        baseRef={(el) => (baseRefs.current[i] = el)}
+                    />
+                );
+                return [
+                    w > 0 ? letter(start - 1) : null,
+                    <span key={`w${w}`} data-word className="relative inline-block whitespace-nowrap">
+                        {Array.from({ length: end - start }, (_, k) => letter(start + k))}
+                    </span>,
+                ];
+            })}
         </h1>
     );
 }
