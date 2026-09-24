@@ -6,13 +6,13 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
-import { BOUNDS, LEVELS, VMAX, bodyAt, captureRadius, flybyRadius, launch, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
+import { LEVELS, VMAX, bodyAt, captureRadius, launch, passRadius, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
 
 // Gravity Assist: send a probe from Earth to another world, bending its path
 // round the planets on the way. Drag back from anywhere to aim (the further,
 // the faster), and let go to launch; the dotted line shows where the first
 // stretch will go. Later missions have planets moving round the Sun, and ask
-// for flybys on the way. Eight missions, each with up to three stars for
+// for flybys on the way. Fifteen missions, two of them ISRO's, each with up to three stars for
 // arriving in few launches. The physics is in assist-sim.ts.
 
 const PROGRESS_KEY = "arcade-assist";
@@ -27,6 +27,7 @@ type Hud = { phase: Phase; level: number; launches: number; power: number; speed
 const NAMES: Record<Kind, string> = { sun: "the Sun", earth: "Earth", moon: "the Moon", mars: "Mars", jupiter: "Jupiter", saturn: "Saturn", neptune: "Neptune", rock: "an asteroid" };
 const MAPS: Partial<Record<Kind, string>> = {
     earth: "planet-earth.jpg",
+    moon: "planet-moon.jpg",
     mars: "planet-mars.jpg",
     jupiter: "planet-jupiter.jpg",
     saturn: "planet-saturn.jpg",
@@ -267,7 +268,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 }
                 if (level.flyby?.includes(bi)) {
                     s.ringMat = new THREE.LineDashedMaterial({ color: 0xfbbf24, dashSize: 0.6, gapSize: 0.8, transparent: true, opacity: 0.6 });
-                    s.ring = circle(flybyRadius(b.r), s.ringMat);
+                    s.ring = circle(passRadius(b), s.ringMat);
                     group.add(s.ring);
                 }
                 world.add(group);
@@ -532,7 +533,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             };
             for (const b of level.bodies) {
                 if (b.orbit) add(b.orbit.around[0], b.orbit.around[1], b.orbit.R + b.r * 2);
-                else add(b.at![0], b.at![1], level.flyby?.includes(level.bodies.indexOf(b)) ? flybyRadius(b.r) : b.kind === "sun" ? b.r * 2 : captureRadius(b.r));
+                else add(b.at![0], b.at![1], level.flyby?.includes(level.bodies.indexOf(b)) ? passRadius(b) : b.kind === "sun" ? b.r * 2 : captureRadius(b.r));
             }
             // on a tall screen the view turns, so the long way runs up it
             const tall = w / h < 0.9;
@@ -819,13 +820,13 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
             {/* the missions */}
             {hud.phase === "menu" && loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-end justify-center overflow-y-auto p-4 pb-20 sm:items-center sm:p-6">
-                    <div className="pointer-events-auto w-full max-w-md rounded-2xl border border-violet-400/25 bg-black/65 p-5 backdrop-blur-md sm:p-6">
+                    <div className="pointer-events-auto max-h-[calc(100dvh-6rem)] w-full max-w-xl overflow-y-auto overscroll-contain rounded-2xl border border-violet-400/25 bg-black/65 p-5 backdrop-blur-md sm:p-6">
                         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-violet-300/90">Crew arcade · 03</p>
                         <h1 className="font-display mt-2 text-3xl font-bold">Gravity Assist</h1>
                         <p className="mt-2 text-sm leading-relaxed text-neutral-300">
                             Send a probe from Earth to another world, bending its path round the planets on the way. Drag back to aim, and let go to launch. A planet on the move can fling you on faster.
                         </p>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                             {LEVELS.map((l, i) => {
                                 const open = unlocked(hud.stars, i);
                                 return (
@@ -834,12 +835,12 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                                         type="button"
                                         disabled={!open}
                                         onClick={() => api.current.open(i)}
-                                        className={`rounded-xl border px-3 py-2 text-left transition-colors ${
+                                        className={`rounded-xl border px-3 py-1.5 text-left transition-colors ${
                                             i === hud.level ? "border-violet-300/70 bg-violet-400/10" : "border-white/10 hover:border-white/25"
                                         } ${open ? "" : "cursor-not-allowed opacity-40"}`}
                                     >
                                         <span className="block font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">{i + 1}</span>
-                                        <span className="block text-sm text-white">{l.name}</span>
+                                        <span className="block truncate text-sm text-white">{l.name}</span>
                                         <span className="block text-xs tracking-widest text-amber-300" aria-label={`${hud.stars[i]} of 3 stars`}>
                                             {"★".repeat(hud.stars[i])}
                                             <span className="text-white/15">{"★".repeat(3 - hud.stars[i])}</span>

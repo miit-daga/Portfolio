@@ -11,7 +11,8 @@
 
 export type Kind = "sun" | "earth" | "moon" | "mars" | "jupiter" | "saturn" | "neptune" | "rock";
 export type Orbit = { around: [number, number]; R: number; period: number; phase: number };
-export type Body = { kind: Kind; r: number; mu: number; at?: [number, number]; orbit?: Orbit };
+// (pass: how close counts as a flyby, where a mission wants it closer than usual)
+export type Body = { kind: Kind; r: number; mu: number; at?: [number, number]; orbit?: Orbit; pass?: number };
 export type Level = {
     name: string;
     brief: string;
@@ -36,6 +37,7 @@ const SOFT = 0.25;
 /** How close counts as a flyby, and as arriving, for a body of radius r. */
 export const flybyRadius = (r: number) => r * 3.2 + 1.5;
 export const captureRadius = (r: number) => r * 1.8 + 2;
+export const passRadius = (b: Body) => b.pass ?? flybyRadius(b.r);
 
 /** Where a body is at time t. */
 export function bodyAt(b: Body, t: number, out: [number, number] = [0, 0]): [number, number] {
@@ -168,6 +170,103 @@ export const LEVELS: Level[] = [
         flyby: [1, 2],
         par: 5,
     },
+    {
+        name: "Chandrayaan-3",
+        brief: "ISRO's Moon mission: catch the Moon as it goes round Earth.",
+        fact: "Chandrayaan-3's Vikram lander touched down near the Moon's south pole on 23 August 2023, the first landing there.",
+        bodies: [
+            { kind: "earth", r: 1.8, mu: 700, at: [-26, -6] },
+            { kind: "moon", r: 1, mu: 260, orbit: { around: [-26, -6], R: 28, period: 26, phase: 0.4 } },
+        ],
+        start: 0,
+        target: 1,
+        par: 2,
+    },
+    {
+        name: "Two giants",
+        brief: "Thread the gap between Jupiter and Saturn to reach Neptune.",
+        fact: "Jupiter and Saturn line up in our sky every 20 years or so, the Great Conjunction.",
+        bodies: [
+            EARTH(-44, 4),
+            { kind: "jupiter", r: 4.2, mu: 2600, at: [-4, 10] },
+            { kind: "saturn", r: 3.4, mu: 2200, at: [-2, -8] },
+            { kind: "neptune", r: 2.3, mu: 400, at: [42, -16] },
+        ],
+        start: 0,
+        target: 3,
+        par: 3,
+    },
+    {
+        name: "Close to the Sun",
+        brief: "Skim close past the Sun, through the amber ring, then reach Mars.",
+        fact: "Parker Solar Probe, the fastest thing people have made, flies within 6.2 million km of the Sun.",
+        bodies: [
+            EARTH(-44, 20),
+            { kind: "sun", r: 4.5, mu: 2400, at: [-2, 0], pass: 12.5 },
+            { kind: "mars", r: 1.3, mu: 60, at: [40, -16] },
+        ],
+        start: 0,
+        target: 2,
+        flyby: [1],
+        par: 3,
+    },
+    {
+        name: "Mangalyaan",
+        brief: "ISRO's Mars Orbiter Mission. Mars starts on the far side of the Sun: swing round the Sun, or wait for Mars to come round, and aim for where it will be.",
+        fact: "India's Mars Orbiter Mission reached Mars on 24 September 2014, the first to get there on a first attempt.",
+        bodies: [
+            EARTH(-52, -6),
+            { kind: "sun", r: 4.5, mu: 3200, at: [2, 0] },
+            { kind: "mars", r: 1.3, mu: 60, orbit: { around: [2, 0], R: 24, period: 30, phase: -0.5 } },
+        ],
+        start: 0,
+        target: 2,
+        par: 4,
+    },
+    {
+        name: "The maze",
+        brief: "Two walls of asteroids, with a gap at opposite ends. Wind your way through to Mars.",
+        fact: "The asteroid belt holds over a million rocks bigger than a kilometre, yet all of it together weighs less than the Moon.",
+        bodies: [
+            EARTH(-44, -14),
+            { kind: "jupiter", r: 4, mu: 2400, at: [0, 2] },
+            { kind: "mars", r: 1.3, mu: 60, at: [42, 14] },
+            ...belt([-20, 36], [-16, -8], 14, 11),
+            ...belt([16, -36], [20, 10], 14, 13),
+        ],
+        start: 0,
+        target: 2,
+        par: 4,
+    },
+    {
+        name: "Free return",
+        brief: "Loop round the Moon and come home to Earth, the way Apollo 13 did.",
+        fact: "Apollo 13's crew swung round the Moon to get home after an oxygen tank burst in 1970.",
+        bodies: [
+            { kind: "earth", r: 1.8, mu: 700, at: [-18, -4] },
+            { kind: "moon", r: 1, mu: 600, orbit: { around: [-18, -4], R: 22, period: 26, phase: 0.2 } },
+        ],
+        start: 0,
+        target: 0,
+        flyby: [1],
+        par: 5,
+    },
+    {
+        name: "Double assist",
+        brief: "Jupiter and Saturn are both on the move. Catch them one after the other, and on to Neptune.",
+        fact: "Voyager 1 used Jupiter and Saturn to head out of the solar system; it is now over 25 billion km away.",
+        bodies: [
+            EARTH(-46, -24),
+            { kind: "sun", r: 4.5, mu: 2000, at: [-20, 0] },
+            { kind: "jupiter", r: 3.6, mu: 1400, orbit: { around: [-20, 0], R: 15, period: 13, phase: 0.8 } },
+            { kind: "saturn", r: 3, mu: 1200, orbit: { around: [-20, 0], R: 30, period: 26, phase: 0.2 } },
+            { kind: "neptune", r: 2.3, mu: 400, at: [46, 24] },
+        ],
+        start: 0,
+        target: 4,
+        flyby: [2, 3],
+        par: 6,
+    },
 ];
 
 // Worlds drawn big enough to see: every body is 1.5 times the size laid out
@@ -247,7 +346,9 @@ export function step(level: Level, p: Probe) {
         const b = level.bodies[i];
         bodyAt(b, p.t, pos);
         const d = Math.hypot(pos[0] - p.x, pos[1] - p.y);
-        if (i === level.target && d < captureRadius(b.r)) {
+        // (a mission can end back at Earth: it only counts once the probe has been away)
+        const leaving = i === level.start && p.flight < 2;
+        if (i === level.target && d < captureRadius(b.r) && !leaving) {
             // it only counts once the flybys are done; before that, the probe flies on
             if (need.every((k) => p.passed[k])) {
                 p.state = "arrived";
@@ -260,7 +361,7 @@ export function step(level: Level, p: Probe) {
             p.hit = i;
             return;
         }
-        if (d < flybyRadius(b.r)) p.passed[i] = true;
+        if (d < passRadius(b)) p.passed[i] = true;
     }
     if (Math.abs(p.x) > BOUNDS.x || Math.abs(p.y) > BOUNDS.y || p.flight > MAX_TIME) p.state = "lost";
 }
