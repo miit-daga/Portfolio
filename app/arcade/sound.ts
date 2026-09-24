@@ -66,6 +66,20 @@ export const sfxCollect = () => {
 export const sfxShield = () => {
     [523, 784, 1046, 1568].forEach((f, i) => tone(f, i * 0.06, 0.3, 0.07, "triangle"));
 };
+/** Invincible: a shimmering, rising sparkle. */
+export const sfxStar = () => {
+    [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, i * 0.05, 0.4, 0.06, "sine"));
+};
+/** Boost: a rushing surge, rising. */
+export const sfxBoost = () => {
+    noiseBurst(0.9, 0.18, 600, 5000);
+    tone(120, 0, 0.8, 0.12, "sawtooth", 520);
+};
+/** A rock shattered by an invincible or boosting ship. */
+export const sfxSmash = () => {
+    noiseBurst(0.25, 0.2, 5000, 400);
+    tone(300, 0, 0.15, 0.06, "square", 120);
+};
 /** Hit by a rock. */
 export const sfxHit = () => {
     noiseBurst(0.6, 0.35, 2400, 120);

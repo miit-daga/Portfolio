@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { isMuted, setEngine, setMuted, sfxCollect, sfxHit, sfxOver, sfxShield, stopEngine } from "./sound";
+import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
 // Now and then, once a shield is down, a blue shield ring comes by: flying
-// through it restores one.
+// through it restores one. Rarer still, two power-ups: a golden star makes
+// the ship invincible for a few seconds (rocks shatter on it), and a violet
+// arrow boosts it forward, fast and untouchable, for double the distance.
 // Arrow keys or WASD, or the mouse; on a phone, drag anywhere. Three hits and
 // the run is over. The best score is kept in this browser.
 
@@ -18,7 +20,10 @@ const FRAGS = 8;
 const FAR = -190;
 
 type Phase = "ready" | "playing" | "over";
-type Hud = { score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number };
+type Power = "star" | "boost";
+const POWER_TIME: Record<Power, number> = { star: 6, boost: 4 };
+const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
+type Hud = { score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
 
 // A lumpy rock: an icosahedron with its corners pushed in and out, the same
 // corner moved the same way on every face that shares it
@@ -41,7 +46,7 @@ function rockGeometry(seed: number) {
 
 export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0 });
+    const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
     const [muted, setMutedState] = useState(false);
     const start = useRef<() => void>(() => {});
 
@@ -161,6 +166,51 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         let shieldAt = 0;
         const nextRing = () => 14 + Math.random() * 10;
 
+        // The power-ups. A golden star (two interlocked tetrahedra) for
+        // invincibility, a violet double arrow for the boost
+        const starPickup = new THREE.Group();
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xfde68a, emissive: 0xf59e0b, emissiveIntensity: 1.5, metalness: 0.4, roughness: 0.25, flatShading: true });
+        const tetra = new THREE.TetrahedronGeometry(0.62);
+        const t1 = new THREE.Mesh(tetra, goldMat);
+        const t2 = new THREE.Mesh(tetra, goldMat);
+        t2.rotation.set(Math.PI, 0, Math.PI / 2);
+        starPickup.add(t1, t2, new THREE.PointLight(0xfbbf24, 3, 7));
+        const arrowPickup = new THREE.Group();
+        const violetMat = new THREE.MeshStandardMaterial({ color: 0xe9d5ff, emissive: 0xa855f7, emissiveIntensity: 1.6, metalness: 0.3, roughness: 0.3, side: THREE.DoubleSide });
+        const chevron = new THREE.Shape();
+        chevron.moveTo(-0.55, -0.35);
+        chevron.lineTo(0, 0.2);
+        chevron.lineTo(0.55, -0.35);
+        chevron.lineTo(0.55, -0.05);
+        chevron.lineTo(0, 0.5);
+        chevron.lineTo(-0.55, -0.05);
+        chevron.closePath();
+        const chevGeo = new THREE.ExtrudeGeometry(chevron, { depth: 0.14, bevelEnabled: false });
+        [0, 0.42].forEach((dy) => {
+            const c = new THREE.Mesh(chevGeo, violetMat);
+            c.position.y = dy - 0.3;
+            arrowPickup.add(c);
+        });
+        arrowPickup.add(new THREE.PointLight(0xa855f7, 3, 7));
+        [starPickup, arrowPickup].forEach((g) => {
+            g.visible = false;
+            scene.add(g);
+        });
+        const pickups: Record<Power, THREE.Group> = { star: starPickup, boost: arrowPickup };
+        let pickupLive: Power | null = null;
+        let pickupTimer = 0;
+        const nextPickup = () => 18 + Math.random() * 12;
+        // the one running now, and how long it has left
+        let power: Power | null = null;
+        let powerLeft = 0;
+        // the ship's glow while one runs
+        const auraMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
+        const aura = new THREE.Mesh(new THREE.SphereGeometry(1.35, 24, 16), auraMat);
+        aura.scale.set(1.25, 0.7, 1.35);
+        aura.visible = false;
+        ship.add(aura);
+        let baseFov = 62;
+
         // ---- the run ---------------------------------------------------------
         let phase: Phase = "ready";
         let speed = 0;
@@ -181,6 +231,11 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             frags.forEach((f) => ((f.live = false), (f.mesh.visible = false)));
             ringLive = false;
             shieldRing.visible = false;
+            pickupLive = null;
+            starPickup.visible = arrowPickup.visible = false;
+            power = null;
+            powerLeft = 0;
+            aura.visible = false;
         };
         const spawnRock = (aimed: boolean) => {
             const r = rocks.find((x) => !x.live);
@@ -205,7 +260,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         };
         const score = () => Math.floor(distance / 10) + bonus;
         const pushHud = () =>
-            setHud({ score: score(), shields, speed: Math.round(speed * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt });
+            setHud({ score: score(), shields, speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt, power, powerLeft });
 
         const begin = () => {
             clearField();
@@ -216,6 +271,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             invulnerable = 1;
             rockTimer = fragTimer = 0;
             ringTimer = nextRing();
+            pickupTimer = nextPickup();
             shieldAt = 0;
             newBest = false;
             shipPos.x = shipPos.y = vel.x = vel.y = 0;
@@ -301,7 +357,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             renderer.domElement.style.height = "100%";
             camera.aspect = w / h;
             // narrow screens see the same width of the field
-            camera.fov = w / h < 0.9 ? 78 : 62;
+            baseFov = w / h < 0.9 ? 78 : 62;
+            camera.fov = baseFov;
             camera.updateProjectionMatrix();
         };
         fit();
@@ -339,7 +396,17 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 shipPos.y = THREE.MathUtils.clamp(shipPos.y + vel.y * dt, -BOUNDS.y, BOUNDS.y);
                 time += dt;
                 speed = Math.min(88, 26 + time * 1.15);
-                distance += speed * dt;
+                // a boost: over twice as fast, and its distance counts double
+                distance += speed * dt * (power === "boost" ? 4.4 : 1);
+                if (power) {
+                    powerLeft -= dt;
+                    if (powerLeft <= 0) {
+                        power = null;
+                        aura.visible = false;
+                        invulnerable = Math.max(invulnerable, 0.8);
+                        pushHud();
+                    }
+                }
                 invulnerable = Math.max(0, invulnerable - dt);
                 setEngine(0.05, speed / 88);
             } else {
@@ -357,9 +424,21 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             flameMat.opacity = 0.65 + Math.random() * 0.3;
 
             // the field comes at you
-            const dz = speed * dt;
+            const dz = speed * dt * (power === "boost" ? 2.2 : 1);
+            // the boost widens the view; the aura flickers in its last second
+            const fovTo = baseFov + (power === "boost" ? 16 : 0);
+            if (Math.abs(camera.fov - fovTo) > 0.05) {
+                camera.fov += (fovTo - camera.fov) * Math.min(1, dt * 5);
+                camera.updateProjectionMatrix();
+            }
+            if (power) {
+                auraMat.color.set(power === "star" ? 0xfbbf24 : 0xa855f7);
+                aura.visible = powerLeft > 1 || Math.floor(now / 110) % 2 === 0;
+                aura.rotation.z += dt * 2;
+                auraMat.opacity = 0.2 + Math.sin(now / 90) * 0.08;
+            }
             for (let i = 0; i < STAR_COUNT; i++) {
-                const z = starPos[i * 3 + 2] + dz * 1.6;
+                const z = starPos[i * 3 + 2] + dz * (power === "boost" ? 2.4 : 1.6);
                 starPos[i * 3 + 2] = z > 20 ? FAR - 60 : z;
             }
             starGeo.attributes.position.needsUpdate = true;
@@ -384,6 +463,18 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 if (r.mesh.position.z > 12) {
                     r.live = false;
                     r.mesh.visible = false;
+                    continue;
+                }
+                // invincible or boosting: rocks shatter on the ship, for points
+                if (playing && power && Math.abs(r.mesh.position.z) < r.r + 0.8) {
+                    tmp.set(shipPos.x, shipPos.y, 0);
+                    if (tmp.distanceTo(r.mesh.position) < r.r + 0.7) {
+                        r.live = false;
+                        r.mesh.visible = false;
+                        bonus += 25;
+                        shake = reduce ? 0 : 0.15;
+                        sfxSmash();
+                    }
                     continue;
                 }
                 if (playing && invulnerable <= 0 && Math.abs(r.mesh.position.z) < r.r + 0.8) {
@@ -446,6 +537,39 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                         shields = Math.min(SHIELDS, shields + 1);
                         shieldAt = Date.now();
                         sfxShield();
+                        pushHud();
+                    }
+                }
+            }
+
+            // the power-ups: one at a time, never while one is running
+            if (playing && !pickupLive && !power) {
+                pickupTimer -= dt;
+                if (pickupTimer <= 0) {
+                    pickupLive = Math.random() < 0.5 ? "star" : "boost";
+                    pickups[pickupLive].position.set((Math.random() - 0.5) * BOUNDS.x * 1.5, (Math.random() - 0.5) * BOUNDS.y * 1.5, FAR);
+                    pickups[pickupLive].visible = true;
+                    pickupTimer = nextPickup();
+                }
+            }
+            if (pickupLive) {
+                const g = pickups[pickupLive];
+                g.position.z += dz;
+                g.rotation.y += dt * 2.2;
+                if (pickupLive === "star") g.rotation.x += dt * 1.3;
+                if (g.position.z > 12) {
+                    g.visible = false;
+                    pickupLive = null;
+                } else if (playing && Math.abs(g.position.z) < 1.3) {
+                    tmp.set(shipPos.x, shipPos.y, 0);
+                    if (tmp.distanceTo(g.position) < 1.5) {
+                        power = pickupLive;
+                        powerLeft = POWER_TIME[power];
+                        g.visible = false;
+                        pickupLive = null;
+                        aura.visible = true;
+                        if (power === "star") sfxStar();
+                        else sfxBoost();
                         pushHud();
                     }
                 }
@@ -519,6 +643,19 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 </div>
             </div>
 
+            {/* the power-up running now, and its time */}
+            {hud.phase === "playing" && hud.power && (
+                <div className="pointer-events-none absolute left-1/2 top-4 w-48 -translate-x-1/2 text-center font-mono text-[11px] uppercase tracking-[0.25em] sm:top-6">
+                    <p className={hud.power === "star" ? "text-amber-300" : "text-violet-300"}>{POWER_NAME[hud.power]}</p>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                        <div
+                            className={`h-full ${hud.power === "star" ? "bg-amber-300" : "bg-violet-400"} ${hud.powerLeft < 1 ? "animate-pulse" : ""}`}
+                            style={{ width: `${Math.max(0, (hud.powerLeft / POWER_TIME[hud.power]) * 100)}%` }}
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* the buttons */}
             <div className="absolute bottom-4 left-4 flex gap-2 sm:bottom-6 sm:left-6">
                 <button type="button" onClick={onExit} className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm text-neutral-200 backdrop-blur hover:border-white/30 hover:text-white">
@@ -546,7 +683,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score.toLocaleString()} points` : "Asteroid Run"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">A new best!</p>}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
-                            Dodge the rocks, grab the glowing fragments for points. Lost a shield? Watch for the rare blue ring and fly through it. It gets faster the longer you last.
+                            Dodge the rocks, grab the glowing fragments for points. A blue ring restores a lost shield, a golden star makes you invincible, and a violet arrow boosts you forward. It gets faster the longer you last.
                         </p>
                         <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">
                             <span className="hidden sm:inline">Arrows / WASD or the mouse · M to mute</span>
