@@ -76,12 +76,12 @@ export const Publications = [
     {
         type: "patent" as const,
         venue: "Indian Patent",
-        status: "Filed · Sep 2025",
+        status: "Published · filed Sep 2025",
         title: "Co-inventor, AI Powered Smart Disease Detection",
         description: "A multi-crop diagnostic system using deep learning to achieve 99.3% accuracy in under 2.5 seconds. The invention discloses a system and method for rapid plant disease diagnosis across multiple crop species, supporting at least five plant species including coconut, rubber, black gram, turmeric, and eggplant. It enables high accuracy detection without specialized hardware, addressing critical needs in modern agriculture. The work has been filed as Indian Patent Application No. 202541082595 in September 2025.",
         link: "",
         visual: "patent" as const,
-        tldr: "A system that spots disease in the leaves of five crops, including coconut, rubber and turmeric, from an ordinary photo, with 99.3% accuracy in under 2.5 seconds and no special hardware. Filed as an Indian patent in September 2025.",
+        tldr: "A system that spots disease in the leaves of five crops, including coconut, rubber and turmeric, from an ordinary photo, with 99.3% accuracy in under 2.5 seconds and no special hardware. Filed as an Indian patent in September 2025, and now published.",
     },
 ];
 
@@ -102,7 +102,7 @@ const PublicationsSection = () => {
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications" style={accentVars(getSection("publications"))}>
             <Heading section="publications" />
             <p className="mt-4 text-center text-sm md:text-base text-neutral-400">
-                A few highlights below, drawn from 10 Scopus-indexed papers (with more under review), plus a book chapter and a filed patent.
+                A few highlights below, drawn from 10 Scopus-indexed papers (with more under review), plus a book chapter and a published patent.
             </p>
             {/* The whole list lives on ORCID */}
             <div className="mt-4 flex justify-center">

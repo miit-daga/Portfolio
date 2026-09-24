@@ -210,7 +210,7 @@ const VenueSeal = ({ isPatent, isHovered }: { isPatent: boolean; isHovered: bool
         <circle cx="32" cy="32" r="14" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.55" />
         <text fill="currentColor" fontSize="5" letterSpacing="0.9" fontFamily="ui-monospace, SFMono-Regular, monospace">
           <textPath href={`#${arcId}`}>
-            {isPatent ? "PATENT FILED · INDIAN IP OFFICE · " : "PEER REVIEWED · SCOPUS INDEXED · "}
+            {isPatent ? "PATENT PUBLISHED · INDIAN IP OFFICE · " : "PEER REVIEWED · SCOPUS INDEXED · "}
           </textPath>
         </text>
         <path d="M32 25 l2 5 5 2 -5 2 -2 5 -2-5 -5-2 5-2 Z" fill="currentColor" opacity="0.8" />
@@ -299,7 +299,7 @@ const TiltCard = ({
         <Card className={cn("w-full h-full", hasValidLink && "pointer-events-none")} isHovered={hoveredIndex === idx} variant="log">
           {/* For the command palette's search (command-menu.tsx): the full
               abstract and summary, whichever is on screen */}
-          <span hidden data-search={`${item.venue ?? ""} ${item.description} ${item.tldr ?? ""} ${isPatent ? "patent filed" : "peer reviewed scopus indexed journal paper research"}`} />
+          <span hidden data-search={`${item.venue ?? ""} ${item.description} ${item.tldr ?? ""} ${isPatent ? "patent published filed" : "peer reviewed scopus indexed journal paper research"}`} />
           {/* Log index + type badge + venue */}
           <div className="flex flex-wrap items-center gap-2 pr-14">
             <span className="font-mono text-[11px] sm:text-[10px] tracking-[0.25em] text-violet-300/60">
@@ -383,7 +383,7 @@ const TiltCard = ({
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-[11px] font-medium text-amber-300">
-                {item.status ?? "Filed"}
+                {item.status ?? "Published"}
               </span>
             )}
           </div>

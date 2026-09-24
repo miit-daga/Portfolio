@@ -201,7 +201,7 @@ const FILES = {
         "",
         "B.Tech, Information Technology, VIT Vellore, 2022 - 2026. CGPA 9.22",
         "Backend development first: FastAPI, NodeJS, PostgreSQL, AWS.",
-        "Also into AI and ML: 10 Scopus-indexed papers and a filed patent.",
+        "Also into AI and ML: 10 Scopus-indexed papers and a published patent.",
         "",
         "The full record: type RESUME, or press F2 to download it.",
     ],
