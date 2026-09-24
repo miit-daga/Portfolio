@@ -362,3 +362,11 @@ html[data-mac] .enter-key-other { display: none; }
 /* Paused while well out of view (components/ui/offscreen-pause.tsx) */
 .meteor-border[data-offscreen]::before,
 [data-offscreen-pause][data-offscreen] { animation-play-state: paused; }
+
+/* The arcade (app/arcade): a hit's red flash, and the run preview's streaks */
+@keyframes arcade-hit { from { opacity: 1; } to { opacity: 0; } }
+@keyframes arcade-streak {
+  from { transform: translateX(10px) scaleX(0.2); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: translateX(150px) scaleX(1.4); opacity: 0; }
+}

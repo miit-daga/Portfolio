@@ -216,6 +216,15 @@ export function Contact() {
                 <p className="text-neutral-500 text-sm">
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
+                {/* The 3D games (app/arcade) */}
+                <a
+                    href="/arcade"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"
+                >
+                    ▶ Crew arcade · Asteroid Run · Dock with the ISS
+                </a>
                 <BigCrunchKeys />
             </div>
 
