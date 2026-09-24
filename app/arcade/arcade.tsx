@@ -23,7 +23,7 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
         id: "run",
         no: "01",
         title: "Asteroid Run",
-        blurb: "Fly through an asteroid field, dodge the rocks and grab the glowing fragments. It gets faster the longer you last.",
+        blurb: "Fly through an asteroid field, dodge the rocks and grab the glowing fragments. A rare blue ring restores a lost shield. It gets faster the longer you last.",
         how: "Arrows, WASD or the mouse · drag on a phone",
         best: "Best",
         bestKey: "arcade-run-best",

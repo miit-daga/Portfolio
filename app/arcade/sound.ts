@@ -62,6 +62,10 @@ export const sfxCollect = () => {
     tone(880, 0, 0.12, 0.08);
     tone(1320, 0.06, 0.18, 0.07);
 };
+/** A shield restored: a rising, bright arpeggio. */
+export const sfxShield = () => {
+    [523, 784, 1046, 1568].forEach((f, i) => tone(f, i * 0.06, 0.3, 0.07, "triangle"));
+};
 /** Hit by a rock. */
 export const sfxHit = () => {
     noiseBurst(0.6, 0.35, 2400, 120);

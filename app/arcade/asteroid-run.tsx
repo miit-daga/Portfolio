@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { isMuted, setEngine, setMuted, sfxCollect, sfxHit, sfxOver, stopEngine } from "./sound";
+import { isMuted, setEngine, setMuted, sfxCollect, sfxHit, sfxOver, sfxShield, stopEngine } from "./sound";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
+// Now and then, once a shield is down, a blue shield ring comes by: flying
+// through it restores one.
 // Arrow keys or WASD, or the mouse; on a phone, drag anywhere. Three hits and
 // the run is over. The best score is kept in this browser.
 
@@ -16,7 +18,7 @@ const FRAGS = 8;
 const FAR = -190;
 
 type Phase = "ready" | "playing" | "over";
-type Hud = { score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean };
+type Hud = { score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number };
 
 // A lumpy rock: an icosahedron with its corners pushed in and out, the same
 // corner moved the same way on every face that shares it
@@ -39,7 +41,7 @@ function rockGeometry(seed: number) {
 
 export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false });
+    const [hud, setHud] = useState<Hud>({ score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0 });
     const [muted, setMutedState] = useState(false);
     const start = useRef<() => void>(() => {});
 
@@ -144,6 +146,21 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             frags.push({ mesh, live: false });
         }
 
+        // The shield ring: rare, sky blue, with a white plus in it
+        const shieldRing = new THREE.Group();
+        const ringMat = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, emissive: 0x38bdf8, emissiveIntensity: 1.6, metalness: 0.2, roughness: 0.25 });
+        shieldRing.add(new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.13, 12, 36), ringMat));
+        const plusMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        shieldRing.add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.16, 0.12), plusMat));
+        shieldRing.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.62, 0.12), plusMat));
+        shieldRing.add(new THREE.PointLight(0x38bdf8, 3, 7));
+        shieldRing.visible = false;
+        scene.add(shieldRing);
+        let ringLive = false;
+        let ringTimer = 0;
+        let shieldAt = 0;
+        const nextRing = () => 14 + Math.random() * 10;
+
         // ---- the run ---------------------------------------------------------
         let phase: Phase = "ready";
         let speed = 0;
@@ -162,6 +179,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         const clearField = () => {
             rocks.forEach((r) => ((r.live = false), (r.mesh.visible = false)));
             frags.forEach((f) => ((f.live = false), (f.mesh.visible = false)));
+            ringLive = false;
+            shieldRing.visible = false;
         };
         const spawnRock = (aimed: boolean) => {
             const r = rocks.find((x) => !x.live);
@@ -186,7 +205,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         };
         const score = () => Math.floor(distance / 10) + bonus;
         const pushHud = () =>
-            setHud({ score: score(), shields, speed: Math.round(speed * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest });
+            setHud({ score: score(), shields, speed: Math.round(speed * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt });
 
         const begin = () => {
             clearField();
@@ -196,6 +215,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             shields = SHIELDS;
             invulnerable = 1;
             rockTimer = fragTimer = 0;
+            ringTimer = nextRing();
+            shieldAt = 0;
             newBest = false;
             shipPos.x = shipPos.y = vel.x = vel.y = 0;
             for (let i = 0; i < 14; i++) {
@@ -400,6 +421,36 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 }
             }
 
+            // the shield ring: counts down only while a shield is down
+            if (playing && !ringLive && shields < SHIELDS) {
+                ringTimer -= dt;
+                if (ringTimer <= 0) {
+                    shieldRing.position.set((Math.random() - 0.5) * BOUNDS.x * 1.6, (Math.random() - 0.5) * BOUNDS.y * 1.6, FAR);
+                    ringLive = true;
+                    shieldRing.visible = true;
+                    ringTimer = nextRing();
+                }
+            }
+            if (ringLive) {
+                shieldRing.position.z += dz;
+                shieldRing.rotation.y += dt * 1.8;
+                ringMat.emissiveIntensity = 1.3 + Math.sin(now / 160) * 0.5;
+                if (shieldRing.position.z > 12) {
+                    ringLive = false;
+                    shieldRing.visible = false;
+                } else if (playing && Math.abs(shieldRing.position.z) < 1.3) {
+                    tmp.set(shipPos.x, shipPos.y, 0);
+                    if (tmp.distanceTo(shieldRing.position) < 1.5) {
+                        ringLive = false;
+                        shieldRing.visible = false;
+                        shields = Math.min(SHIELDS, shields + 1);
+                        shieldAt = Date.now();
+                        sfxShield();
+                        pushHud();
+                    }
+                }
+            }
+
             // the camera follows, a little behind and above
             camera.position.x += (shipPos.x * 0.55 - camera.position.x) * Math.min(1, dt * 4);
             camera.position.y += (1.4 + shipPos.y * 0.45 - camera.position.y) * Math.min(1, dt * 4);
@@ -443,6 +494,12 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             <div ref={mount} className="absolute inset-0" aria-label="Asteroid Run: a 3D game" role="application" />
             {/* a red flash when hit */}
             {hud.hitAt > 0 && <div key={hud.hitAt} className="pointer-events-none absolute inset-0 animate-[arcade-hit_0.5s_ease-out_forwards] bg-rose-500/25" />}
+            {/* and a blue one, and a word, when a shield comes back */}
+            {hud.shieldAt > 0 && (
+                <div key={hud.shieldAt} className="pointer-events-none absolute inset-0 flex animate-[arcade-hit_1.2s_ease-out_forwards] items-center justify-center bg-sky-400/10">
+                    <span className="font-mono text-sm uppercase tracking-[0.3em] text-sky-200">+1 shield</span>
+                </div>
+            )}
 
             {/* HUD */}
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4 font-mono text-xs uppercase tracking-[0.2em] sm:p-6">
@@ -489,7 +546,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                         <h1 className="font-display mt-2 text-3xl font-bold">{hud.phase === "over" ? `${hud.score.toLocaleString()} points` : "Asteroid Run"}</h1>
                         {hud.phase === "over" && hud.newBest && <p className="mt-1 text-sm text-amber-300">A new best!</p>}
                         <p className="mt-3 text-sm leading-relaxed text-neutral-300">
-                            Dodge the rocks, grab the glowing fragments. It gets faster the longer you last. Three hits and you&apos;re done.
+                            Dodge the rocks, grab the glowing fragments for points. Lost a shield? Watch for the rare blue ring and fly through it. It gets faster the longer you last.
                         </p>
                         <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">
                             <span className="hidden sm:inline">Arrows / WASD or the mouse · M to mute</span>
