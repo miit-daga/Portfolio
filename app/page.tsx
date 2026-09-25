@@ -61,6 +61,7 @@ const ArcadeTeaser = dynamic(() => sections().then((m) => m.ArcadeTeaser));
 const WarpOverlay = dynamic(() => import("@/components/ui/warp-overlay").then((m) => m.WarpOverlay), { ssr: false });
 const DefenseMode = dynamic(() => import("@/components/ui/defense-mode").then((m) => m.DefenseMode), { ssr: false });
 const IdleAlien = dynamic(() => import("@/components/ui/idle-alien").then((m) => m.IdleAlien), { ssr: false });
+const MissionControl = dynamic(() => import("@/components/ui/mission-control").then((m) => m.MissionControl), { ssr: false });
 const ConstellationPuzzle = dynamic(
   () => import("@/components/ui/constellation-puzzle").then((m) => m.ConstellationPuzzle),
   { ssr: false },
@@ -303,6 +304,9 @@ const Home = () => {
 
             {/* Peek-a-boo alien after 30s of inactivity */}
             {!isImploding && <IdleAlien />}
+
+            {/* Ask Mission Control about Miit (the button above the rocket, or the command menu) */}
+            {!isImploding && <MissionControl />}
 
             {/* This Motion Div handles the Spaghettification of the UI */}
             <m.div

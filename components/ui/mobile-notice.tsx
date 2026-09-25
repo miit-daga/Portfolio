@@ -22,6 +22,12 @@ export const MobileNotice = () => {
         return () => clearTimeout(t);
     }, []);
 
+    // (while it's up, Mission Control's button, which would sit on it, steps aside)
+    useEffect(() => {
+        document.documentElement.toggleAttribute("data-mobile-notice", show);
+        return () => document.documentElement.removeAttribute("data-mobile-notice");
+    }, [show]);
+
     const dismiss = () => {
         setShow(false);
         try {

@@ -5,7 +5,7 @@ import { BackgroundGradientAnimation } from "./ui/background-gradient-animation"
 import { HeroNebula } from "./ui/hero-nebula"
 import { HeroTypewriterEffect } from "./ui/hero-typewriter-effect"
 import { HeroName } from "./ui/hero-name"
-import { Terminal, ChevronDown } from "lucide-react"
+import { Terminal, ChevronDown, Headset } from "lucide-react"
 import { MagneticWrapper } from "./ui/magnetic-wrapper"
 import { MiniDesk } from "./ui/mini-desk"
 import { AstronautBuddy } from "./ui/astronaut"
@@ -451,6 +451,17 @@ const Hero = () => {
                 <Terminal className="h-4 w-4 text-gray-300 group-hover:text-white" />
                 <span className="text-sm font-medium text-gray-300 group-hover:text-white">Terminal Mode</span>
               </a>
+            </MagneticWrapper>
+            {/* Mission Control (components/ui/mission-control.tsx): its own button waits until past the hero */}
+            <MagneticWrapper strength={0.4}>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("mission-control"))}
+                className="group flex items-center gap-2 px-4 py-2 bg-black/30 backdrop-blur-sm border border-white/20 rounded-full hover:bg-black/50 hover:border-white/40 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-black"
+              >
+                <Headset className="h-4 w-4 text-gray-300 group-hover:text-white" />
+                <span className="text-sm font-medium text-gray-300 group-hover:text-white">Ask Mission Control</span>
+              </button>
             </MagneticWrapper>
 
             <div className="flex items-center gap-2 text-xs text-neutral-500 font-mono">

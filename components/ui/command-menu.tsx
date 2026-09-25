@@ -18,6 +18,7 @@ import {
     IconAddressBook,
     IconTicket,
     IconAlien,
+    IconHeadset,
     IconStars,
     IconMoon,
     IconSunrise,
@@ -323,6 +324,9 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                             <Command.Separator className="my-2 h-px bg-white/10" />
 
                                             <Command.Group heading="Actions">
+                                                <Item value="ask mission control ai assistant question chat about miit" icon={<IconHeadset />} hint="answers from this site" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("mission-control")))}>
+                                                    Ask Mission Control
+                                                </Item>
                                                 <Item
                                                     value="copy email address"
                                                     icon={<IconCopy />}
