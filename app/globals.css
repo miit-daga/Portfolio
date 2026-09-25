@@ -4,16 +4,17 @@
 
 /* Custom space-themed cursors: a small spacecraft, nose up-left like an
    arrow, so it points where it clicks. The click point is the nose tip, at
-   (8, 8) in its 32x32 image (set in from the corner to leave room for the
+   (7, 7) in its 32x32 image (set in from the corner to leave room for the
    lock-on brackets). */
 body {
-  cursor: url('/craft-cursor.svg') 8 8, auto;
+  cursor: url('/craft-cursor.svg') 7 7, auto;
 }
 
-/* Over anything clickable, the craft locks on: amber target brackets round
-   the nose, and its engine lit */
+/* Over anything clickable, the craft locks on: amber target brackets appear,
+   centred on the same click point, ahead of the craft, which pulls back
+   behind them with its engine lit */
 button, a, [role="button"], [onclick], .cursor-pointer {
-  cursor: url('/craft-cursor-go.svg') 8 8, pointer;
+  cursor: url('/craft-cursor-go.svg') 7 7, pointer;
 }
 
 /* The arcade's games aim at a point, so they get a precise crosshair */
