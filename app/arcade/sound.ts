@@ -130,6 +130,17 @@ export const sfxArrive = () => {
 };
 /** An overhang sliced off. */
 export const sfxSlice = () => noiseBurst(0.18, 0.12, 6000, 900);
+/** Through the radiation belts: a faint crackle. */
+export const sfxCrackle = () => {
+    for (let i = 0; i < 9; i++) window.setTimeout(() => noiseBurst(0.03 + Math.random() * 0.05, 0.035, 9000, 2500), i * 140 + Math.random() * 220);
+};
+/** A capsule docking: a soft clunk and the latches. */
+export const sfxDock = () => {
+    tone(110, 0, 0.35, 0.12, "triangle", 70);
+    noiseBurst(0.12, 0.08, 2500, 300);
+    tone(660, 0.25, 0.08, 0.03, "square");
+    tone(660, 0.38, 0.08, 0.03, "square");
+};
 
 // A steady engine rumble, its pitch following the speed (0 to 1)
 let engine: { src: AudioBufferSourceNode; gain: GainNode; lp: BiquadFilterNode } | null = null;

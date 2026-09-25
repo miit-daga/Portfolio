@@ -6,7 +6,7 @@ import { trackEvent } from "@/lib/track";
 import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
-import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
+import { isMuted, setMuted, sfxCrackle, sfxDock, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
 import { FullscreenButton } from "./fullscreen";
 import { alignStars, fbm, glowTexture, loadTexture, normalMap, perlin, sharpen, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { subscribeIss } from "@/lib/iss";
@@ -343,6 +343,9 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
     // today's space: the space weather, and the people up there now
     // the climb's captions, as each mark is passed
     const [note, setNote] = useState<{ text: string; at: number } | null>(null);
+    // the radiation belts' glow, and a meteor shower below, when they happen
+    const [belts, setBelts] = useState(0);
+    const [shower, setShower] = useState(0);
     const [space, setSpace] = useState<{ kp: number | null; people: number | null } | null>(null);
     // where the real ISS is, under today's station
     const [over, setOver] = useState<{ lat: number; lon: number; shadow: boolean } | null>(null);
@@ -776,6 +779,11 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             });
             falling = [];
             growing = [];
+            visitors.children.slice().forEach((c) => {
+                visitors.remove(c);
+                disposeGroup(c);
+            });
+            flying = [];
             layers = [];
             moving = null;
         };
@@ -810,6 +818,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             newBest = false;
             climb = 0;
             setNote(null);
+            showerAt = clock() + 12 + Math.random() * 25;
+            showered = Math.random() < 0.4;
             // the hub
             layers.push(addLayer({ group: null as unknown as THREE.Group, w: BASE, d: BASE, x: 0, z: 0, y: 0 }, 0));
             spawnMoving();
@@ -859,6 +869,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             const mark = MARKS.find((m) => m.n === score() && m.say);
             if (mark) setNote({ text: mark.say, at: Date.now() });
             else if (score() === PAST_MOON) setNote({ text: "Past the Moon · on and on", at: Date.now() });
+            visit(score());
             spawnMoving();
             pushHud();
         };
@@ -882,6 +893,197 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             sfxOver();
             pushHud();
         };
+
+        // ---- visitors, on the way up -------------------------------------------
+        // Each at its height: a Crew Dragon docking early on, Hubble drifting
+        // past, GPS satellites crossing, the ring of geostationary comsats to
+        // rise through, and Orion alongside at the Moon; and now and then, early
+        // on, a meteor shower below. They pass behind or beside the station,
+        // never between the camera and the top of the build.
+        const visitors = new THREE.Group();
+        scene.add(visitors);
+        const arrayTwo = array.clone();
+        arrayTwo.side = THREE.DoubleSide;
+        const dark = new THREE.MeshBasicMaterial({ color: 0x050505 });
+        sharedMats.push(arrayTwo, dark);
+        type Visitor = { obj: THREE.Object3D; t: number; life: number; keep?: boolean; step: (v: Visitor, dt: number) => void };
+        let flying: Visitor[] = [];
+        // a place in view that follows the top of the build: across (a share of
+        // the screen's half width there), up, and how far behind the station
+        const inView = (across: number, up: number, behind: number, out: THREE.Vector3) => {
+            const depth = camDist * 1.177 + behind;
+            const half = depth * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect;
+            return out.copy(camTarget).addScaledVector(fwd, behind).addScaledVector(camRight, across * half).addScaledVector(camUp, up);
+        };
+        // a craft, merged into a mesh per material
+        type Put = (mat: THREE.Material, geo: THREE.BufferGeometry, x?: number, y?: number, z?: number) => void;
+        const craft = (make: (put: Put) => void) => {
+            const g = new THREE.Group();
+            const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
+            make((mat, geo, x = 0, y = 0, z = 0) => {
+                geo.translate(x, y, z);
+                if (!parts.has(mat)) parts.set(mat, []);
+                parts.get(mat)!.push(geo);
+            });
+            for (const [mat, geos] of parts) {
+                const mesh = new THREE.Mesh(mergeGeometries(geos), mat);
+                geos.forEach((x) => x.dispose());
+                mesh.castShadow = true;
+                g.add(mesh);
+            }
+            return g;
+        };
+        const cellsPanel = (w: number, h: number) => {
+            const p = new THREE.PlaneGeometry(w, h);
+            const uv = p.getAttribute("uv") as THREE.BufferAttribute;
+            for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w, uv.getY(i) * h);
+            return p;
+        };
+        // (each points its nose along +y)
+        const dragon = () =>
+            craft((put) => {
+                put(radiator, new THREE.CylinderGeometry(0.17, 0.36, 0.42, 32), 0, 0, 0);
+                put(radiator, new THREE.SphereGeometry(0.17, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), 0, 0.21, 0);
+                put(dark, new THREE.CylinderGeometry(0.37, 0.37, 0.04, 32), 0, -0.23, 0);
+                put(arrayTwo, new THREE.CylinderGeometry(0.36, 0.36, 0.36, 32, 1, true), 0, -0.43, 0);
+                put(radiator, new THREE.CylinderGeometry(0.365, 0.365, 0.03, 32), 0, -0.62, 0);
+            });
+        const hubble = () =>
+            craft((put) => {
+                put(metal, new THREE.CylinderGeometry(0.42, 0.42, 1.3, 32), 0, 0.15, 0);
+                put(metal, new THREE.CylinderGeometry(0.46, 0.46, 0.55, 32), 0, -0.75, 0);
+                put(dark, new THREE.CircleGeometry(0.4, 32).rotateX(-Math.PI / 2), 0, 0.81, 0);
+                put(radiator, new THREE.BoxGeometry(0.03, 0.5, 0.84).rotateZ(-0.6), 0.18, 0.95, 0);
+                [-1, 1].forEach((side) => {
+                    put(metal, new THREE.BoxGeometry(0.5, 0.03, 0.03), side * 0.65, -0.3, 0);
+                    put(arrayTwo, cellsPanel(0.5, 1.7).rotateY(Math.PI / 2), side * 0.95, -0.3, 0);
+                });
+            });
+        const gps = () =>
+            craft((put) => {
+                put(skins.foil, sizedBox(0.5, 0.55, 0.5));
+                put(radiator, new THREE.CylinderGeometry(0.06, 0.14, 0.2, 12), 0, -0.37, 0);
+                [-1, 1].forEach((side) => {
+                    put(metal, new THREE.BoxGeometry(0.4, 0.03, 0.03), side * 0.45, 0, 0);
+                    put(arrayTwo, cellsPanel(1.1, 0.5), side * 1.2, 0, 0);
+                });
+            });
+        const orion = () =>
+            craft((put) => {
+                put(metal, new THREE.CylinderGeometry(0.15, 0.4, 0.4, 32), 0, 0.3, 0);
+                put(radiator, new THREE.CylinderGeometry(0.4, 0.4, 0.5, 32), 0, -0.15, 0);
+                put(metal, new THREE.CylinderGeometry(0.1, 0.2, 0.22, 16), 0, -0.51, 0);
+                for (let i = 0; i < 4; i++) put(arrayTwo, cellsPanel(1.1, 0.3).translate(0.95, 0, 0).rotateY(Math.PI / 4 + (i * Math.PI) / 2), 0, -0.15, 0);
+            });
+        const ease = (k: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
+        const fly = (v: Visitor) => {
+            flying.push(v);
+            return v;
+        };
+        // a Crew Dragon, in from the side to the module above the hub, where it stays
+        const dockDragon = () => {
+            const l = layers[1];
+            if (!l) return;
+            const d = dragon();
+            d.rotation.z = Math.PI / 2; // its nose toward the station
+            const at = l.w / 2 + 0.38;
+            l.group.add(d);
+            let docked = false;
+            fly({
+                obj: d,
+                t: 0,
+                life: 6,
+                keep: true,
+                step: (v) => {
+                    const e = ease(v.t / 6);
+                    d.position.set(at + (1 - e) * 9, 0, -(1 - e) * 2.5);
+                    d.rotation.x = (1 - e) * 0.5;
+                    if (v.t >= 5.9 && !docked) {
+                        docked = true;
+                        sfxDock();
+                    }
+                },
+            });
+        };
+        // something crossing behind the station, from one side of the view to the other
+        const crossing = (obj: THREE.Object3D, from: number, to: number, up: number, behind: number, time: number, spin: THREE.Vector3, delay = 0) => {
+            obj.visible = false;
+            visitors.add(obj);
+            fly({
+                obj,
+                t: -delay,
+                life: time,
+                step: (v, dt) => {
+                    obj.visible = v.t >= 0;
+                    inView(from + (to - from) * Math.max(0, v.t / time), up, behind, obj.position);
+                    obj.rotation.x += spin.x * dt;
+                    obj.rotation.y += spin.y * dt;
+                    obj.rotation.z += spin.z * dt;
+                },
+            });
+        };
+        // the ring of geostationary comsats, a little above the top when it's
+        // made, for the station to rise through (wider than the camera's
+        // circle round the station, so none come between it and the build)
+        const geoRing = (y: number) => {
+            const ring = craft((put) => {
+                const N = 40;
+                const R = 22;
+                for (let i = 0; i < N; i++) {
+                    const a = (i / N) * Math.PI * 2 + (i % 3) * 0.02;
+                    const place = (geo: THREE.BufferGeometry, x: number, yy: number, z: number) => geo.translate(x, yy, z).rotateY(-(a + Math.PI / 2)).translate(R * Math.cos(a), (i % 4) * 0.25 - 0.4, R * Math.sin(a));
+                    put(skins.foil, place(sizedBox(0.5, 0.5, 0.45), 0, 0, 0));
+                    put(radiator, place(new THREE.CylinderGeometry(0.02, 0.24, 0.12, 16).rotateX(Math.PI / 2), 0, 0, -0.3), 0, 0, 0);
+                    [-1, 1].forEach((side) => put(arrayTwo, place(cellsPanel(1.5, 0.42), side * 1.05, 0, 0)));
+                }
+            });
+            ring.position.y = y;
+            station.add(ring);
+            fly({ obj: ring, t: 0, life: Infinity, keep: true, step: (_, dt) => (ring.rotation.y += dt * 0.012) });
+        };
+        const alongside = () => {
+            const o = orion();
+            visitors.add(o);
+            fly({
+                obj: o,
+                t: 0,
+                life: 18,
+                step: (v) => {
+                    const t = v.t;
+                    const across = t < 5 ? -1.5 + 0.88 * ease(t / 5) : t < 12 ? -0.62 : -0.62 - 1.1 * ease((t - 12) / 5) ** 1.5;
+                    const up = 0.8 + Math.sin(t * 0.8) * 0.15 + (t > 12 ? 7 * ease((t - 12) / 5) ** 2 : 0);
+                    inView(across, up, 3, o.position);
+                    o.rotation.set(0.25, t * 0.05, -0.2);
+                },
+            });
+        };
+        // what comes by at each height
+        const visit = (n: number) => {
+            if (n === 2) {
+                dockDragon();
+                setNote({ text: "Crew Dragon, docking", at: Date.now() });
+            } else if (n === 3) {
+                const h = hubble();
+                h.scale.setScalar(1.3);
+                h.rotation.z = Math.PI / 2 - 0.3;
+                crossing(h, -1.4, 1.4, 4.8, 16, 16, new THREE.Vector3(0.05, 0.08, 0));
+            } else if (n === MARKS[2].n) {
+                setBelts(Date.now());
+                sfxCrackle();
+            } else if (n === MARKS[3].n) {
+                (
+                    [
+                        [10, 3.2, 12, 0],
+                        [22, -1.5, 14, 1.6],
+                        [34, 5.5, 16, 3],
+                    ] as const
+                ).forEach(([behind, up, time, delay]) => crossing(gps(), 1.4, -1.4, up, behind, time, new THREE.Vector3(0.1, 0.15, 0.05), delay));
+            } else if (n === MARKS[4].n - 3) geoRing(layers[layers.length - 1].y + 3 * H);
+            else if (n === MARKS[6].n) alongside();
+        };
+        // a meteor shower below, now and then, while the Earth is still close
+        let showerAt = 0;
+        let showered = true;
 
         // ---- controls: a tap, a click, Space or Enter -------------------------
         const onKey = (e: KeyboardEvent) => {
@@ -1006,6 +1208,24 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             onScreen(camera.aspect < 0.9 ? 0.4 : 0.55, 0.6, moonDir);
             moon.position.copy(camera.position).addScaledVector(moonDir, 2500);
             moon.scale.setScalar(2500 * Math.tan(Math.atan(MOON_KM / toMoon)));
+            // the visitors, on their way
+            for (const v of flying) {
+                v.t += dt;
+                v.step(v, dt);
+            }
+            flying = flying.filter((v) => {
+                if (v.t < v.life) return true;
+                if (!v.keep) {
+                    visitors.remove(v.obj);
+                    disposeGroup(v.obj);
+                }
+                return false;
+            });
+            if (phase === "playing" && !showered && score() < 10 && clock() > showerAt) {
+                showered = true;
+                setShower(Date.now());
+                setNote({ text: "A meteor shower, below", at: Date.now() });
+            }
             stars.position.copy(camera.position);
             if (live) {
                 // (the ISS moves on: the Earth turns after it, smoothly)
@@ -1086,6 +1306,30 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             {hud.phase === "playing" && note && (
                 <div key={`note-${note.at}`} className="pointer-events-none absolute inset-x-0 top-[12.5rem] flex animate-[arcade-hit_3.5s_ease-in_forwards] justify-center px-4">
                     <p className="rounded-full border border-sky-300/30 bg-black/50 px-4 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-sky-100 backdrop-blur">{note.text}</p>
+                </div>
+            )}
+            {/* through the radiation belts: a faint glow */}
+            {belts > 0 && hud.phase === "playing" && (
+                <div
+                    key={`belts-${belts}`}
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 animate-[arcade-glow_5s_ease-in-out_forwards] mix-blend-screen"
+                    style={{
+                        background:
+                            "repeating-linear-gradient(-24deg, rgba(120,255,190,0) 0px, rgba(120,255,190,0.14) 28px, rgba(120,255,190,0) 64px), radial-gradient(120% 70% at 25% 100%, rgba(80,255,170,0.4), transparent 65%), radial-gradient(100% 60% at 85% 0%, rgba(180,110,255,0.35), transparent 65%)",
+                    }}
+                />
+            )}
+            {/* a meteor shower, burning up in the air below */}
+            {shower > 0 && hud.phase === "playing" && (
+                <div key={`shower-${shower}`} aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 overflow-hidden">
+                    {Array.from({ length: 16 }, (_, i) => (
+                        <span
+                            key={i}
+                            className="absolute block h-[2px] w-36 animate-[arcade-meteor_1.1s_ease-in_forwards] rounded-full bg-gradient-to-r from-white via-amber-200/80 to-transparent opacity-0 shadow-[0_0_8px_rgba(255,220,150,0.9)]"
+                            style={{ left: `${15 + ((i * 37) % 75)}%`, top: `${5 + ((i * 53) % 70)}%`, animationDelay: `${(i * 0.29) % 3.6}s` }}
+                        />
+                    ))}
                 </div>
             )}
             {/* and how far up it is */}
@@ -1174,7 +1418,10 @@ function Altimeter({ n }: { n: number }) {
     const next = MARKS.find((m) => m.n > n);
     return (
         <div aria-hidden className="pointer-events-none absolute bottom-14 right-4 top-44 w-40 sm:right-6 sm:top-32">
-            <div className="absolute -inset-y-3 -left-2 -right-2 rounded-2xl bg-black/30 backdrop-blur-[2px]" />
+            <div
+                className="absolute -inset-y-6 -left-6 -right-6 bg-gradient-to-l from-black/55 via-black/35 to-transparent"
+                style={{ maskImage: "linear-gradient(to bottom, transparent, black 12%, black 88%, transparent)", WebkitMaskImage: "linear-gradient(to bottom, transparent, black 12%, black 88%, transparent)" }}
+            />
             <div className="absolute bottom-0 right-2 top-0 w-px bg-white/15" />
             <div className="absolute bottom-0 right-2 w-px bg-sky-300/60 transition-[height] duration-700 ease-out" style={{ height: up(n) }} />
             {MARKS.map((m) => {

@@ -375,3 +375,6 @@ html[data-mac] .enter-key-other { display: none; }
 
 /* The arcade (app/arcade): a hit's red flash */
 @keyframes arcade-hit { from { opacity: 1; } to { opacity: 0; } }
+/* Stack the Station: the glow of the radiation belts, and a meteor's streak */
+@keyframes arcade-glow { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes arcade-meteor { 0% { opacity: 0; transform: translate(0, 0) rotate(-30deg); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(-240px, 139px) rotate(-30deg); } }
