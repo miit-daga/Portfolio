@@ -1,14 +1,25 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { reportError } from "@/lib/report-error";
 import { whereOf } from "@/components/error-reporter";
+import { isLoadFailure, reloadOnce } from "@/lib/chunk-retry";
 
 // Shown in place of a page that crashed (instead of Next's bare "Application
 // error"), and the crash reported for /stats
 export default function PageError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+    // (a script that didn't arrive: reload once, quietly, as a visitor would)
+    const [retrying, setRetrying] = useState(() => isLoadFailure(error));
     useEffect(() => {
         reportError(whereOf(window.location.pathname), "crash", error);
+        if (isLoadFailure(error) && !reloadOnce()) setRetrying(false);
     }, [error]);
+    if (retrying) {
+        return (
+            <main className="flex min-h-dvh items-center justify-center bg-black p-6 text-center text-white">
+                <p className="animate-pulse font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Reconnecting…</p>
+            </main>
+        );
+    }
     return (
         <main className="flex min-h-dvh items-center justify-center bg-black p-6 text-center text-white">
             <div className="max-w-sm">

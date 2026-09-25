@@ -1,10 +1,13 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { isLoadFailure, reloadOnce } from "@/lib/chunk-retry";
 
 // The last resort: when the site's own layout fails, so even app/error.tsx
 // can't show. It has to bring its own <html>, and stays plain; the crash is
 // reported for /stats with a beacon, as lib/report-error.ts would
 export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
+    // (a script that didn't arrive: reload once, quietly, as a visitor would)
+    const [retrying, setRetrying] = useState(() => isLoadFailure(error));
     useEffect(() => {
         try {
             const body = JSON.stringify({ game: "page", kind: "crash", message: `${error.name}: ${error.message}`.slice(0, 300) });
@@ -12,10 +15,14 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
         } catch {
             /* ignore */
         }
+        if (isLoadFailure(error) && !reloadOnce()) setRetrying(false);
     }, [error]);
     return (
         <html lang="en">
             <body style={{ margin: 0, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000", color: "#fff", fontFamily: "system-ui, sans-serif", textAlign: "center" }}>
+                {retrying ? (
+                    <p style={{ color: "#5eead4", fontSize: 12, letterSpacing: "0.3em", textTransform: "uppercase", fontFamily: "ui-monospace, monospace" }}>Reconnecting…</p>
+                ) : (
                 <div>
                     <h1 style={{ fontSize: 22 }}>Something went wrong</h1>
                     <p style={{ color: "#a3a3a3", fontSize: 14 }}>It has been reported. Reloading usually fixes it.</p>
@@ -23,6 +30,7 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
                         Reload
                     </button>
                 </div>
+                )}
             </body>
         </html>
     );
