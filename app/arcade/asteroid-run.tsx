@@ -6,6 +6,7 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
+import { FullscreenButton } from "./fullscreen";
 import { alignStars, glowTexture, rockGeometry, rockMaterial, seededRandom, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
@@ -35,11 +36,15 @@ type Hud = { dodged: Neo[]; hitBy: Neo | null; coming: Neo | null; daily: boolea
 
 export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
+    // where the ship is steering while the pointer is locked (there's no pointer then)
+    const sight = useRef<HTMLDivElement>(null);
     const [hud, setHud] = useState<Hud>({ dodged: [], hitBy: null, coming: null, daily: false, score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
     const start = useRef<(daily?: boolean) => void>(() => {});
+    // the launch buttons lock the pointer too, when clicked with a mouse
+    const lock = useRef<(at: { x: number; y: number }) => void>(() => {});
     // today's asteroids, and the one passing now (its caption)
     const [neos, setNeos] = useState<Neo[] | null>(null);
     const [passing, setPassing] = useState<{ neo: Neo; at: number } | null>(null);
@@ -454,6 +459,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         start.current = begin;
         const end = () => {
             phase = "over";
+            // the pointer back, for the buttons and the board
+            unlockPointer();
             const s = score();
             trackEvent("asteroid_run_over", { score: s, seconds: Math.round(time) });
             if (s > best) {
@@ -495,11 +502,58 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             aim.y = -((cy - r.top) / r.height - 0.5) * 2 * BOUNDS.y * 1.25;
             aim.active = true;
         };
+        // With a mouse, a run locks the pointer to the game (Pointer Lock), so
+        // steering can't carry it off the field or out of the window; the
+        // mouse's movement moves a sight, kept inside the game, that the ship
+        // heads for. Esc (the browser's) or the run ending lets it go.
+        const locked = () => document.pointerLockElement === renderer.domElement;
+        const sightAt = { x: 0, y: 0 };
+        const placeSight = () => {
+            const s = sight.current;
+            if (!s) return;
+            s.style.display = locked() ? "block" : "none";
+            s.style.left = `${sightAt.x}px`;
+            s.style.top = `${sightAt.y}px`;
+        };
+        const lockPointer = () => {
+            if (locked() || !renderer.domElement.requestPointerLock) return;
+            try {
+                const p = renderer.domElement.requestPointerLock() as unknown as Promise<void> | undefined;
+                p?.catch?.(() => {});
+            } catch {
+                /* not allowed here: steer with the pointer as before */
+            }
+        };
+        const unlockPointer = () => {
+            if (locked()) document.exitPointerLock();
+        };
+        document.addEventListener("pointerlockchange", placeSight);
+        lock.current = (at) => {
+            sightAt.x = at.x;
+            sightAt.y = at.y;
+            lockPointer();
+        };
         let dragFrom: { x: number; y: number; sx: number; sy: number } | null = null;
         const onPointer = (e: PointerEvent) => {
             if (e.pointerType === "mouse") {
-                if (e.type === "pointermove") toAim(e.clientX, e.clientY);
-                if (e.type === "pointerdown" && phase !== "playing") begin();
+                if (e.type === "pointermove") {
+                    if (locked()) {
+                        const r = renderer.domElement.getBoundingClientRect();
+                        // kept a little inside the edges, so the sight stays in view
+                        sightAt.x = Math.min(r.right - 14, Math.max(r.left + 14, sightAt.x + e.movementX));
+                        sightAt.y = Math.min(r.bottom - 14, Math.max(r.top + 14, sightAt.y + e.movementY));
+                        toAim(sightAt.x, sightAt.y);
+                        placeSight();
+                    } else toAim(e.clientX, e.clientY);
+                }
+                if (e.type === "pointerdown") {
+                    if (phase !== "playing") begin();
+                    if (!locked()) {
+                        sightAt.x = e.clientX;
+                        sightAt.y = e.clientY;
+                    }
+                    lockPointer();
+                }
                 return;
             }
             // touch: drag moves the ship relative to where the finger went down
@@ -793,6 +847,8 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
             ro.disconnect();
             window.removeEventListener("keydown", onKey);
             window.removeEventListener("keyup", onKey);
+            document.removeEventListener("pointerlockchange", placeSight);
+            unlockPointer();
             stopEngine();
             scene.traverse((o) => {
                 const m = o as THREE.Mesh;
@@ -812,6 +868,15 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
     return (
         <div className="fixed inset-0 z-50 bg-black text-white">
             <div ref={mount} className={`absolute inset-0 transition-opacity duration-700 ${loaded ? "opacity-100" : "opacity-0"}`} aria-label="Asteroid Run: a 3D game" role="application" />
+            {/* the sight, while the pointer is locked to the game */}
+            <div ref={sight} aria-hidden className="pointer-events-none absolute z-10 hidden h-7 w-7 -translate-x-1/2 -translate-y-1/2">
+                <svg viewBox="0 0 28 28" className="h-full w-full" fill="none" strokeLinecap="round">
+                    <circle cx="14" cy="14" r="8" stroke="#000" strokeOpacity="0.5" strokeWidth="3.4" />
+                    <circle cx="14" cy="14" r="8" stroke="#e2e8f0" strokeWidth="1.6" />
+                    <path d="M14 1.5v5M14 21.5v5M1.5 14h5M21.5 14h5" stroke="#e2e8f0" strokeWidth="1.6" />
+                    <circle cx="14" cy="14" r="1.6" fill="#fbbf24" />
+                </svg>
+            </div>
             {!loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                     <p className="animate-pulse font-mono text-xs uppercase tracking-[0.3em] text-teal-300/80">Fuelling up…</p>
@@ -882,6 +947,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                 >
                     {muted ? "🔇" : "🔊"}
                 </button>
+                <FullscreenButton className="rounded-full border border-white/15 bg-black/50 px-3 py-2 text-sm text-neutral-200 backdrop-blur hover:border-white/30 hover:text-white" />
             </div>
 
             {/* the title, and game over */}
@@ -905,13 +971,16 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                             Dodge the rocks, grab the glowing fragments for points. A blue ring restores a lost shield, a golden star makes you invincible, and a violet arrow boosts you forward. It gets faster the longer you last.
                         </p>
                         <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">
-                            <span className="hidden sm:inline">Arrows / WASD or the mouse · M to mute</span>
+                            <span className="hidden sm:inline">Arrows / WASD or the mouse · Esc frees the mouse · M to mute</span>
                             <span className="sm:hidden">Drag anywhere to steer</span>
                         </p>
                         <div className="mt-5 flex flex-wrap justify-center gap-2">
                             <button
                                 type="button"
-                                onClick={() => start.current(hud.phase === "over" ? undefined : false)}
+                                onClick={(e) => {
+                                    start.current(hud.phase === "over" ? undefined : false);
+                                    if ((e.nativeEvent as PointerEvent).pointerType === "mouse") lock.current({ x: e.clientX, y: e.clientY });
+                                }}
                                 className="pointer-events-auto rounded-full bg-teal-400 px-6 py-2.5 text-sm font-semibold text-neutral-950 hover:bg-teal-300"
                             >
                                 {hud.phase === "over" ? "Fly again" : "Launch"}
@@ -919,7 +988,10 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                             {/* the same field for everyone today, with today's real asteroids, and its own board */}
                             <button
                                 type="button"
-                                onClick={() => start.current(!(hud.phase === "over" && hud.daily))}
+                                onClick={(e) => {
+                                    start.current(!(hud.phase === "over" && hud.daily));
+                                    if ((e.nativeEvent as PointerEvent).pointerType === "mouse") lock.current({ x: e.clientX, y: e.clientY });
+                                }}
                                 className="pointer-events-auto rounded-full border border-teal-300/40 px-5 py-2.5 text-sm text-teal-200 hover:border-teal-300/70"
                             >
                                 {hud.phase === "over" && hud.daily ? "Play the open field" : "Today's field"}

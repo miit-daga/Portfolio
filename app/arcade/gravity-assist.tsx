@@ -11,6 +11,7 @@ import { Board } from "./board";
 import { dailyMission, dayKey } from "./assist-daily";
 import { decodeChallenge, encodeChallenge, type Challenge } from "./challenge";
 import { isMuted, setMuted, sfxArrive, sfxDeny, sfxFlyby, sfxHit, sfxLaunch, sfxOver } from "./sound";
+import { FullscreenButton } from "./fullscreen";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, starPoints } from "./space";
 import { KMS, LEVELS, VMAX, arriveRadius, bodyAt, fly, launch, passRadius, ringsOf, speedAgainst, step, type Body, type Kind, type Level, type Probe } from "./assist-sim";
 
@@ -1278,6 +1279,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
                 >
                     {muted ? "🔇" : "🔊"}
                 </button>
+                <FullscreenButton className="rounded-full border border-white/15 bg-black/50 px-3 py-2 text-sm text-neutral-200 backdrop-blur hover:border-white/30 hover:text-white" />
             </div>
             {(hud.phase === "aim" || hud.phase === "flying") && (
                 <p className="pointer-events-none absolute bottom-16 right-4 text-right font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500 sm:bottom-5 sm:right-6">

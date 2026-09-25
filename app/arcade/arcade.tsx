@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { trackEvent } from "@/lib/track";
 import { reportError } from "@/lib/report-error";
 import { wantMusic } from "./music";
+import { leaveFullscreen } from "./fullscreen";
 
 // The arcade: two 3D games, each in its own chunk with three.js, loaded only
 // when it is opened, so nothing here costs the rest of the site anything.
@@ -166,12 +167,33 @@ export function Arcade() {
             window.removeEventListener("unhandledrejection", onRejection);
         };
     }, [game]);
-    // Esc leaves a game for the arcade
+    // Leaving a game leaves full screen too (the games' full screen button)
+    useEffect(() => {
+        if (!game) leaveFullscreen();
+    }, [game]);
+    // Esc leaves a game for the arcade. But Esc is also how the browser frees a
+    // locked pointer (Asteroid Run) and leaves full screen: an Esc that arrives
+    // while either is on, or just after, did that, so it doesn't leave the game
+    // as well; the next one does.
     useEffect(() => {
         if (!game) return;
-        const onKey = (e: KeyboardEvent) => e.key === "Escape" && open(null);
+        let freedAt = 0;
+        const freed = () => {
+            if (!document.pointerLockElement && !document.fullscreenElement) freedAt = performance.now();
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== "Escape") return;
+            if (document.pointerLockElement || document.fullscreenElement || performance.now() - freedAt < 400) return;
+            open(null);
+        };
         window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
+        document.addEventListener("pointerlockchange", freed);
+        document.addEventListener("fullscreenchange", freed);
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            document.removeEventListener("pointerlockchange", freed);
+            document.removeEventListener("fullscreenchange", freed);
+        };
     }, [game]);
 
     if (game)

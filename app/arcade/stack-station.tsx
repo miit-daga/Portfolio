@@ -7,6 +7,7 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
+import { FullscreenButton } from "./fullscreen";
 import { alignStars, fbm, loadTexture, normalMap, perlin, sharpen, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { subscribeIss } from "@/lib/iss";
 import { BASE, H, drop as dropModule, movingAt, newStack, roundTime, type Stack } from "./stack-sim";
@@ -908,6 +909,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 >
                     {muted ? "🔇" : "🔊"}
                 </button>
+                <FullscreenButton className="rounded-full border border-white/15 bg-black/50 px-3 py-2 text-sm text-neutral-200 backdrop-blur hover:border-white/30 hover:text-white" />
             </div>
             {hud.phase === "playing" && (
                 <p className="pointer-events-none absolute bottom-5 right-6 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">
