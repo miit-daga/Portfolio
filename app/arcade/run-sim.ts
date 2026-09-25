@@ -44,6 +44,10 @@ export const TOUR = [
     { key: "uranus", name: "Uranus", r: 150, alt: 12 },
     { key: "neptune", name: "Neptune", r: 150, alt: 12 },
     { key: "pluto", name: "Pluto", r: 45, alt: 7 },
+    // then back in to the Sun, and out to a black hole (high over it: its disk
+    // reaches 3.8 times its size), and after that open space for good
+    { key: "sun", name: "the Sun", r: 300, alt: 40 },
+    { key: "blackhole", name: "a black hole", r: 40, alt: 140 },
 ] as const;
 export const TOUR_FIRST = 12;
 export const TOUR_IN = 10;

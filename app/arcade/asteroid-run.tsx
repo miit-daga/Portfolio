@@ -10,10 +10,10 @@ import { FullscreenButton } from "./fullscreen";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { encodeTape } from "./tape";
 import { buildEarth } from "./earth";
-import { buildWorld, type World, type WorldKey } from "./worlds";
+import { buildStop, type Stop } from "./worlds";
 // The run's rules: a seeded simulation, stepped here and replayed by the server
 // to score a posted run (the leaderboard doesn't take the browser's word for it)
-import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_DELTA, TOUR, TOUR_IN, TOUR_OUT, neoScale, newRun, runScore, sample, stepRun, type Power, type Run, type RunEvent, type RunNeo, type Thing, type TourStage } from "./run-sim";
+import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_DELTA, TOUR, TOUR_FIRST, TOUR_GAP, TOUR_IN, TOUR_OUT, neoScale, newRun, runScore, sample, stepRun, type Power, type Run, type RunEvent, type RunNeo, type Thing, type TourStage } from "./run-sim";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
@@ -45,18 +45,31 @@ const HOLD_S = 2.6;
 const SLOW_MO = 0.2;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
 // the Sun's glare at each world: smaller the further out
-const GLARE: Record<string, number> = { earth: 300, moon: 300, mars: 230, jupiter: 130, saturn: 100, uranus: 75, neptune: 60, pluto: 45 };
+// the journey bar's stops: each one's colour, and size
+const DOT: Record<string, [string, number]> = {
+    earth: ["#60a5fa", 8],
+    moon: ["#d4d4d4", 5],
+    mars: ["#f0845a", 6],
+    jupiter: ["#d8b48c", 11],
+    saturn: ["#e8d4a2", 10],
+    uranus: ["#a5e9f0", 8],
+    neptune: ["#5b8def", 8],
+    pluto: ["#d9c4a8", 5],
+    sun: ["#fbbf24", 12],
+    blackhole: ["#000000", 10],
+};
+const GLARE: Record<string, number> = { earth: 300, moon: 300, mars: 230, jupiter: 130, saturn: 100, uranus: 75, neptune: 60, pluto: 45, sun: 0, blackhole: 22 };
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
 // Today's real asteroids, from NASA (app/api/space-today)
 type Neo = { name: string; d: number; v: number; ld: number; hazardous: boolean };
 const neoLabel = (n: Neo) => `${n.name} · ≈${n.d} m · ${n.v} km/s${n.hazardous ? " · potentially hazardous" : ""}`;
-type Hud = { dodged: Neo[]; hitBy: Neo | null; coming: Neo | null; daily: boolean; score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
+type Hud = { dodged: Neo[]; hitBy: Neo | null; coming: Neo | null; daily: boolean; score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number; leg: number };
 
 export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; onFlight?: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
     // where the ship is steering while the pointer is locked (there's no pointer then)
     const sight = useRef<HTMLDivElement>(null);
-    const [hud, setHud] = useState<Hud>({ dodged: [], hitBy: null, coming: null, daily: false, score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0 });
+    const [hud, setHud] = useState<Hud>({ dodged: [], hitBy: null, coming: null, daily: false, score: 0, shields: SHIELDS, speed: 0, best: 0, phase: "ready", hitAt: 0, newBest: false, shieldAt: 0, power: null, powerLeft: 0, leg: -1 });
     const [muted, setMutedState] = useState(false);
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
@@ -157,7 +170,9 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         // glow from the other side; and reflections of the sun for the ship
         const SUN = new THREE.Vector3(6, 7, 5).normalize();
         scene.add(new THREE.AmbientLight(0x8090c0, 0.08));
-        const sun = new THREE.DirectionalLight(0xfff4e6, 3.4);
+        const SUNLIGHT = new THREE.Color(0xfff4e6);
+        const SUN_WARM = new THREE.Color(0xffa04a);
+        const sun = new THREE.DirectionalLight(SUNLIGHT, 3.4);
         sun.position.copy(SUN);
         scene.add(sun);
         const rim = new THREE.DirectionalLight(0x9fb8ff, 0.35);
@@ -206,11 +221,11 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             return { pivot, speed: 0.2 + Math.random() * 0.3 };
         });
         // the worlds past the Earth, each made (its pictures fetched) when the one before it comes in
-        const worlds: (World | null)[] = TOUR.map(() => null);
+        const worlds: (Stop | null)[] = TOUR.map(() => null);
         const worldAt = (i: number) => {
             if (i <= 0 || i >= TOUR.length) return null;
             if (!worlds[i]) {
-                const w = buildWorld(renderer, TOUR[i].key as WorldKey, TOUR[i].r, earthSun);
+                const w = buildStop(renderer, TOUR[i].key, TOUR[i].r, earthSun);
                 w.group.visible = false;
                 scene.add(w.group);
                 worlds[i] = w;
@@ -469,6 +484,17 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         const shipPos = { x: 0, y: 0 };
         const powerNow = (): Power | null => (phase === "playing" && sim ? sim.power : null);
 
+        // how far along the journey, for its bar: each stop at a whole number,
+        // -1 the launch and TOUR.length open space past the last
+        const journey = (s: Run) => {
+            const { index: i, stage, t } = s.tour;
+            if (stage === "done") return TOUR.length;
+            if (stage === "in") return i - 0.5 + 0.5 * Math.min(1, t / TOUR_IN);
+            if (stage === "round") return i;
+            if (stage === "out") return i + 0.1 * Math.min(1, t / TOUR_OUT);
+            const from = i === 0 ? -1 : i - 0.9;
+            return from + (i - 0.5 - from) * Math.min(1, t / (i === 0 ? TOUR_FIRST : TOUR_GAP));
+        };
         const pushHud = () => {
             const s = sim;
             const power = powerNow();
@@ -487,6 +513,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 shieldAt,
                 power,
                 powerLeft: s ? s.powerLeft : 0,
+                leg: s ? journey(s) : -1,
             });
         };
 
@@ -679,10 +706,16 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             round.set(0, -(w.r + w.alt), -20);
             out.set(0.25 * (w.r + w.alt), -(w.r + w.alt) - 140, 900 + w.r * 2);
         };
+        // the ship in the Sun's light, going round it: warmer, and brighter
+        const warmth = (k: number) => {
+            sun.color.copy(SUNLIGHT).lerp(SUN_WARM, k * 0.75);
+            sun.intensity = 3.4 + k * 1.6;
+        };
         const hideTour = () => {
             if (shown === 0) earthFx.group.visible = false;
             else if (shown > 0) worlds[shown]!.group.visible = false;
             beyond.visible = false;
+            warmth(0);
             shown = -1;
             passWeight = 0;
             turnWorld(null, 0);
@@ -695,10 +728,12 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         };
         // what the tour says happened
         const onTour = (stage: TourStage, i: number) => {
+            if (stage === "done") say("Into deep space · on and on");
             if (i >= TOUR.length) return;
             if (stage === "in") {
                 worldAt(i + 1);
-                say(`${title(TOUR[i].name)} ahead`);
+                const key = TOUR[i].key;
+                say(key === "sun" ? "Back in toward the Sun" : key === "blackhole" ? "A black hole ahead · keep clear of the disk" : `${title(TOUR[i].name)} ahead`);
             } else if (stage === "round") say(`In orbit · once round ${TOUR[i].name}`);
             else if (stage === "out") {
                 swing = { t: 0, phi: 0 };
@@ -750,6 +785,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             moon.visible = i === 0;
             (moon.material as THREE.MeshStandardMaterial).opacity = alpha;
             sunGlare.scale.setScalar(GLARE[w.key] ?? 100);
+            warmth(w.key === "sun" ? alpha : 0);
             (sunGlare.material as THREE.SpriteMaterial).opacity = alpha;
             turnWorld(body.group, angle);
         };
@@ -1233,6 +1269,11 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 </div>
             )}
 
+            {/* the journey: every stop, and how far along it the ship is */}
+            {(hud.phase === "playing" || hud.phase === "over") && hud.leg >= -1 && (
+                <Journey leg={hud.leg} hidden={cinema} />
+            )}
+
             {/* the power-up running now, and its time */}
             {hud.phase === "playing" && hud.power && (
                 <div className="pointer-events-none absolute left-1/2 top-4 w-48 -translate-x-1/2 text-center font-mono text-[11px] uppercase tracking-[0.25em] sm:top-6">
@@ -1342,6 +1383,51 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** The journey bar: the stops in order, the way already come lit, and the ship. */
+function Journey({ leg, hidden }: { leg: number; hidden: boolean }) {
+    // launch at the left, open space (after the last stop) at the right
+    const x = (p: number) => `${((p + 1) / (TOUR.length + 1)) * 100}%`;
+    const next = Math.min(TOUR.length, Math.ceil(leg - 0.05));
+    const label = next >= TOUR.length ? "Deep space" : TOUR[next].key === "blackhole" ? "Black hole" : TOUR[next].name[0].toUpperCase() + TOUR[next].name.slice(1);
+    return (
+        <div aria-hidden className={`pointer-events-none absolute bottom-[4.75rem] left-1/2 w-[min(560px,calc(100%-2.5rem))] -translate-x-1/2 transition-opacity duration-500 md:bottom-7 ${hidden ? "opacity-0" : ""}`}>
+            {/* (a dark backing, to read over the Sun) */}
+            <div className="absolute -inset-x-4 -inset-y-2 rounded-2xl bg-black/35 backdrop-blur-[2px]" />
+            <div className="relative h-4">
+                <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/15" />
+                <div className="absolute left-0 top-1/2 h-px -translate-y-1/2 bg-sky-300/60 transition-[width] duration-100 ease-linear" style={{ width: x(leg) }} />
+                {TOUR.map((w, i) => {
+                    const [colour, size] = DOT[w.key];
+                    const hole = w.key === "blackhole";
+                    return (
+                        <span
+                            key={w.key}
+                            className={`absolute top-1/2 block -translate-x-1/2 -translate-y-1/2 rounded-full transition-opacity duration-500 ${leg >= i - 0.02 ? "opacity-100" : "opacity-45"}`}
+                            style={{
+                                left: x(i),
+                                width: size,
+                                height: size,
+                                background: colour,
+                                boxShadow: hole ? "0 0 0 1.5px #fb923c, 0 0 6px rgba(251,146,60,0.7)" : w.key === "sun" ? "0 0 8px rgba(251,191,36,0.9)" : undefined,
+                            }}
+                        />
+                    );
+                })}
+                <span className={`absolute top-1/2 -translate-y-1/2 translate-x-1 font-mono text-[12px] leading-none ${leg >= TOUR.length ? "text-sky-200" : "text-neutral-500"}`} style={{ right: 0 }}>
+                    ∞
+                </span>
+                {/* the ship */}
+                <svg viewBox="0 0 12 10" className="absolute top-1/2 h-2.5 w-3 -translate-x-1/2 -translate-y-1/2 drop-shadow-[0_0_4px_rgba(125,211,252,0.9)] transition-[left] duration-100 ease-linear" style={{ left: x(Math.min(leg, TOUR.length)) }}>
+                    <path d="M12 5 L0 0 L3 5 L0 10 Z" fill="#e0f2fe" />
+                </svg>
+            </div>
+            <p className="relative mt-1 text-center font-mono text-[10px] uppercase tracking-[0.25em] text-neutral-300">
+                {leg >= TOUR.length ? "Deep space · on and on" : Math.abs(leg - next) < 0.02 ? `Going round ${TOUR[next].name}` : `Next · ${label}`}
+            </p>
         </div>
     );
 }
