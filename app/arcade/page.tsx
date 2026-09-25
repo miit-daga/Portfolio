@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CloseButton } from "../resume/close-button";
 import { Arcade } from "./arcade";
 import { decodeChallenge, flyChallenge, nameOf } from "./challenge";
@@ -66,7 +67,9 @@ export default function ArcadePage() {
             <header className="relative z-10 mx-auto flex w-full max-w-5xl flex-wrap lg:max-w-6xl items-center justify-between gap-4 px-4 pb-6 pt-6 md:px-6">
                 <div>
                     <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Crew arcade</p>
-                    <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">Miit Daga · Arcade</h1>
+                    <h1 className="font-display text-2xl font-bold tracking-tight md:text-3xl">
+                        <Link href="/" className="transition-colors hover:text-teal-200">Miit Daga</Link> · Arcade
+                    </h1>
                 </div>
                 <CloseButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
             </header>
