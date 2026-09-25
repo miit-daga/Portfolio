@@ -12,6 +12,11 @@ import {
 } from "framer-motion";
 import { RocketIcon } from "./ui/rocket"; // Reusing your existing icon
 
+// On desktop the side rail (ui/flight-path.tsx) shows where you are, so this
+// bar would say it twice: it shows only where the rail doesn't (below lg, and
+// on lg screens under 540px tall), the rail's own rule inverted
+const BAR_ONLY_WITHOUT_RAIL = "lg:hidden [@media(max-height:540px)]:lg:block";
+
 // Sections the rocket "passes" - used for checkpoints and the live label
 const SECTIONS = [
     { id: "about-me", label: "About" },
@@ -60,7 +65,7 @@ const Finale = ({ reduceMotion, onDone }: { reduceMotion: boolean; onDone: () =>
         <>
             {!reduceMotion && (
                 <motion.div
-                    className="fixed z-[6001] h-6 w-6 pointer-events-none"
+                    className={`fixed z-[6001] h-6 w-6 pointer-events-none ${BAR_ONLY_WITHOUT_RAIL}`}
                     style={{ top: -9, right: 6, transformOrigin: "50% 50%" }}
                     initial={{ x: 0, y: 0, rotate: 90, opacity: 1 }}
                     animate={{
@@ -241,8 +246,9 @@ export const ScrollProgress = () => {
     }, []);
 
     return (
+        <>
         <div
-            className="fixed top-0 left-0 right-0 h-1.5 z-[6000] pointer-events-none transition-opacity duration-200"
+            className={`fixed top-0 left-0 right-0 h-1.5 z-[6000] pointer-events-none transition-opacity duration-200 ${BAR_ONLY_WITHOUT_RAIL}`}
             style={{ opacity: menuOpen ? 0 : 1 }}
         >
             {/* The flowing gradient line. The gradient flows by transform, on a
@@ -283,11 +289,6 @@ export const ScrollProgress = () => {
 
             {/* Arrival burst */}
             {burstKey > 0 && !shouldReduceMotion && <ArrivalBurst key={`burst-${burstKey}`} />}
-
-            {/* Journey's end: launch + sign-off */}
-            {finaleActive && (
-                <Finale key={`finale-${finaleKey}`} reduceMotion={!!shouldReduceMotion} onDone={handleFinaleDone} />
-            )}
 
             {/* Trailing sparks */}
             {!shouldReduceMotion && (
@@ -342,5 +343,12 @@ export const ScrollProgress = () => {
                 </motion.div>
             </motion.div>
         </div>
+
+        {/* Journey's end: launch + sign-off. Outside the bar, so the sign-off
+            still shows on desktop, where the bar (and so the launch) doesn't */}
+        {finaleActive && (
+            <Finale key={`finale-${finaleKey}`} reduceMotion={!!shouldReduceMotion} onDone={handleFinaleDone} />
+        )}
+        </>
     );
 };
