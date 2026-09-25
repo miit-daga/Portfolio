@@ -28,6 +28,7 @@ const earthFrag = /* glsl */ `
     uniform sampler2D uClouds;
     uniform vec3 uSun;
     uniform float uCloudShift;
+    uniform float uAlpha;
     varying vec2 vUv;
     varying vec3 vN;
     varying vec3 vW;
@@ -57,7 +58,7 @@ const earthFrag = /* glsl */ `
         // the air: a blue haze, thickest toward the edge
         float edge = pow(1.0 - max(dot(N, V), 0.0), 2.5);
         col = mix(col, vec3(0.32, 0.58, 1.0) * 1.3 * day, clamp(edge * 0.75 + 0.06, 0.0, 1.0) * smoothstep(-0.2, 0.3, ndl));
-        gl_FragColor = vec4(col, 1.0);
+        gl_FragColor = vec4(col, uAlpha);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
     }`;
@@ -69,6 +70,7 @@ const airFrag = /* glsl */ `
     uniform float uR;
     uniform float uH;
     uniform vec3 uSun;
+    uniform float uAlpha;
     varying vec3 vW;
     void main() {
         vec3 rd = normalize(vW - cameraPosition);
@@ -78,7 +80,7 @@ const airFrag = /* glsl */ `
         float dens = exp(-h / uH);
         float s = dot(normalize(p - uCenter), normalize(uSun));
         vec3 c = mix(vec3(1.0, 0.45, 0.2), vec3(0.3, 0.6, 1.0), smoothstep(-0.05, 0.3, s));
-        gl_FragColor = vec4(c * dens * smoothstep(-0.3, 0.15, s) * 1.6, 1.0);
+        gl_FragColor = vec4(c * dens * smoothstep(-0.3, 0.15, s) * 1.6 * uAlpha, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
     }`;
@@ -100,15 +102,17 @@ export function buildEarth(renderer: THREE.WebGLRenderer, radius: number, sun: T
             uClouds: { value: loadTexture(renderer, loader, "earth-clouds.jpg", false) },
             uSun: { value: sun },
             uCloudShift: { value: 0 },
+            uAlpha: { value: 1 },
         },
         vertexShader: earthVert,
         fragmentShader: earthFrag,
+        transparent: true,
     });
     const group = new THREE.Group();
     const earth = new THREE.Mesh(new THREE.SphereGeometry(radius, 128, 96), earthMat);
     group.add(earth);
     const airMat = new THREE.ShaderMaterial({
-        uniforms: { uCenter: { value: new THREE.Vector3() }, uR: { value: radius }, uH: { value: radius * 0.012 }, uSun: { value: sun } },
+        uniforms: { uCenter: { value: new THREE.Vector3() }, uR: { value: radius }, uH: { value: radius * 0.012 }, uSun: { value: sun }, uAlpha: { value: 1 } },
         vertexShader: "varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }",
         fragmentShader: airFrag,
         side: THREE.BackSide,
@@ -126,6 +130,12 @@ export function buildEarth(renderer: THREE.WebGLRenderer, radius: number, sun: T
             earth.rotation.y += dt * 0.02;
             earthMat.uniforms.uCloudShift.value += dt * 0.0006;
             group.getWorldPosition(airMat.uniforms.uCenter.value);
+        },
+        /** fading in from far off, and out again */
+        setAlpha(a: number) {
+            earthMat.uniforms.uAlpha.value = a;
+            airMat.uniforms.uAlpha.value = a;
+            earth.visible = a > 0.001;
         },
         /** a bigger or smaller Earth (its air scaled to match) */
         setScale(k: number) {

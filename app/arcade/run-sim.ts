@@ -25,6 +25,33 @@ export const POWER_TIME = { star: 6, boost: 4 } as const;
 export type Power = keyof typeof POWER_TIME;
 export const TAPE_DELTA = [false, true, true];
 export const TAPE_WIDTH = 3;
+/**
+ * The tour past the worlds, some way into a run: which ones, in order, how big
+ * they're drawn, and how high the run goes round each. Its timing is part of
+ * the run (the grace leaving each orbit decides hits), so it's here, in the
+ * run's own time and distance: TOUR_FIRST seconds in, the first comes in over
+ * TOUR_IN seconds; the run goes once round it (its circumference at that
+ * height, in the field's distance); leaving takes TOUR_OUT seconds, from the
+ * start of which nothing hits the ship for TOUR_OUT + TOUR_SAFE; then
+ * TOUR_GAP seconds of open space before the next.
+ */
+export const TOUR = [
+    { key: "earth", name: "Earth", r: 120, alt: 10 },
+    { key: "moon", name: "the Moon", r: 60, alt: 8 },
+    { key: "mars", name: "Mars", r: 90, alt: 9 },
+    { key: "jupiter", name: "Jupiter", r: 260, alt: 18 },
+    { key: "saturn", name: "Saturn", r: 220, alt: 16 },
+    { key: "uranus", name: "Uranus", r: 150, alt: 12 },
+    { key: "neptune", name: "Neptune", r: 150, alt: 12 },
+    { key: "pluto", name: "Pluto", r: 45, alt: 7 },
+] as const;
+export const TOUR_FIRST = 12;
+export const TOUR_IN = 10;
+export const TOUR_OUT = 2.5;
+export const TOUR_SAFE = 3;
+export const TOUR_GAP = 8;
+export type TourStage = "gap" | "in" | "round" | "out" | "done";
+
 /** About two hours: longer is past any run. */
 export const MAX_SAMPLES = (2 * 3600) / (DT * INPUT_EVERY);
 
@@ -40,6 +67,7 @@ export type RunEvent =
     | { kind: "powerEnd" }
     | { kind: "neo"; index: number }
     | { kind: "passed"; neo: number }
+    | { kind: "tour"; stage: TourStage; index: number }
     | { kind: "over" };
 
 export type Run = {
@@ -54,6 +82,10 @@ export type Run = {
     speed: number;
     shields: number;
     invulnerable: number;
+    /** leaving a world's orbit: nothing hits the ship while this lasts */
+    grace: number;
+    /** the tour past the worlds: which one, where it's got to, its stage's time and (going round) distance */
+    tour: { index: number; stage: TourStage; t: number; dist: number };
     ship: { x: number; y: number; vx: number; vy: number };
     rocks: Thing[];
     /** which of today's asteroids each named rock is (-1: none) */
@@ -93,6 +125,8 @@ export function newRun(seed: number, day: string | null, neos: RunNeo[]): Run {
         speed: 26,
         shields: SHIELDS,
         invulnerable: 1,
+        grace: 0,
+        tour: { index: 0, stage: "gap", t: 0, dist: 0 },
         ship: { x: 0, y: 0, vx: 0, vy: 0 },
         rocks: Array.from({ length: ROCKS }, thing),
         named: Array.from({ length: 8 }, () => ({ ...thing(), neo: -1 })),
@@ -193,7 +227,38 @@ export function stepRun(s: Run, input: number[] | null): RunEvent[] {
         }
     }
     s.invulnerable = Math.max(0, s.invulnerable - dt);
+    s.grace = Math.max(0, s.grace - dt);
     const dz = s.speed * dt * (s.power === "boost" ? 2.2 : 1);
+
+    // the tour past the worlds
+    const tr = s.tour;
+    if (tr.stage !== "done") {
+        tr.t += dt;
+        if (tr.stage === "gap" && tr.t >= (tr.index === 0 ? TOUR_FIRST : TOUR_GAP)) {
+            tr.stage = "in";
+            tr.t = 0;
+            ev.push({ kind: "tour", stage: "in", index: tr.index });
+        } else if (tr.stage === "in" && tr.t >= TOUR_IN) {
+            tr.stage = "round";
+            tr.t = 0;
+            tr.dist = 0;
+            ev.push({ kind: "tour", stage: "round", index: tr.index });
+        } else if (tr.stage === "round") {
+            tr.dist += dz;
+            const w = TOUR[tr.index];
+            if (tr.dist >= 6.283185307179586 * (w.r + w.alt)) {
+                tr.stage = "out";
+                tr.t = 0;
+                s.grace = Math.max(s.grace, TOUR_OUT + TOUR_SAFE);
+                ev.push({ kind: "tour", stage: "out", index: tr.index });
+            }
+        } else if (tr.stage === "out" && tr.t >= TOUR_OUT) {
+            tr.index += 1;
+            tr.stage = tr.index < TOUR.length ? "gap" : "done";
+            tr.t = 0;
+            ev.push({ kind: "tour", stage: tr.stage, index: tr.index });
+        }
+    }
 
     s.rockTimer -= dt;
     if (s.rockTimer <= 0) {
@@ -250,7 +315,7 @@ export function stepRun(s: Run, input: number[] | null): RunEvent[] {
             }
             continue;
         }
-        if (s.invulnerable <= 0 && near(s, r, r.r + 0.55)) {
+        if (s.invulnerable <= 0 && s.grace <= 0 && near(s, r, r.r + 0.55)) {
             s.shields -= 1;
             s.invulnerable = 1.4;
             if (!s.ring.live) s.ringTimer = Math.min(s.ringTimer, 5 + rnd() * 4);

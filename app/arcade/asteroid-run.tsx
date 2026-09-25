@@ -10,9 +10,10 @@ import { FullscreenButton } from "./fullscreen";
 import { alignStars, glowTexture, loadTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { encodeTape } from "./tape";
 import { buildEarth } from "./earth";
+import { buildWorld, type World, type WorldKey } from "./worlds";
 // The run's rules: a seeded simulation, stepped here and replayed by the server
 // to score a posted run (the leaderboard doesn't take the browser's word for it)
-import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_DELTA, neoScale, newRun, runScore, sample, stepRun, type Power, type Run, type RunEvent, type RunNeo, type Thing } from "./run-sim";
+import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_DELTA, TOUR, TOUR_IN, TOUR_OUT, neoScale, newRun, runScore, sample, stepRun, type Power, type Run, type RunEvent, type RunNeo, type Thing, type TourStage } from "./run-sim";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
@@ -33,21 +34,18 @@ const EARTH_R = 24;
 const ORBIT_R = 34;
 const ORBIT_S = 7;
 const SETTLE_S = 1.6;
-// Some way into a run the course goes once round the Earth: it comes in from
-// far ahead on the left, swings in under the ship, the run goes round it (the
-// sky wheeling, through day, sunset, the night side and sunrise), and it slides
-// away to the right. Scenery only: the run itself is unchanged.
-const PASS_AT = 12; // seconds into a run
-const FLY_R = 120; // the Earth's radius for it
-const FLY_ALT = 10; // the ship's height above it, going round
-const APPROACH_S = 6;
-// leaving orbit: the Earth falls away over this much of the run's own time,
-// while the camera swings round in front of the ship, in slow motion, and back
-const LEAVE_S = 2.2;
+// Some way into a run the course goes round the worlds, one after another
+// (the tour: TOUR in run-sim.ts, which times it, since the grace leaving each
+// orbit decides hits). Each comes in from far ahead, a point that grows,
+// swings in under the ship, the run goes once round it (the sky wheeling,
+// through its day and night), and leaving it the camera swings round in front
+// of the ship, in slow motion, as it falls away behind.
 const SWING_S = 0.8;
 const HOLD_S = 2.6;
 const SLOW_MO = 0.2;
 const X_AXIS = new THREE.Vector3(1, 0, 0);
+// the Sun's glare at each world: smaller the further out
+const GLARE: Record<string, number> = { earth: 300, moon: 300, mars: 230, jupiter: 130, saturn: 100, uranus: 75, neptune: 60, pluto: 45 };
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
 // Today's real asteroids, from NASA (app/api/space-today)
 type Neo = { name: string; d: number; v: number; ld: number; hazardous: boolean };
@@ -117,7 +115,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         // far rocks come out of the dark
         scene.fog = new THREE.Fog(0x000000, 70, 185);
         // (seeing far: the Earth, the Moon and the Sun on the pass round the Earth)
-        const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 3000);
+        const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 6000);
         camera.position.set(0, 1.4, 7.5);
         let ready = false;
         const manager = new THREE.LoadingManager(() => {
@@ -171,7 +169,10 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         // Lit from ahead and above at first, so going round it crosses the
         // night side and its city lights and comes back into the sunrise. Its
         // pictures load quietly in the background, not holding up the game
+        // (the tour's worlds come in lit: the sun over the ship's shoulder, behind
+        // it; going round, each turns through its night side and back to day)
         const SUN0 = new THREE.Vector3(0.35, 0.5, -0.8).normalize();
+        const TOUR_SUN = new THREE.Vector3(0.45, 0.55, 0.7).normalize();
         const earthSun = SUN0.clone();
         const earthFx = buildEarth(renderer, EARTH_R, earthSun);
         earthFx.group.visible = false;
@@ -186,10 +187,11 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             new THREE.SphereGeometry(26, 48, 32),
             new THREE.MeshStandardMaterial({ map: loadTexture(renderer, new THREE.TextureLoader(), "planet-moon.jpg"), roughness: 1, metalness: 0, fog: false }),
         );
+        (moon.material as THREE.MeshStandardMaterial).transparent = true;
         moon.position.set(-380, 260, -820);
         beyond.add(moon);
         const sunGlare = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture("rgba(255,250,235,1)", "rgba(255,190,110,0)"), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true }));
-        sunGlare.position.copy(SUN0).multiplyScalar(1600);
+        sunGlare.position.copy(TOUR_SUN).multiplyScalar(1600);
         sunGlare.scale.setScalar(300);
         beyond.add(sunGlare);
         const satMat = new THREE.SpriteMaterial({ map: glowTexture("rgba(255,255,255,1)", "rgba(190,215,255,0)"), blending: THREE.AdditiveBlending, depthWrite: false, fog: false, transparent: true });
@@ -203,6 +205,18 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             earthFx.group.add(pivot);
             return { pivot, speed: 0.2 + Math.random() * 0.3 };
         });
+        // the worlds past the Earth, each made (its pictures fetched) when the one before it comes in
+        const worlds: (World | null)[] = TOUR.map(() => null);
+        const worldAt = (i: number) => {
+            if (i <= 0 || i >= TOUR.length) return null;
+            if (!worlds[i]) {
+                const w = buildWorld(renderer, TOUR[i].key as WorldKey, TOUR[i].r, earthSun);
+                w.group.visible = false;
+                scene.add(w.group);
+                worlds[i] = w;
+            }
+            return worlds[i];
+        };
 
         // Dust, streaking past: the only thing near enough to show the speed
         const DUST = 420;
@@ -529,6 +543,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 shieldRing.visible = starPickup.visible = arrowPickup.visible = false;
                 resetPass();
                 earthFx.setScale(1);
+                earthFx.setAlpha(1);
                 earthFx.group.position.set(0, -ORBIT_R, 0);
                 earthFx.group.visible = true;
                 dust.visible = false;
@@ -618,18 +633,24 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 if (k >= 1) finishIntro();
             }
         };
-        // ---- the pass round the Earth ---------------------------------------
-        const FAR_IN = new THREE.Vector3(-620, -60, -950); // first seen: far ahead, on the left
-        const ROUND = new THREE.Vector3(0, -(FLY_R + FLY_ALT), -20); // under the ship, going round
-        const OUT = new THREE.Vector3(260, -160, 900); // where it goes: falling away behind
+        // ---- the tour past the worlds ----------------------------------------
+        // Drawn from the run's own tour (run-sim.ts): where the world is, how far
+        // round it the run has gone, its fade in and out. The camera's swing
+        // leaving orbit, and the slow motion, run in real time.
         const skyBase = new THREE.Quaternion().setFromEuler(scene.backgroundRotation);
         const qTurn = new THREE.Quaternion();
         const where = new THREE.Vector3();
-        // (phi: the camera's swing round the ship leaving orbit, 0 behind, pi in front;
-        // p: how far the Earth has fallen away; frozen: the run ended mid-pass)
-        let pass: { stage: "in" | "round" | "out"; t: number; angle: number; phi: number; p: number; frozen?: boolean } | null = null;
+        const farIn = new THREE.Vector3();
+        const round = new THREE.Vector3();
+        const out = new THREE.Vector3();
+        // which world is on screen (-1: none)
+        let shown = -1;
+        // how far the camera has tilted down to take the world in
+        let passWeight = 0;
         // how fast the run goes: 1, or slow motion for the shot leaving orbit
         let timeScale = 1;
+        // leaving orbit, in real time: the camera's swing round the ship (0 behind, pi in front)
+        let swing: { t: number; phi: number } | null = null;
         let filmBars = false;
         const bars = (on: boolean) => {
             if (on !== filmBars) {
@@ -637,101 +658,125 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 setCinema(on);
             }
         };
-        let passDone = false;
-        // how far the camera has tilted down to take the Earth in
-        let passWeight = 0;
         const smooth = (x: number) => x * x * (3 - 2 * x);
         const say = (text: string) => setNote({ text, at: Date.now() });
-        // how far round the Earth: the ground under the ship, the sun on it, and the sky
-        const turnWorld = (a: number) => {
-            earthFx.group.rotation.x = a;
-            earthSun.copy(SUN0).applyAxisAngle(X_AXIS, a);
+        const title = (name: string) => name[0].toUpperCase() + name.slice(1);
+        // how far round the world: the ground under the ship, the sun on it, and the sky
+        const turnWorld = (g: THREE.Object3D | null, a: number) => {
+            if (g) g.rotation.x = a;
+            earthSun.copy(shown === -1 ? SUN0 : TOUR_SUN).applyAxisAngle(X_AXIS, a);
             qTurn.setFromAxisAngle(X_AXIS, a);
             beyond.quaternion.copy(qTurn);
             scene.backgroundRotation.setFromQuaternion(qTurn.clone().multiply(skyBase));
             alignStars(stars, scene.backgroundRotation);
         };
-        const placeEarth = (at: THREE.Vector3) => {
-            earthFx.setScale(FLY_R / EARTH_R);
-            earthFx.group.position.copy(at);
-            beyond.position.copy(at);
+        // its path: first seen far ahead, a little left; under the ship going
+        // round; falling away behind as it's left
+        const pathOf = (i: number) => {
+            const w = TOUR[i];
+            const d = 2600 + w.r * 2;
+            farIn.set(-0.26 * d, -0.06 * d, -d);
+            round.set(0, -(w.r + w.alt), -20);
+            out.set(0.25 * (w.r + w.alt), -(w.r + w.alt) - 140, 900 + w.r * 2);
+        };
+        const hideTour = () => {
+            if (shown === 0) earthFx.group.visible = false;
+            else if (shown > 0) worlds[shown]!.group.visible = false;
+            beyond.visible = false;
+            shown = -1;
+            passWeight = 0;
+            turnWorld(null, 0);
         };
         const resetPass = () => {
-            pass = null;
-            passDone = false;
-            passWeight = 0;
+            hideTour();
+            swing = null;
             timeScale = 1;
             bars(false);
-            earthFx.group.visible = false;
-            beyond.visible = false;
-            turnWorld(0);
         };
-        const startPass = () => {
-            pass = { stage: "in", t: 0, angle: 0, phi: 0, p: 0 };
-            turnWorld(0);
-            placeEarth(FAR_IN);
-            earthFx.group.visible = true;
-            beyond.visible = true;
-            say("Earth ahead");
+        // what the tour says happened
+        const onTour = (stage: TourStage, i: number) => {
+            if (i >= TOUR.length) return;
+            if (stage === "in") {
+                worldAt(i + 1);
+                say(`${title(TOUR[i].name)} ahead`);
+            } else if (stage === "round") say(`In orbit · once round ${TOUR[i].name}`);
+            else if (stage === "out") {
+                swing = { t: 0, phi: 0 };
+                say(`Once round · leaving ${TOUR[i].name}`);
+            }
         };
-        const updatePass = (dt: number, realDt: number, dz: number) => {
-            if (!pass) return;
-            earthFx.update(dt);
-            sats.forEach((s) => (s.pivot.rotation.z += dt * s.speed));
-            if (pass.frozen) return;
-            if (pass.stage === "in") {
-                pass.t += dt;
-                const e = smooth(Math.min(1, pass.t / APPROACH_S));
-                placeEarth(where.lerpVectors(FAR_IN, ROUND, e));
-                passWeight = e;
-                if (pass.t >= APPROACH_S) {
-                    pass = { stage: "round", t: 0, angle: 0, phi: 0, p: 0 };
-                    say("In orbit · once round the Earth");
-                }
-            } else if (pass.stage === "round") {
-                // round at the speed the run is going
-                pass.angle = Math.min(Math.PI * 2, pass.angle + dz / (FLY_R + FLY_ALT));
-                turnWorld(pass.angle);
+        // the world, where the tour has it
+        const drawTour = (s: Run, dt: number) => {
+            const tr = s.tour;
+            const i = tr.index;
+            const on = (tr.stage === "in" || tr.stage === "round" || tr.stage === "out") && i < TOUR.length;
+            const body = !on ? null : i === 0 ? earthFx : worldAt(i);
+            if (!body || !body.ready()) {
+                if (shown !== -1) hideTour();
+                return;
+            }
+            if (shown !== i) {
+                hideTour();
+                shown = i;
+            }
+            const w = TOUR[i];
+            pathOf(i);
+            let alpha = 1;
+            let angle = 0;
+            if (tr.stage === "in") {
+                const p = Math.min(1, tr.t / TOUR_IN);
+                where.lerpVectors(farIn, round, smooth(p));
+                alpha = smooth(Math.min(1, p / 0.35));
+                passWeight = smooth(p);
+            } else if (tr.stage === "round") {
+                where.copy(round);
+                angle = tr.dist / (w.r + w.alt);
                 passWeight = 1;
-                if (pass.angle >= Math.PI * 2) {
-                    pass = { stage: "out", t: 0, angle: Math.PI * 2, phi: 0, p: 0 };
-                    say("Once round · leaving orbit");
-                }
             } else {
-                // the camera, in real time: round to the front, hold, and on round
-                // to behind again; the run slows to a fifth while it's in front
-                pass.t += realDt;
-                const t = pass.t;
-                pass.phi =
-                    t < SWING_S ? Math.PI * smooth(t / SWING_S)
-                    : t < SWING_S + HOLD_S ? Math.PI
-                    : t < 2 * SWING_S + HOLD_S ? Math.PI * (1 + smooth((t - SWING_S - HOLD_S) / SWING_S))
-                    : 0;
-                const front = (1 - Math.cos(pass.phi)) / 2;
-                timeScale = 1 - (1 - SLOW_MO) * front;
-                bars(pass.phi > 0.05 && pass.phi < Math.PI * 2 - 0.05);
-                // the Earth falling away behind, in the run's own (slowed) time
-                pass.p = Math.min(1, pass.p + dt / LEAVE_S);
-                placeEarth(where.lerpVectors(ROUND, OUT, smooth(pass.p)));
-                passWeight = 1 - smooth(pass.p);
-                if (t >= 2 * SWING_S + HOLD_S && pass.p >= 1) {
-                    pass = null;
-                    passDone = true;
-                    timeScale = 1;
-                    bars(false);
-                    earthFx.group.visible = false;
-                    beyond.visible = false;
-                    turnWorld(0);
-                }
+                const q = Math.min(1, tr.t / TOUR_OUT);
+                where.lerpVectors(round, out, smooth(q));
+                angle = Math.PI * 2;
+                alpha = 1 - smooth(Math.max(0, (q - 0.55) / 0.45));
+                passWeight = 1 - smooth(q);
+            }
+            if (i === 0) earthFx.setScale(w.r / EARTH_R);
+            body.group.position.copy(where);
+            body.group.visible = true;
+            body.setAlpha(alpha);
+            body.update(dt);
+            if (i === 0) sats.forEach((sat) => (sat.pivot.rotation.z += dt * sat.speed));
+            beyond.visible = true;
+            beyond.position.copy(where);
+            moon.visible = i === 0;
+            (moon.material as THREE.MeshStandardMaterial).opacity = alpha;
+            sunGlare.scale.setScalar(GLARE[w.key] ?? 100);
+            (sunGlare.material as THREE.SpriteMaterial).opacity = alpha;
+            turnWorld(body.group, angle);
+        };
+        // leaving orbit: the camera round to the front of the ship and on round
+        // to behind again; the run slows to a fifth while it's in front
+        const updateSwing = (realDt: number) => {
+            if (!swing) return;
+            swing.t += realDt;
+            const t = swing.t;
+            swing.phi =
+                t < SWING_S ? Math.PI * smooth(t / SWING_S)
+                : t < SWING_S + HOLD_S ? Math.PI
+                : t < 2 * SWING_S + HOLD_S ? Math.PI * (1 + smooth((t - SWING_S - HOLD_S) / SWING_S))
+                : 0;
+            timeScale = 1 - (1 - SLOW_MO) * ((1 - Math.cos(swing.phi)) / 2);
+            bars(swing.phi > 0.05 && swing.phi < Math.PI * 2 - 0.05);
+            if (t >= 2 * SWING_S + HOLD_S) {
+                swing = null;
+                timeScale = 1;
+                bars(false);
             }
         };
         start.current = launch;
         const end = () => {
             phase = "over";
-            if (pass) {
-                pass.frozen = true;
-                pass.phi = 0;
-            }
+            // (back to full speed at once, the camera behind; the world stays where it was)
+            swing = null;
             timeScale = 1;
             bars(false);
             // the pointer back, for the buttons and the board
@@ -781,7 +826,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 else if (e.kind === "passed") {
                     const n = runNeos[e.neo];
                     if (n) dodged.push(n);
-                } else if (e.kind === "over") end();
+                } else if (e.kind === "tour") onTour(e.stage, e.index);
+                else if (e.kind === "over") end();
             }
         };
         // a rock where the run has it; one just come gets a spin of its own
@@ -987,7 +1033,13 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 aura.visible = sim.powerLeft > 1 || Math.floor(now / 110) % 2 === 0;
                 aura.rotation.z += dt * 2;
                 auraMat.opacity = 0.2 + Math.sin(now / 90) * 0.08;
-            }
+            } else if (running && sim && sim.grace > 0) {
+                // leaving orbit: nothing hits the ship, and a soft blue glow says so
+                auraMat.color.set(0x7dd3fc);
+                aura.visible = sim.grace > 0.8 || Math.floor(now / 110) % 2 === 0;
+                aura.rotation.z += dt * 2;
+                auraMat.opacity = 0.14 + Math.sin(now / 140) * 0.05;
+            } else aura.visible = false;
             // the dust streaks: longer the faster you go
             const streak = Math.min(12, 0.15 + (dz / Math.max(dt, 0.001)) * 0.045);
             for (let i = 0; i < DUST; i++) {
@@ -1050,15 +1102,16 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             if (phase === "intro") flyby(dt);
             else {
                 // the pass round the Earth, some way into a run
-                if (running && sim && !pass && !passDone && sim.time >= PASS_AT && earthFx.ready()) startPass();
-                updatePass(dt, realDt, dz);
+                // the tour past the worlds, as the run has it
+                updateSwing(realDt);
+                if (sim && phase !== "ready") drawTour(sim, dt);
                 // the camera follows, a little behind and above (and on the pass,
                 // a little higher, tilted down to take the Earth in)
                 chaseCam.x += (shipPos.x * 0.55 - chaseCam.x) * Math.min(1, realDt * 4);
                 chaseCam.y += (1.4 + passWeight * 1.2 + shipPos.y * 0.45 - chaseCam.y) * Math.min(1, realDt * 4);
                 chaseCam.z = 7.5;
                 camLook.set(shipPos.x * 0.35, shipPos.y * 0.3 - passWeight * 5, -20);
-                const phi = pass ? pass.phi : 0;
+                const phi = swing ? swing.phi : 0;
                 if (phi > 0) {
                     // leaving orbit: round the ship to its front, looking back at it
                     const r = 7.5;
@@ -1103,6 +1156,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             });
             sky.dispose();
             earthFx.dispose();
+            worlds.forEach((w) => w?.dispose());
             env.dispose();
             renderer.dispose();
             renderer.domElement.remove();
@@ -1128,10 +1182,10 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 </div>
             )}
             {/* a red flash when hit */}
-            {hud.hitAt > 0 && <div key={hud.hitAt} className="pointer-events-none absolute inset-0 animate-[arcade-hit_0.5s_ease-out_forwards] bg-rose-500/25" />}
+            {hud.hitAt > 0 && <div key={`hit-${hud.hitAt}`} className="pointer-events-none absolute inset-0 animate-[arcade-hit_0.5s_ease-out_forwards] bg-rose-500/25" />}
             {/* and a blue one, and a word, when a shield comes back */}
             {hud.shieldAt > 0 && (
-                <div key={hud.shieldAt} className="pointer-events-none absolute inset-0 flex animate-[arcade-hit_1.2s_ease-out_forwards] items-center justify-center bg-sky-400/10">
+                <div key={`shield-${hud.shieldAt}`} className="pointer-events-none absolute inset-0 flex animate-[arcade-hit_1.2s_ease-out_forwards] items-center justify-center bg-sky-400/10">
                     <span className="font-mono text-sm uppercase tracking-[0.3em] text-sky-200">+1 shield</span>
                 </div>
             )}
@@ -1165,7 +1219,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
 
             {/* one of today's real asteroids, coming */}
             {hud.phase === "playing" && passing && (
-                <div key={passing.at} className="pointer-events-none absolute inset-x-0 top-24 flex animate-[arcade-hit_4.5s_ease-in_forwards] justify-center px-4 sm:top-28">
+                <div key={`neo-${passing.at}`} className="pointer-events-none absolute inset-x-0 top-24 flex animate-[arcade-hit_4.5s_ease-in_forwards] justify-center px-4 sm:top-28">
                     <p className={`rounded-full border bg-black/60 px-4 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.15em] backdrop-blur ${passing.neo.hazardous ? "border-rose-400/50 text-rose-200" : "border-sky-300/40 text-sky-100"}`}>
                         Real asteroid, passing Earth today · {neoLabel(passing.neo)}
                     </p>
@@ -1174,7 +1228,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
 
             {/* the pass round the Earth: where you are */}
             {hud.phase === "playing" && note && (
-                <div key={note.at} className="pointer-events-none absolute inset-x-0 top-36 flex animate-[arcade-hit_3.5s_ease-in_forwards] justify-center px-4 sm:top-40">
+                <div key={`note-${note.at}`} className="pointer-events-none absolute inset-x-0 top-36 flex animate-[arcade-hit_3.5s_ease-in_forwards] justify-center px-4 sm:top-40">
                     <p className="rounded-full border border-sky-300/30 bg-black/50 px-4 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-sky-100 backdrop-blur">{note.text}</p>
                 </div>
             )}
