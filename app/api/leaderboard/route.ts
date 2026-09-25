@@ -5,6 +5,7 @@ import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
 import { LEVELS, fly } from "@/app/arcade/assist-sim";
 import { replay as replayStack } from "@/app/arcade/stack-sim";
 import { MAX_SAMPLES as RUN_MAX, TAPE_DELTA as RUN_DELTA, TAPE_WIDTH as RUN_WIDTH, replayRun, type RunNeo } from "@/app/arcade/run-sim";
+import { MAX_SAMPLES as FLIGHT_MAX, TAPE_DELTA as FLIGHT_DELTA, TAPE_WIDTH as FLIGHT_WIDTH, replayFlight } from "@/app/arcade/flight-sim";
 import { decodeTape } from "@/app/arcade/tape";
 import { checkSeed } from "@/lib/run-seed";
 import { createHash } from "node:crypto";
@@ -63,9 +64,10 @@ async function neosFor(day: string, sent: unknown): Promise<RunNeo[] | null> {
 //
 // The arcade's are checked here rather than taken on trust: Gravity Assist's
 // times (its shot flown again), Stack the Station's modules (its drop times
-// replayed, stack-sim.ts), and Asteroid Run's scores (the run replayed from
-// its seed and input tape, run-sim.ts). A bot playing perfectly would still
-// pass: they prove a score can be had by the rules, not that a person had it.
+// replayed, stack-sim.ts), and Asteroid Run's and Free flight's scores (the
+// run replayed from its seed and input tape, run-sim.ts and flight-sim.ts). A
+// bot playing perfectly would still pass: they prove a score can be had by the
+// rules, not that a person had it.
 //
 // Honest about the rest: their scores originate on the client, so they cannot be
 // verified. The ceilings in constants/games.ts and the rate limit below only
@@ -330,6 +332,25 @@ export async function POST(request: Request) {
     const scored = replayRun(samples, seed, game === "run-daily" ? day! : null, neos);
     if (scored === null) return NextResponse.json({ error: "That run doesn't end where it says when it's replayed here." }, { status: 400 });
     if (scored <= 0) return NextResponse.json({ error: "That run scored nothing." }, { status: 400 });
+    rawScore = scored;
+  }
+  // Free flight: the same, from its flight-sim.ts
+  if (game === "free-flight" || game === "flight-daily") {
+    const rec = ((body ?? {}) as { run?: { seed?: unknown; tape?: unknown; neos?: unknown; token?: unknown } }).run;
+    const seed = Number(rec?.seed);
+    const samples = rec ? decodeTape(rec.tape, FLIGHT_WIDTH, FLIGHT_DELTA, FLIGHT_MAX) : null;
+    if (!rec || !Number.isInteger(seed) || seed < 0 || seed > 0xffffffff || !samples) {
+      return NextResponse.json({ error: "Send the flight: its seed and its input." }, { status: 400 });
+    }
+    if (game === "free-flight") {
+      const bad = await seedFor(rec.token, seed, "flight", String(rec.tape));
+      if (bad) return NextResponse.json({ error: bad }, { status: 400 });
+    }
+    const neos = game === "flight-daily" ? await neosFor(day!, rec.neos) : [];
+    if (!neos) return NextResponse.json({ error: "That wasn't today's field. Fly it again?" }, { status: 400 });
+    const scored = replayFlight(samples, seed, game === "flight-daily" ? day! : null, neos);
+    if (scored === null) return NextResponse.json({ error: "That flight doesn't end where it says when it's replayed here." }, { status: 400 });
+    if (scored <= 0) return NextResponse.json({ error: "That flight scored nothing." }, { status: 400 });
     rawScore = scored;
   }
   // The mission of the day: fly the shot again, and time it here

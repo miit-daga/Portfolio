@@ -7,8 +7,13 @@ import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setEngine, setMuted, sfxCollect, sfxHit, sfxOver, sfxShield, stopEngine } from "./sound";
 import { FullscreenButton } from "./fullscreen";
-import { alignStars, rockGeometry, rockMaterial, seededRandom, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { alignStars, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { buildShip } from "./ship";
+import { encodeTape } from "./tape";
+import type { RunNeo } from "./run-sim";
+// The flight's rules: a seeded simulation, stepped here and replayed by the
+// server to score a posted flight (the board doesn't take the browser's word)
+import { DT, FIELD, INPUT_EVERY, RING_R, ROCKS, SHIELDS, TAPE_DELTA, flightScore, newFlight, sample, stepFlight, type Body, type Flight, type FlightEvent } from "./flight-sim";
 
 // Free flight: Asteroid Run's ship, loose in an asteroid field that surrounds
 // it, to fly anywhere. The mouse steers the nose (the pointer is locked to the
@@ -22,15 +27,6 @@ import { buildShip } from "./ship";
 // today's real asteroids from NASA crossing the way.
 
 const BEST_KEY = "arcade-flight-best";
-const SHIELDS = 3;
-const ROCKS = 280;
-// rocks live within this far of the ship; beyond it they're placed again ahead
-const FIELD = 115;
-const SHIP_R = 0.85;
-const CRUISE = 20;
-const FAST = 46;
-const SLOW = 6;
-const RING_R = 3.4;
 const RADAR_RANGE = 70;
 
 type Phase = "ready" | "playing" | "over";
@@ -40,7 +36,6 @@ type Hud = { score: number; best: number; shields: number; speed: number; rings:
 
 const X = new THREE.Vector3(1, 0, 0);
 const Y = new THREE.Vector3(0, 1, 0);
-const Z = new THREE.Vector3(0, 0, 1);
 
 export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; onRunner?: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
@@ -52,6 +47,8 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
     const start = useRef<(daily?: boolean) => void>(() => {});
+    // the last flight, as the server replays it: its seed, day, tape and today's asteroids
+    const [record, setRecord] = useState<{ seed: number; day: string | null; tape: string; neos: RunNeo[]; token?: string } | null>(null);
     const lock = useRef<() => void>(() => {});
     // the phone's speed buttons: +1 faster, -1 slower
     const thrust = useRef<0 | 1 | -1>(0);
@@ -157,90 +154,43 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
         };
 
         // ---- the field -------------------------------------------------------
-        let rnd = Math.random;
+        // The flight itself (flight-sim.ts): the ship's course, the rocks, the
+        // rings and today's asteroids, from a seeded simulation the server can
+        // replay. This draws it; the rocks' spin, the dust and the camera are
+        // the drawing's own.
         let daily = false;
         const rockGeos = [11, 23, 37, 52, 67, 81, 94, 106].map(rockGeometry);
         const rockMat = rockMaterial();
         const hazardMat = rockMaterial();
         hazardMat.emissive.set(0x991b1b);
         hazardMat.emissiveIntensity = 0.8;
-        type Rock = { mesh: THREE.Mesh; r: number; spin: THREE.Vector3; drift: THREE.Vector3; live: boolean; neo?: Neo; near?: boolean };
+        type Rock = { mesh: THREE.Mesh; spin: THREE.Vector3; live: boolean; neo?: Neo };
         const makeRock = (i: number): Rock => {
             const mesh = new THREE.Mesh(rockGeos[i % rockGeos.length], rockMat);
             mesh.visible = false;
             scene.add(mesh);
-            return { mesh, r: 1, spin: new THREE.Vector3(), drift: new THREE.Vector3(), live: false };
+            return { mesh, spin: new THREE.Vector3(), live: false };
         };
         const rocks: Rock[] = Array.from({ length: ROCKS }, (_, i) => makeRock(i));
         // today's real asteroids, one at a time across the way
         const named: Rock[] = Array.from({ length: 8 }, (_, i) => makeRock(i * 3));
         const dir = new THREE.Vector3();
         const tmp = new THREE.Vector3();
-        const tmp2 = new THREE.Vector3();
-        const hide = (k: Rock) => {
-            k.live = false;
-            k.mesh.visible = false;
-        };
-        // A rock somewhere: all round the ship at the start (not right in its
-        // way), and after that mostly ahead, where it's going
-        const place = (k: Rock, around: boolean) => {
-            let dist = 0;
-            for (let tries = 0; tries < 6; tries++) {
-                dir.set(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1);
-                if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1);
-                dir.normalize();
-                if (around) {
-                    dist = 22 + Math.cbrt(rnd()) * (FIELD - 22);
-                    // (a clear way ahead at the start)
-                    if (dir.dot(fwd) > 0.85 && dist < 90) continue;
-                } else {
-                    dir.multiplyScalar(0.75).add(fwd).normalize();
-                    dist = FIELD * (0.78 + rnd() * 0.22);
-                }
-                break;
+        // a body where the flight has it; one just come gets a spin of its own
+        const show = (k: Rock, b: Body, per: number) => {
+            if (b.live && !k.live) {
+                k.mesh.scale.setScalar(b.r / per);
+                k.mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+                k.spin.set((Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6);
             }
-            k.mesh.position.copy(pos).addScaledVector(dir, dist);
-            // mostly small, now and then a big one
-            const s = 0.7 + Math.pow(rnd(), 2.3) * 4.4;
-            k.r = s * 0.9;
-            k.mesh.scale.setScalar(s);
-            k.mesh.material = rockMat;
-            k.mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
-            k.spin.set((rnd() - 0.5) * 0.6, (rnd() - 0.5) * 0.6, (rnd() - 0.5) * 0.6);
-            k.drift.set((rnd() - 0.5) * 2.4, (rnd() - 0.5) * 2.4, (rnd() - 0.5) * 2.4);
-            k.neo = undefined;
-            k.near = false;
-            k.live = true;
-            k.mesh.visible = true;
-        };
-        let active = 160;
-        // Every so often a rock is put right in the way, 70 to 110 ahead and
-        // within a few units of the line the ship is on: there's always time
-        // to see it and turn, but flying straight on never works for long.
-        // It's the rock furthest behind, so the field doesn't grow.
-        let pathTimer = 0;
-        const inTheWay = () => {
-            let pick: Rock | null = null;
-            let behind = Infinity;
-            for (let i = 0; i < active; i++) {
-                const k = rocks[i];
-                if (!k.live) continue;
-                const d = tmp.copy(k.mesh.position).sub(pos).dot(fwd);
-                if (d < behind) {
-                    behind = d;
-                    pick = k;
-                }
-            }
-            if (!pick) return;
-            place(pick, false);
-            dir.set(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).projectOnPlane(fwd).normalize();
-            pick.mesh.position.copy(pos).addScaledVector(fwd, 70 + rnd() * 40).addScaledVector(dir, rnd() * 3.5);
-            pick.drift.multiplyScalar(0.3);
+            k.live = b.live;
+            k.mesh.visible = b.live;
+            if (b.live) k.mesh.position.set(b.x, b.y, b.z);
         };
 
         let todays: Neo[] = [];
-        let neoNext = 0;
-        let neoTimer = 0;
+        // the ones this flight was given (today's field)
+        let runNeos: Neo[] = [];
         let dodged: Neo[] = [];
         let hitBy: Neo | null = null;
         fetch("/api/space-today")
@@ -250,27 +200,14 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
                 setNeos(todays);
             })
             .catch(() => setNeos([]));
-        // One of today's asteroids: ahead and off to one side, drifting across
-        // the ship's way; sized from its real diameter, red if hazardous
-        const spawnNamed = () => {
-            const n = todays[neoNext];
-            const k = named[neoNext];
-            neoNext += 1;
+        // one of today's asteroids crossing (the flight puts it where it goes): its look
+        const styleNamed = (i: number) => {
+            const n = runNeos[i];
+            const k = named[i];
             if (!n || !k) return;
-            const scale = (1.8 + 1.6 * Math.min(1, Math.max(0, (Math.log10(Math.max(1, n.d)) - 1.3) / 1.4))) * 1.5;
-            const side = rnd() < 0.5 ? -1 : 1;
-            k.mesh.position.copy(pos).addScaledVector(fwd, 95).addScaledVector(right, side * (16 + rnd() * 8)).addScaledVector(up, (rnd() - 0.5) * 14);
-            tmp.copy(pos).addScaledVector(fwd, 70).sub(k.mesh.position).normalize();
-            k.drift.copy(tmp).multiplyScalar(7);
-            k.r = scale * 0.92;
-            k.mesh.scale.setScalar(scale);
-            k.mesh.material = n.hazardous ? hazardMat : rockMat;
-            k.mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
-            k.spin.set((rnd() - 0.5) * 0.5, (rnd() - 0.5) * 0.5, (rnd() - 0.5) * 0.5);
             k.neo = n;
-            k.near = false;
-            k.live = true;
-            k.mesh.visible = true;
+            k.mesh.material = n.hazardous ? hazardMat : rockMat;
+            k.live = false;
             setPassing({ neo: n, at: Date.now() });
         };
 
@@ -302,60 +239,74 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
         const ring = new THREE.Mesh(new THREE.TorusGeometry(RING_R, 0.24, 14, 56), ringMat);
         ring.add(new THREE.PointLight(0xfbbf24, 4, 14));
         scene.add(ring);
-        const ringNormal = new THREE.Vector3();
-        let ringSide = 0;
-        const ringSideNow = () => tmp.copy(pos).sub(ring.position).dot(ringNormal);
-        const placeRing = () => {
-            dir.copy(fwd).add(tmp2.set(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5).multiplyScalar(0.75)).normalize();
-            ring.position.copy(pos).addScaledVector(dir, 70 + rnd() * 30);
-            ring.lookAt(pos);
-            ringNormal.copy(Z).applyQuaternion(ring.quaternion);
-            ringSide = ringSideNow();
-        };
 
         // ---- the flight ------------------------------------------------------
         let phase: Phase = "ready";
-        let speed = CRUISE;
-        let distance = 0;
-        let bonus = 0;
-        let rings = 0;
-        let time = 0;
-        let shields = SHIELDS;
-        let invulnerable = 0;
+        // the flight being drawn: the one being flown, or between flights a
+        // ghost of one (a field flown past slowly, where nothing hits)
+        let sim: Flight = newFlight((Math.random() * 4294967296) >>> 0, null, []);
+        sim.ghost = true;
+        let seed = 0;
+        let runDay: string | null = null;
+        // The open field's seed comes from the server, signed (lib/run-seed.ts),
+        // fetched ahead so a flight never waits for it; the post carries it back
+        let dealt: { seed: number; token: string } | null = null;
+        let runToken: string | undefined;
+        const fetchSeed = () =>
+            fetch("/api/run-seed?game=flight", { cache: "no-store" })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d: { seed?: unknown; token?: unknown } | null) => {
+                    if (d && typeof d.seed === "number" && typeof d.token === "string") dealt = { seed: d.seed, token: d.token };
+                })
+                .catch(() => {});
+        fetchSeed();
+        let tape: number[][] = [];
+        let current = sample(-1, 0, 0);
+        let acc = 0;
         let shieldAt = 0;
         let newBest = false;
         let shake = 0;
         let bank = 0;
-        const score = () => Math.floor(distance / 10) + bonus;
+        const flying = () => phase === "playing" && !sim.ghost;
         const pushHud = () =>
-            setHud({ score: score(), best, shields, speed: Math.round(speed * 36), rings, phase, hitAt: invulnerable > 1.2 ? Date.now() : 0, newBest, shieldAt, daily, dodged: dodged.slice(), hitBy });
-
-        // the field all round, for the title screen and each flight
-        const setField = () => {
-            [...rocks, ...named].forEach(hide);
-            for (let i = 0; i < active; i++) place(rocks[i], true);
-            placeRing();
+            setHud({ score: flightScore(sim), best, shields: sim.shields, speed: Math.round(sim.speed * 36), rings: sim.rings, phase, hitAt: flying() && sim.invulnerable > 1.2 ? Date.now() : 0, newBest, shieldAt, daily, dodged: dodged.slice(), hitBy });
+        // the scene's copy of where the flight is, for drawing (three.js's vectors)
+        const syncShip = () => {
+            pos.set(sim.pos.x, sim.pos.y, sim.pos.z);
+            q.set(sim.q.x, sim.q.y, sim.q.z, sim.q.w);
+            orient();
         };
+        const clearDrawn = () =>
+            [...rocks, ...named].forEach((k) => {
+                k.live = false;
+                k.mesh.visible = false;
+                k.neo = undefined;
+                k.mesh.material = rockMat;
+            });
+
         const begin = (asDaily = daily) => {
             daily = asDaily;
-            rnd = daily ? seededRandom(`flight:${todayKey()}`) : Math.random;
-            q.identity();
-            orient();
-            speed = CRUISE;
-            distance = bonus = rings = time = 0;
-            shields = SHIELDS;
-            // a moment's grace at the start
-            invulnerable = 2;
-            shieldAt = 0;
-            newBest = false;
-            active = 160;
-            neoNext = 0;
-            neoTimer = 8;
-            pathTimer = 2;
+            runDay = daily ? todayKey() : null;
+            runNeos = daily ? todays.slice(0, 8) : [];
+            // (without a dealt seed, offline say, it flies on one of its own, which the board can't check)
+            const d = daily ? null : dealt;
+            if (!daily) {
+                dealt = null;
+                fetchSeed();
+            }
+            seed = d ? d.seed : (Math.random() * 4294967296) >>> 0;
+            runToken = d?.token;
+            sim = newFlight(seed, runDay, runNeos.map((n) => ({ d: n.d, v: n.v, h: n.hazardous })));
+            tape = [];
+            acc = 0;
+            mouseDX = mouseDY = 0;
+            clearDrawn();
             dodged = [];
             hitBy = null;
-            setField();
+            shieldAt = 0;
+            newBest = false;
             phase = "playing";
+            syncShip();
             setEngine(0.05, 0.3);
             pushHud();
         };
@@ -363,8 +314,8 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
         const end = () => {
             phase = "over";
             unlockPointer();
-            const s = score();
-            trackEvent("free_flight_over", { score: s, seconds: Math.round(time) });
+            const s = flightScore(sim);
+            trackEvent("free_flight_over", { score: s, seconds: Math.round(sim.time) });
             if (s > best) {
                 best = s;
                 newBest = true;
@@ -374,9 +325,35 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
                     /* ignore */
                 }
             }
+            setRecord({ seed, day: runDay, tape: encodeTape(tape, TAPE_DELTA), neos: sim.neos, token: runToken });
             sfxOver();
             stopEngine();
             pushHud();
+            // the field flies on past, slowly, as a ghost
+            sim.over = false;
+            sim.ghost = true;
+        };
+        // what the flight says happened: the sounds, flashes and captions
+        const handle = (events: FlightEvent[]) => {
+            for (const e of events) {
+                if (e.kind === "hit") {
+                    if (e.neo !== null) hitBy = runNeos[e.neo] ?? null;
+                    shake = reduce ? 0 : 0.6;
+                    sfxHit();
+                    pushHud();
+                } else if (e.kind === "ring") {
+                    sfxCollect();
+                    if (e.shield) {
+                        shieldAt = Date.now();
+                        sfxShield();
+                    }
+                    pushHud();
+                } else if (e.kind === "neo") styleNamed(e.index);
+                else if (e.kind === "passed") {
+                    const n = runNeos[e.neo];
+                    if (n) dodged.push(n);
+                } else if (e.kind === "over") end();
+            }
         };
 
         // ---- controls --------------------------------------------------------
@@ -513,8 +490,9 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
                 radarCtx.arc(x, y, Math.max(1.2, Math.min(4, rr * 0.8)) * dpr, 0, Math.PI * 2);
                 radarCtx.fill();
             };
-            for (const k of rocks) if (k.live) dot(k.mesh.position, k.r, "behind");
-            for (const k of named) if (k.live) dot(k.mesh.position, k.r, k.neo?.hazardous ? "#f87171" : "#7dd3fc");
+            const at = new THREE.Vector3();
+            for (const k of sim.rocks) if (k.live) dot(at.set(k.x, k.y, k.z), k.r, "behind");
+            sim.named.forEach((k) => k.live && dot(at.set(k.x, k.y, k.z), k.r, sim.neos[k.neo]?.h ? "#f87171" : "#7dd3fc"));
             dot(ring.position, 3, "#fde68a");
             radarCtx.globalAlpha = 1;
             // the ship, in the middle, nose up
@@ -566,76 +544,78 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
         let raf = 0;
         let last = performance.now();
         let hudTimer = 0;
-        const qTurn = new THREE.Quaternion();
         const camTarget = new THREE.Vector3();
         const lookAt = new THREE.Vector3();
-        setField();
+        const ringAt = new THREE.Vector3();
+        const T = INPUT_EVERY * DT;
+        const dead = (x: number) => (Math.sign(x) * Math.max(0, Math.abs(x) - 0.08)) / 0.92;
+        // this sample's input: the mouse's movement since the last (locked),
+        // the pointer's place (unlocked), a finger's drag, WASD and the arrows
+        const readInput = () => {
+            let yaw = 0;
+            let pitch = 0;
+            if (locked()) {
+                yaw -= mouseDX * 0.0022;
+                pitch -= mouseDY * 0.0022;
+            } else if (aim.on) {
+                yaw -= dead(aim.x) * 1.5 * T;
+                pitch -= dead(aim.y) * 1.2 * T;
+            }
+            mouseDX = mouseDY = 0;
+            if (touch) {
+                const r = cv.getBoundingClientRect();
+                yaw -= THREE.MathUtils.clamp((touch.x - touch.x0) / (r.width * 0.18), -1, 1) * 1.6 * T;
+                pitch -= THREE.MathUtils.clamp((touch.y - touch.y0) / (r.height * 0.18), -1, 1) * 1.3 * T;
+            }
+            if (keys.has("arrowleft") || keys.has("a")) yaw += 1.3 * T;
+            if (keys.has("arrowright") || keys.has("d")) yaw -= 1.3 * T;
+            if (keys.has("arrowup") || keys.has("w")) pitch += 1.1 * T;
+            if (keys.has("arrowdown") || keys.has("s")) pitch -= 1.1 * T;
+            // speed: Shift or the mouse button faster, Space slower, cruising otherwise
+            const thrustNow = keys.has("shift") || mouseHeld || thrust.current === 1 ? 1 : keys.has(" ") || thrust.current === -1 ? -1 : 0;
+            return sample(thrustNow, yaw, pitch);
+        };
+        syncShip();
         camera.position.copy(pos).addScaledVector(up, 1.7).addScaledVector(fwd, -6.5);
         const loop = (now: number) => {
             raf = requestAnimationFrame(loop);
             const dt = Math.min(0.05, (now - last) / 1000);
             last = now;
             if (document.hidden) return;
-            const playing = phase === "playing";
 
-            // steering: the mouse's movement (locked), the pointer's place
-            // (unlocked), a finger's drag, WASD and the arrow keys
-            let yaw = 0;
-            let pitch = 0;
-            if (playing) {
-                if (locked()) {
-                    yaw -= mouseDX * 0.0022;
-                    pitch -= mouseDY * 0.0022;
-                } else if (aim.on) {
-                    const dead = (v: number) => (Math.sign(v) * Math.max(0, Math.abs(v) - 0.08)) / 0.92;
-                    yaw -= dead(aim.x) * 1.5 * dt;
-                    pitch -= dead(aim.y) * 1.2 * dt;
+            // the flight: stepped at its fixed rate, the input sampled into its
+            // tape (between flights, the ghost drifts on, slowly)
+            acc += dt;
+            let n = 0;
+            while (acc >= DT && n < 24) {
+                const fresh = sim.step % INPUT_EVERY === 0;
+                if (fresh) {
+                    if (flying()) {
+                        current = readInput();
+                        tape.push(current);
+                    } else current = sample(-1, 0, 0);
                 }
-                if (touch) {
-                    const r = cv.getBoundingClientRect();
-                    yaw -= THREE.MathUtils.clamp((touch.x - touch.x0) / (r.width * 0.18), -1, 1) * 1.6 * dt;
-                    pitch -= THREE.MathUtils.clamp((touch.y - touch.y0) / (r.height * 0.18), -1, 1) * 1.3 * dt;
-                }
-                if (keys.has("arrowleft") || keys.has("a")) yaw += 1.3 * dt;
-                if (keys.has("arrowright") || keys.has("d")) yaw -= 1.3 * dt;
-                if (keys.has("arrowup") || keys.has("w")) pitch += 1.1 * dt;
-                if (keys.has("arrowdown") || keys.has("s")) pitch -= 1.1 * dt;
+                const ev = stepFlight(sim, fresh ? current : null);
+                if (flying() || phase === "playing") handle(ev);
+                acc -= DT;
+                n += 1;
             }
-            mouseDX = mouseDY = 0;
-            yaw = THREE.MathUtils.clamp(yaw, -0.25, 0.25);
-            pitch = THREE.MathUtils.clamp(pitch, -0.25, 0.25);
-            q.multiply(qTurn.setFromAxisAngle(Y, yaw)).multiply(qTurn.setFromAxisAngle(X, pitch));
-            // a gentle hand on the roll, back toward level, unless pointing
-            // nearly straight up or down, so the view doesn't slowly tip over
-            orient();
-            if (Math.abs(fwd.y) < 0.85) {
-                const roll = -Math.atan2(right.y, up.y);
-                q.multiply(qTurn.setFromAxisAngle(Z, roll * Math.min(1, dt * 1.4)));
-            }
-            q.normalize();
-            orient();
+            // (far behind, after a stall: the lost time goes, rather than racing to catch up)
+            if (n >= 24) acc = 0;
+            const playing = flying();
+            if (playing) setEngine(0.05, sim.speed / 46);
+            syncShip();
 
-            // speed: Shift or the mouse button faster, Space slower, cruising otherwise
-            const want = keys.has("shift") || mouseHeld || thrust.current === 1 ? FAST : (keys.has(" ") && playing) || thrust.current === -1 ? SLOW : CRUISE;
-            if (playing) {
-                speed += (want - speed) * Math.min(1, dt * 1.6);
-                time += dt;
-                distance += speed * dt;
-                invulnerable = Math.max(0, invulnerable - dt);
-                // the field thickens as the flight goes on
-                active = Math.min(ROCKS, Math.floor(160 + time * 1.5));
-                setEngine(0.05, speed / FAST);
-            } else speed += ((phase === "over" ? 4 : 8) - speed) * dt;
-            pos.addScaledVector(fwd, speed * dt);
             craft.position.copy(pos);
             craft.quaternion.copy(q);
-            bank = THREE.MathUtils.lerp(bank, THREE.MathUtils.clamp((yaw / Math.max(dt, 0.001)) * 0.35, -0.7, 0.7), 0.12);
+            // the ship banks into turns and leans into climbs, for the look of it
+            bank = THREE.MathUtils.lerp(bank, THREE.MathUtils.clamp((sim.input.yaw / DT) * 0.35, -0.7, 0.7), 0.12);
             ship.rotation.z = bank;
-            ship.rotation.x = THREE.MathUtils.lerp(ship.rotation.x, THREE.MathUtils.clamp((pitch / Math.max(dt, 0.001)) * 0.12, -0.3, 0.3), 0.12);
-            ship.visible = !(playing && invulnerable > 0 && Math.floor(now / 90) % 2 === 0);
-            flame.scale.set(1, 0.7 + Math.random() * 0.4 + speed / 40, 1);
+            ship.rotation.x = THREE.MathUtils.lerp(ship.rotation.x, THREE.MathUtils.clamp((sim.input.pitch / DT) * 0.12, -0.3, 0.3), 0.12);
+            ship.visible = !(playing && sim.invulnerable > 0 && Math.floor(now / 90) % 2 === 0);
+            flame.scale.set(1, 0.7 + Math.random() * 0.4 + sim.speed / 40, 1);
             flameMat.opacity = 0.55 + Math.random() * 0.3;
-            engineGlow.scale.setScalar(1 + Math.random() * 0.2 + speed / 80);
+            engineGlow.scale.setScalar(1 + Math.random() * 0.2 + sim.speed / 80);
 
             // the chase camera: behind and a little above, following the turns
             camTarget.copy(pos).addScaledVector(up, 1.7).addScaledVector(fwd, -6.5);
@@ -648,7 +628,7 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
                 shake = Math.max(0, shake - dt * 1.6);
             }
             camera.lookAt(lookAt);
-            const fovTo = baseFov + Math.max(0, speed - CRUISE) * 0.3;
+            const fovTo = baseFov + Math.max(0, sim.speed - 20) * 0.3;
             if (Math.abs(camera.fov - fovTo) > 0.05) {
                 camera.fov += (fovTo - camera.fov) * Math.min(1, dt * 4);
                 camera.updateProjectionMatrix();
@@ -656,7 +636,7 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
             stars.position.copy(camera.position);
 
             // the dust: streaks along the way you're going
-            const streak = Math.min(6, 0.1 + speed * 0.06);
+            const streak = Math.min(6, 0.1 + sim.speed * 0.06);
             for (let i = 0; i < DUST; i++) {
                 const p = dustPts[i];
                 if (p.distanceToSquared(pos) > DUST_R * DUST_R) placeDust(p, true);
@@ -669,86 +649,20 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
             }
             dustGeo.attributes.position.needsUpdate = true;
 
-            // the rocks: drifting, turning; placed again ahead once far behind
-            for (let i = 0; i < ROCKS; i++) {
-                const k = rocks[i];
-                if (!k.live) {
-                    if (i < active && playing) place(k, false);
-                    continue;
-                }
-                k.mesh.position.addScaledVector(k.drift, dt);
+            // everything where the flight has it, turning for the look of it
+            sim.rocks.forEach((b, i) => show(rocks[i], b, 0.9));
+            sim.named.forEach((b, i) => show(named[i], b, 0.92));
+            for (const k of [...rocks, ...named]) {
+                if (!k.live) continue;
                 k.mesh.rotation.x += k.spin.x * dt;
                 k.mesh.rotation.y += k.spin.y * dt;
                 k.mesh.rotation.z += k.spin.z * dt;
-                const d = k.mesh.position.distanceTo(pos);
-                if (d > FIELD * 1.08) {
-                    if (i < active) place(k, false);
-                    else hide(k);
-                    continue;
-                }
-                if (playing && invulnerable <= 0 && d < k.r + SHIP_R) {
-                    hit(k);
-                    place(k, false);
-                }
             }
-            if (playing) {
-                pathTimer -= dt;
-                if (pathTimer <= 0) {
-                    inTheWay();
-                    // more often as the flight goes on, and at speed
-                    pathTimer = Math.max(0.9, 2.6 - time / 60) * (CRUISE / Math.max(speed, SLOW)) ** 0.5;
-                }
-            }
-            if (playing && daily && neoNext < todays.length) {
-                neoTimer -= dt;
-                if (neoTimer <= 0) {
-                    spawnNamed();
-                    neoTimer = 12;
-                }
-            }
-            for (const k of named) {
-                if (!k.live) continue;
-                k.mesh.position.addScaledVector(k.drift, dt);
-                k.mesh.rotation.x += k.spin.x * dt;
-                k.mesh.rotation.y += k.spin.y * dt;
-                const d = k.mesh.position.distanceTo(pos);
-                if (d < 40) k.near = true;
-                if (d > FIELD * 1.08) {
-                    // (got past one of today's real asteroids)
-                    if (k.neo && k.near && playing) dodged.push(k.neo);
-                    hide(k);
-                    continue;
-                }
-                if (playing && invulnerable <= 0 && d < k.r + SHIP_R) {
-                    if (k.neo) hitBy = k.neo;
-                    hit(k);
-                    hide(k);
-                }
-            }
-
-            // the ring: through it for points; a missed one goes, and another comes
-            ring.rotation.z += dt * 0.6;
+            ringAt.set(sim.ring.x, sim.ring.y, sim.ring.z);
+            ring.position.copy(ringAt);
+            ring.lookAt(tmp.set(sim.ring.x + sim.ring.n.x, sim.ring.y + sim.ring.n.y, sim.ring.z + sim.ring.n.z));
+            ring.rotateZ(now / 1600);
             ringMat.emissiveIntensity = 1.1 + Math.sin(now / 180) * 0.4;
-            const sideNow = ringSideNow();
-            if (playing && Math.sign(sideNow) !== Math.sign(ringSide)) {
-                tmp.copy(pos).sub(ring.position);
-                tmp.addScaledVector(ringNormal, -tmp.dot(ringNormal));
-                if (tmp.length() < RING_R - 0.15) {
-                    rings += 1;
-                    bonus += 100;
-                    sfxCollect();
-                    if (rings % 5 === 0 && shields < SHIELDS) {
-                        shields += 1;
-                        shieldAt = Date.now();
-                        sfxShield();
-                    }
-                    placeRing();
-                    pushHud();
-                }
-            }
-            ringSide = ringSideNow();
-            tmp.copy(ring.position).sub(pos);
-            if (tmp.length() > 230 || tmp.dot(fwd) < -30) placeRing();
 
             hudTimer -= dt;
             if (playing && hudTimer <= 0) {
@@ -758,16 +672,6 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
             drawRadar();
             if (ready) renderer.render(scene, camera);
             markHeading();
-        };
-        const hit = (k: Rock) => {
-            shields -= 1;
-            invulnerable = 1.6;
-            speed *= 0.4;
-            shake = reduce ? 0 : 0.6;
-            sfxHit();
-            void k;
-            if (shields <= 0) end();
-            else pushHud();
         };
         raf = requestAnimationFrame(loop);
         pushHud();
@@ -912,9 +816,9 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
                         {hud.phase === "over" && (
                             <div className="pointer-events-auto">
                                 {hud.daily ? (
-                                    <Board key="daily" game="flight-daily" day={todayKey()} score={hud.score} title="Today's field" />
+                                    <Board key="daily" game="flight-daily" day={record?.day ?? todayKey()} score={hud.score} run={record ?? undefined} title="Today's field" />
                                 ) : (
-                                    <Board key="all" game="free-flight" score={hud.score} />
+                                    <Board key="all" game="free-flight" score={hud.score} run={record ?? undefined} />
                                 )}
                             </div>
                         )}
