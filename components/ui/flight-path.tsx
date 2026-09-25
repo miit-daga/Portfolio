@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { scrollToSection } from "@/lib/scroll-to-section";
 import { SECTIONS } from "@/constants/sections";
+import { placeOf, usePresence } from "@/lib/presence";
 
 // Vertical flight-path minimap pinned to the right edge (desktop only).
 // Each section is a tiny waypoint planet at its true position along the
@@ -51,6 +52,10 @@ export const FlightPath = () => {
         document.documentElement.classList.add("flight-path-active");
         return () => document.documentElement.classList.remove("flight-path-active");
     }, []);
+
+    // Other explorers aboard (lib/presence.ts), by the waypoint they're at
+    const { explorers } = usePresence();
+    const aboard = WAYPOINTS.map((w) => explorers.filter((e) => e.section === (w.id || "hero")));
 
     // True position of each waypoint along the scroll range (0..1)
     const [fracs, setFracs] = useState<number[]>([]);
@@ -206,6 +211,24 @@ export const FlightPath = () => {
                         }}
                     />
                 </motion.div>
+
+                {/* Other explorers: faint ships beside the section they're reading */}
+                {aboard.map((here, i) =>
+                    here.length ? (
+                        <span
+                            key={`aboard-${WAYPOINTS[i].id || "hero"}`}
+                            title={`${here.length === 1 ? "An explorer" : `${here.length} explorers`} here · ${[...new Set(here.map(placeOf))].join(", ")}`}
+                            className="group/aboard absolute -left-3 flex -translate-y-1/2 items-center gap-0.5"
+                            style={{ top: `${fracs[i] * 100}%` }}
+                        >
+                            <span className="block h-[5px] w-[5px] animate-pulse rounded-full bg-violet-300 shadow-[0_0_6px_rgba(196,181,253,0.9)]" />
+                            {here.length > 1 && <span className="font-mono text-[9px] leading-none text-violet-200/80">{here.length}</span>}
+                            <span className="pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-full border border-violet-300/30 bg-black/75 px-2 py-0.5 font-mono text-[10px] tracking-wide text-violet-100 opacity-0 backdrop-blur-sm transition-opacity group-hover/aboard:opacity-100">
+                                {here.length === 1 ? "An explorer" : `${here.length} explorers`} here · {[...new Set(here.map(placeOf))].slice(0, 3).join(", ")}
+                            </span>
+                        </span>
+                    ) : null,
+                )}
 
                 {/* Waypoint planets */}
                 {WAYPOINTS.map((w, i) => {

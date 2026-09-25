@@ -24,6 +24,7 @@ const SignalRings = dynamic(() => import("./ui/signal-rings").then((m) => m.Sign
 const CrewCard = dynamic(() => import("./ui/crew-card").then((m) => m.CrewCard), { ssr: false, loading: CrewCardSpace });
 const SignalGlobe = dynamic(() => import("./ui/signal-globe").then((m) => m.SignalGlobe), { ssr: false, loading: GlobeSpace });
 const ContactActions = dynamic(() => import("./ui/contact-actions").then((m) => m.ContactActions), { ssr: false, loading: ActionsSpace });
+const ExplorersLine = dynamic(() => import("./ui/explorers").then((m) => m.ExplorersLine), { ssr: false });
 const DsnLive = dynamic(() => import("./ui/dsn-live").then((m) => m.DsnLive), { ssr: false });
 const GuestbookSignal = dynamic(() => import("./ui/radar-guestbook").then((m) => m.GuestbookSignal), { ssr: false });
 import { accentVars, getSection } from "@/constants/sections";
@@ -218,6 +219,7 @@ export function Contact() {
                 {/* Clocks and callsign, the visit so far, and the Big Crunch keys (footer-console.tsx) */}
                 <MissionStatus accent={CONTACT.hex} />
                 <VisitLog />
+                <ExplorersLine />
                 <p className="text-neutral-500 text-sm">
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
