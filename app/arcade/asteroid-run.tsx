@@ -1391,7 +1391,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
 function Journey({ leg, hidden }: { leg: number; hidden: boolean }) {
     // launch at the left, open space (after the last stop) at the right
     const x = (p: number) => `${((p + 1) / (TOUR.length + 1)) * 100}%`;
-    const next = Math.min(TOUR.length, Math.ceil(leg - 0.05));
+    // (from the launch, at -1, the next stop is the first)
+    const next = Math.max(0, Math.min(TOUR.length, Math.ceil(leg - 0.05)));
     const label = next >= TOUR.length ? "Deep space" : TOUR[next].key === "blackhole" ? "Black hole" : TOUR[next].name[0].toUpperCase() + TOUR[next].name.slice(1);
     return (
         <div aria-hidden className={`pointer-events-none absolute bottom-[4.75rem] left-1/2 w-[min(560px,calc(100%-2.5rem))] -translate-x-1/2 transition-opacity duration-500 md:bottom-7 ${hidden ? "opacity-0" : ""}`}>
