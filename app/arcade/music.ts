@@ -12,16 +12,19 @@
 
 import { audioContext, isMuted, onMute } from "./sound";
 
-// Peaks around -40 dB: about 15 dB under the games' own sounds, faint but there
-const LEVEL = 0.16;
+// Quiet, under the games' own sounds, but pitched and filtered to be heard on
+// laptop and phone speakers, which play little below 300 Hz: the first version
+// sat almost entirely down there and was, on those, silent
+const LEVEL = 0.34;
 const KEY = "arcade-music";
 const midi = (n: number) => 440 * Math.pow(2, (n - 69) / 12);
-// Each chord voiced low to high, as MIDI notes
+// Each chord voiced low to high, as MIDI notes, from the octave above the bass
+// (small speakers can't play the bass octave)
 const CHORDS = [
-    [45, 52, 55, 59, 60], // Am9: A2 E3 G3 B3 C4
-    [41, 48, 52, 55, 57], // Fmaj9: F2 C3 E3 G3 A3
-    [48, 55, 62, 64, 67], // Cadd9: C3 G3 D4 E4 G4
-    [40, 47, 50, 55, 59], // Em7: E2 B2 D3 G3 B3
+    [57, 64, 67, 71, 72], // Am9: A3 E4 G4 B4 C5
+    [53, 60, 64, 67, 69], // Fmaj9: F3 C4 E4 G4 A4
+    [60, 67, 74, 76, 79], // Cadd9: C4 G4 D5 E5 G5
+    [52, 59, 62, 67, 71], // Em7: E3 B3 D4 G4 B4
 ];
 const CHORD_S = 16;
 // The chimes: A minor pentatonic, up high, which sits over all four chords
@@ -88,16 +91,16 @@ function padVoice(a: AudioContext, n: number, t: number, input: AudioNode) {
     const g = a.createGain();
     g.gain.setValueAtTime(0, t);
     // the low notes carry the chord, the top ones stay light
-    g.gain.linearRampToValueAtTime(n < 50 ? 0.07 : 0.045, t + 5);
+    g.gain.linearRampToValueAtTime(n < 62 ? 0.07 : 0.045, t + 5);
     const lp = a.createBiquadFilter();
     lp.type = "lowpass";
-    lp.frequency.value = 650;
+    lp.frequency.value = 1100;
     lp.Q.value = 0.6;
     // the filter breathes, each note at its own slow rate
     const lfo = a.createOscillator();
     lfo.frequency.value = 0.04 + Math.random() * 0.05;
     const depth = a.createGain();
-    depth.gain.value = 320;
+    depth.gain.value = 450;
     lfo.connect(depth).connect(lp.frequency);
     const oscs = [-7, 7].map((cents) => {
         const o = a.createOscillator();
@@ -118,7 +121,7 @@ function padVoice(a: AudioContext, n: number, t: number, input: AudioNode) {
 function bell(a: AudioContext, f: number, t: number, input: AudioNode, echo: AudioNode) {
     const g = a.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(0.035, t + 0.02);
+    g.gain.linearRampToValueAtTime(0.06, t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 4);
     const o = a.createOscillator();
     o.frequency.value = f;
