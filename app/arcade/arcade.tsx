@@ -3,6 +3,7 @@ import { Component, useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { trackEvent } from "@/lib/track";
 import { reportError } from "@/lib/report-error";
+import { wantMusic } from "./music";
 
 // The arcade: two 3D games, each in its own chunk with three.js, loaded only
 // when it is opened, so nothing here costs the rest of the site anything.
@@ -114,6 +115,18 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
 export function Arcade() {
     const [game, setGame] = useState<Game | null>(null);
     const [bests, setBests] = useState<Record<string, string | null>>({});
+
+    // The background music (music.ts): from the first click, tap or key here
+    // (browsers allow sound only after one), until they leave the arcade
+    useEffect(() => {
+        const go = () => wantMusic(true);
+        const events = ["pointerup", "keydown", "touchend"] as const;
+        events.forEach((e) => window.addEventListener(e, go, { once: true }));
+        return () => {
+            events.forEach((e) => window.removeEventListener(e, go));
+            wantMusic(false);
+        };
+    }, []);
 
     useEffect(() => {
         const q = new URLSearchParams(window.location.search).get("game");

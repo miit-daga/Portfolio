@@ -5,9 +5,17 @@
 let ctx: AudioContext | null = null;
 let muted = false;
 
+// Told when the mute changes (the background music, music.ts, follows it)
+const muteListeners = new Set<() => void>();
+export function onMute(f: () => void) {
+    muteListeners.add(f);
+    return () => void muteListeners.delete(f);
+}
+
 export function setMuted(m: boolean) {
     muted = m;
     if (engine) engine.gain.gain.setTargetAtTime(m ? 0 : engineLevel, audio()?.currentTime ?? 0, 0.05);
+    muteListeners.forEach((f) => f());
 }
 export const isMuted = () => muted;
 
@@ -19,6 +27,9 @@ function audio(): AudioContext | null {
     if (ctx.state === "suspended") ctx.resume().catch(() => {});
     return ctx;
 }
+
+/** The one audio context the arcade's sounds share (null without Web Audio). */
+export const audioContext = () => audio();
 
 function tone(f: number, at: number, dur: number, level: number, type: OscillatorType = "sine", slideTo?: number) {
     const a = audio();

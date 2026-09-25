@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CloseButton } from "../resume/close-button";
+import { MusicButton } from "./music-button";
 import { Arcade } from "./arcade";
 import { decodeChallenge, flyChallenge, nameOf } from "./challenge";
 
@@ -71,7 +72,10 @@ export default function ArcadePage() {
                         <Link href="/" className="transition-colors hover:text-teal-200">Miit Daga</Link> · Arcade
                     </h1>
                 </div>
-                <CloseButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
+                <div className="flex items-center gap-2">
+                    <MusicButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
+                    <CloseButton className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 py-2 text-sm text-neutral-200 transition-colors hover:border-white/30 hover:text-white" />
+                </div>
             </header>
             <Arcade />
             <p className="relative z-10 mx-auto mt-auto w-full max-w-5xl px-4 pb-6 lg:max-w-6xl font-mono text-[11px] text-neutral-600 md:px-6">
