@@ -7,7 +7,7 @@ import { NoWebGL } from "./no-webgl";
 import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
-import { alignStars, fbm, loadTexture, normalMap, perlin, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { alignStars, fbm, loadTexture, normalMap, perlin, sharpen, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { subscribeIss } from "@/lib/iss";
 import { BASE, H, drop as dropModule, movingAt, newStack, roundTime, type Stack } from "./stack-sim";
 
@@ -401,13 +401,18 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         const env = spaceEnvironment(renderer, SUN, { dir: EARTH_AT, colour: new THREE.Color(0.3, 0.45, 0.7), cos: 0.88 });
         scene.environment = env.texture;
 
-        // The Earth, turning slowly, with its air
+        // The Earth, turning slowly, with its air. On a desktop that can take
+        // it, the day side sharpens to 8K and the city lights to 4K once
+        // they've loaded, and the clouds to 8K, kept as one channel (the
+        // shader reads only their red), so they take no more memory than now
+        const sharp = (t: THREE.Texture, file: string) => (sharpen(renderer, t, file), t);
+        const sharpGrey = (t: THREE.Texture, file: string) => (sharpen(renderer, t, file, true, true), t);
         const earthMat = new THREE.ShaderMaterial({
             uniforms: {
-                uDay: { value: loadTexture(renderer, loader, "earth-day.jpg") },
-                uNight: { value: loadTexture(renderer, loader, "earth-night.jpg") },
+                uDay: { value: sharp(loadTexture(renderer, loader, "earth-day.jpg"), "earth-day-8k.webp") },
+                uNight: { value: sharp(loadTexture(renderer, loader, "earth-night.jpg"), "earth-night-4k.jpg") },
                 uWater: { value: loadTexture(renderer, loader, "earth-water.jpg", false) },
-                uClouds: { value: loadTexture(renderer, loader, "earth-clouds.jpg", false) },
+                uClouds: { value: sharpGrey(loadTexture(renderer, loader, "earth-clouds.jpg", false), "earth-clouds-8k.webp") },
                 uSun: { value: sunDir },
                 uCloudShift: { value: 0 },
             },

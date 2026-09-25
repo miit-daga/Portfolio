@@ -17,10 +17,65 @@ export function loadTexture(renderer: THREE.WebGLRenderer, loader: THREE.Texture
     return t;
 }
 
+/**
+ * Whether this screen gets the sharper pictures: a desktop (fine pointer, a
+ * wide screen) whose GPU takes 16K textures and which has the memory for
+ * them, not asking to save data. Phones and small laptops keep the standard
+ * set; an 8K picture is 130 MB or more of graphics memory, and running out of
+ * it loses the WebGL context.
+ */
+let sharp: boolean | undefined;
+function sharpScreen(renderer: THREE.WebGLRenderer) {
+    if (sharp !== undefined) return sharp;
+    const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
+    sharp =
+        window.matchMedia("(pointer: fine)").matches &&
+        Math.max(window.screen.width, window.screen.height) >= 1280 &&
+        renderer.capabilities.maxTextureSize >= 16384 &&
+        (nav.deviceMemory ?? 8) >= 8 &&
+        !nav.connection?.saveData;
+    return sharp;
+}
+
+/**
+ * On a sharpScreen, fetch a higher-resolution copy of a texture's picture in
+ * the background and put it in the same texture once it's here, so everything
+ * using the texture sharpens in place. It stays off the loading manager: the
+ * game starts on the standard picture and never waits for this one. Decoded
+ * off the main thread (an ImageBitmap), so the swap doesn't stall a frame.
+ */
+export function sharpen(renderer: THREE.WebGLRenderer, t: THREE.Texture, file: string, mipmaps = true, grey = false) {
+    if (!sharpScreen(renderer)) return;
+    const loader = new THREE.ImageBitmapLoader();
+    loader.setOptions({ imageOrientation: "flipY", premultiplyAlpha: "none" });
+    loader.load(
+        ASSET + file,
+        (bitmap) => {
+            // The texture may have been disposed (the game closed) meanwhile
+            if (!t.image) return bitmap.close();
+            t.image = bitmap;
+            t.flipY = false; // the bitmap is flipped already
+            // A greyscale picture read only for its red channel (the clouds)
+            // is kept as one channel, a quarter of the memory
+            if (grey) t.format = THREE.RedFormat;
+            if (!mipmaps) {
+                t.generateMipmaps = false;
+                t.minFilter = THREE.LinearFilter;
+            }
+            t.needsUpdate = true;
+        },
+        undefined,
+        () => {}, // the standard picture is still there
+    );
+}
+
 /** The whole sky, for scene.background: stars and the Milky Way. */
 export function skyTexture(renderer: THREE.WebGLRenderer, loader: THREE.TextureLoader) {
     const t = loadTexture(renderer, loader, "sky.jpg");
     t.mapping = THREE.EquirectangularReflectionMapping;
+    // The sky is only ever seen magnified (a fifth of it fills the screen), so
+    // its 8K copy skips the smaller mip levels, which only shrinking uses
+    sharpen(renderer, t, "sky-8k.jpg", false);
     return t;
 }
 
