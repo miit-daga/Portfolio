@@ -204,7 +204,6 @@ export function MissionControl() {
                                             ))}
                                         </div>
                                     )}
-                                    {m.via && <p className="mt-1 pl-1 font-mono text-[9px] uppercase tracking-[0.15em] text-neutral-600">via {m.via}</p>}
                                 </div>
                             ),
                         )}
