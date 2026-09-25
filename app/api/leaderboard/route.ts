@@ -4,6 +4,52 @@ import { GAMES, GAME_KEYS, isGameKey, type GameKey } from "@/constants/games";
 import { dailyMission, dayKey, isDayKey } from "@/app/arcade/assist-daily";
 import { LEVELS, fly } from "@/app/arcade/assist-sim";
 import { replay as replayStack } from "@/app/arcade/stack-sim";
+import { MAX_SAMPLES as RUN_MAX, TAPE_DELTA as RUN_DELTA, TAPE_WIDTH as RUN_WIDTH, replayRun, type RunNeo } from "@/app/arcade/run-sim";
+import { decodeTape } from "@/app/arcade/tape";
+import { checkSeed } from "@/lib/run-seed";
+import { createHash } from "node:crypto";
+
+// An open field's seed must be one the server dealt (lib/run-seed.ts), and a
+// dealt seed goes with one run: the first tape posted on it. The same tape may
+// be posted again (another name, after a clash); a different one may not.
+async function seedFor(token: unknown, seed: number, game: "run" | "flight", tape: string): Promise<string | null> {
+  const dealt = checkSeed(token, game);
+  if (!dealt) return "That run's field wasn't dealt by the arcade (was it offline when the run began?), so it can't be checked.";
+  if (dealt.seed !== seed) return "That run doesn't match its field.";
+  if (REDIS()) {
+    const key = `runseed:${String(token).split(".")[3]}`;
+    const mine = createHash("sha256").update(tape).digest("base64url").slice(0, 22);
+    const set = await kv<string | null>(["SET", key, mine, "NX", "PX", 4 * 3_600_000]);
+    if (set === null && (await kv<string | null>(["GET", key])) !== mine) return "That field has already been flown and posted.";
+  }
+  return null;
+}
+
+// Today's real asteroids, as a daily run met them: the list the run sent,
+// checked against the one the site fetched from NASA for that day (in Redis,
+// from /api/space-today) when it has it. Null: not today's.
+async function neosFor(day: string, sent: unknown): Promise<RunNeo[] | null> {
+  const list = Array.isArray(sent) ? sent.slice(0, 8) : [];
+  const clean = list.map((n) => {
+    const o = (n ?? {}) as Record<string, unknown>;
+    return { d: Number(o.d), v: Number(o.v), h: o.h === true };
+  });
+  if (clean.some((n) => !(n.d >= 1 && n.d <= 100000 && n.v >= 0 && n.v <= 200))) return null;
+  if (hasKv()) {
+    try {
+      const raw = await kv<string | null>(["GET", `space:today:${day}`]);
+      const known = raw ? (JSON.parse(raw) as { asteroids?: { d: number; v: number; hazardous: boolean }[] | null }).asteroids : null;
+      if (Array.isArray(known) && known.length) {
+        const want = known.slice(0, 8).map((a) => ({ d: a.d, v: a.v, h: !!a.hazardous }));
+        const same = want.length === clean.length && want.every((w, i) => w.d === clean[i].d && w.v === clean[i].v && w.h === clean[i].h);
+        return same ? want : null;
+      }
+    } catch {
+      /* no record of the day: take the run's list, within reason */
+    }
+  }
+  return clean;
+}
 
 // Arcade leaderboards, stored as a second file inside the guestbook's gist.
 // A PATCH only touches the files it names, so leaderboard writes never disturb
@@ -15,10 +61,11 @@ import { replay as replayStack } from "@/app/arcade/stack-sim";
 // arrival. That one is the exception to what follows: the client sends the
 // shot (angle and power), and the server flies it again and times it itself.
 //
-// Two are checked here rather than taken on trust: Gravity Assist's times
-// (its shot flown again) and Stack the Station's modules (its drop times
-// replayed, stack-sim.ts). A bot playing perfectly would still pass: they
-// prove a score can be had by the rules, not that a person had it.
+// The arcade's are checked here rather than taken on trust: Gravity Assist's
+// times (its shot flown again), Stack the Station's modules (its drop times
+// replayed, stack-sim.ts), and Asteroid Run's scores (the run replayed from
+// its seed and input tape, run-sim.ts). A bot playing perfectly would still
+// pass: they prove a score can be had by the rules, not that a person had it.
 //
 // Honest about the rest: their scores originate on the client, so they cannot be
 // verified. The ceilings in constants/games.ts and the rate limit below only
@@ -264,6 +311,26 @@ export async function POST(request: Request) {
     }
     if (counted <= 0) return NextResponse.json({ error: "That build stood no modules." }, { status: 400 });
     rawScore = counted;
+  }
+  // Asteroid Run: the run is replayed from its seed and its input, and scored
+  // here (the score sent is ignored); today's field, with today's asteroids
+  if (game === "asteroid-run" || game === "run-daily") {
+    const rec = ((body ?? {}) as { run?: { seed?: unknown; tape?: unknown; neos?: unknown } }).run;
+    const seed = Number(rec?.seed);
+    const samples = rec ? decodeTape(rec.tape, RUN_WIDTH, RUN_DELTA, RUN_MAX) : null;
+    if (!rec || !Number.isInteger(seed) || seed < 0 || seed > 0xffffffff || !samples) {
+      return NextResponse.json({ error: "Send the run: its seed and its input." }, { status: 400 });
+    }
+    if (game === "asteroid-run") {
+      const bad = await seedFor((rec as { token?: unknown }).token, seed, "run", String(rec.tape));
+      if (bad) return NextResponse.json({ error: bad }, { status: 400 });
+    }
+    const neos = game === "run-daily" ? await neosFor(day!, rec.neos) : [];
+    if (!neos) return NextResponse.json({ error: "That wasn't today's field. Play it again?" }, { status: 400 });
+    const scored = replayRun(samples, seed, game === "run-daily" ? day! : null, neos);
+    if (scored === null) return NextResponse.json({ error: "That run doesn't end where it says when it's replayed here." }, { status: 400 });
+    if (scored <= 0) return NextResponse.json({ error: "That run scored nothing." }, { status: 400 });
+    rawScore = scored;
   }
   // The mission of the day: fly the shot again, and time it here
   if (game === "assist-daily") {

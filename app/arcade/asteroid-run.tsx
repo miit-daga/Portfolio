@@ -7,7 +7,11 @@ import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sfxShield, sfxSmash, sfxStar, stopEngine } from "./sound";
 import { FullscreenButton } from "./fullscreen";
-import { alignStars, glowTexture, rockGeometry, rockMaterial, seededRandom, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { alignStars, glowTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { encodeTape } from "./tape";
+// The run's rules: a seeded simulation, stepped here and replayed by the server
+// to score a posted run (the leaderboard doesn't take the browser's word for it)
+import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_DELTA, neoScale, newRun, runScore, sample, stepRun, type Power, type Run, type RunEvent, type RunNeo, type Thing } from "./run-sim";
 
 // Asteroid Run: fly a small ship forward through an asteroid field, dodging
 // rocks and picking up glowing fragments. It gets faster the longer you last.
@@ -19,15 +23,8 @@ import { alignStars, glowTexture, rockGeometry, rockMaterial, seededRandom, skyT
 // the run is over. The best score is kept in this browser.
 
 const BEST_KEY = "arcade-run-best";
-const BOUNDS = { x: 6.5, y: 3.6 };
-const SHIELDS = 3;
-const ROCKS = 70;
-const FRAGS = 8;
-const FAR = -190;
 
 type Phase = "ready" | "playing" | "over";
-type Power = "star" | "boost";
-const POWER_TIME: Record<Power, number> = { star: 6, boost: 4 };
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
 // Today's real asteroids, from NASA (app/api/space-today)
 type Neo = { name: string; d: number; v: number; ld: number; hazardous: boolean };
@@ -43,6 +40,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
     const [loaded, setLoaded] = useState(false);
     const [noGl, setNoGl] = useState(false);
     const start = useRef<(daily?: boolean) => void>(() => {});
+    // the last run, as the server replays it: its seed, day, tape and today's asteroids
+    const [record, setRecord] = useState<{ seed: number; day: string | null; tape: string; neos: RunNeo[]; token?: string } | null>(null);
     // the launch buttons lock the pointer too, when clicked with a mouse
     const lock = useRef<(at: { x: number; y: number }) => void>(() => {});
     // today's asteroids, and the one passing now (its caption)
@@ -256,8 +255,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             named.push({ mesh, r: 1, spin: new THREE.Vector3(), live: false });
         }
         let todays: Neo[] = [];
-        let neoNext = 0;
-        let neoTimer = 0;
+        // the ones this run was given (today's field)
+        let runNeos: Neo[] = [];
         let dodged: Neo[] = [];
         let hitBy: Neo | null = null;
         fetch("/api/space-today")
@@ -267,22 +266,15 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 setNeos(todays);
             })
             .catch(() => setNeos([]));
-        const spawnNamed = () => {
-            const n = todays[neoNext];
-            const r = named[neoNext];
-            neoNext += 1;
+        // one of them coming (the run puts it where it goes): its look, sized
+        // from its real diameter, red if potentially hazardous
+        const styleNamed = (i: number) => {
+            const n = runNeos[i];
+            const r = named[i];
             if (!n || !r) return;
-            // 20 m to 500 m across, as 1.8 to 3.4 times a middling rock
-            const scale = 1.8 + 1.6 * Math.min(1, Math.max(0, (Math.log10(Math.max(1, n.d)) - 1.3) / 1.4));
-            r.r = scale * 0.92;
             r.neo = n;
             r.mesh.material = n.hazardous ? hazardMat : rockMat;
-            r.mesh.scale.setScalar(scale);
-            r.mesh.position.set((rnd() - 0.5) * BOUNDS.x * 1.4, (rnd() - 0.5) * BOUNDS.y * 1.4, FAR);
-            r.mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
-            r.spin.set((rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.8);
-            r.live = true;
-            r.mesh.visible = true;
+            r.mesh.scale.setScalar(neoScale(n.d));
             setPassing({ neo: n, at: Date.now() });
         };
         // The fragments: small glowing gems
@@ -311,17 +303,12 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         shieldRing.add(new THREE.PointLight(0x38bdf8, 3, 7));
         shieldRing.visible = false;
         scene.add(shieldRing);
-        let ringLive = false;
-        let ringTimer = 0;
         let shieldAt = 0;
-        // the first comes soon after a shield is lost, then now and then while one is down
-        // The field's own randomness: the rocks, fragments, rings and
-        // power-ups. On today's field it's seeded by the date, so everyone
-        // flies the same one (the dust and the flicker stay random)
-        let rnd = Math.random;
+        // The run itself (run-sim.ts): the rocks, fragments, rings, power-ups
+        // and today's asteroids, where and when, from a seeded simulation;
+        // on today's field it's seeded by the date, so everyone flies the same
+        // one. This draws it (the dust, the spin and the flicker are its own)
         let daily = false;
-        const nextRing = () => 12 + rnd() * 8;
-        const soonRing = () => 5 + rnd() * 4;
 
         // The power-ups. A golden star (two interlocked tetrahedra) for
         // invincibility, a violet double arrow for the boost
@@ -363,12 +350,6 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         halo(arrowPickup, "rgba(216,180,254,1)", "rgba(168,85,247,0)", 3);
         halo(shieldRing, "rgba(125,211,252,1)", "rgba(56,189,248,0)", 3.4);
         const pickups: Record<Power, THREE.Group> = { star: starPickup, boost: arrowPickup };
-        let pickupLive: Power | null = null;
-        let pickupTimer = 0;
-        const nextPickup = () => 18 + rnd() * 12;
-        // the one running now, and how long it has left
-        let power: Power | null = null;
-        let powerLeft = 0;
         // the ship's glow while one runs
         const auraMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
         const aura = new THREE.Mesh(new THREE.SphereGeometry(1.35, 24, 16), auraMat);
@@ -379,80 +360,84 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
 
         // ---- the run ---------------------------------------------------------
         let phase: Phase = "ready";
-        let speed = 0;
-        let time = 0;
-        let distance = 0;
-        let bonus = 0;
-        let shields = SHIELDS;
-        let invulnerable = 0;
-        let rockTimer = 0;
-        let fragTimer = 0;
+        let sim: Run | null = null;
+        let seed = 0;
+        let runDay: string | null = null;
+        // The open field's seed comes from the server, signed (lib/run-seed.ts),
+        // fetched ahead so a run never waits for it; the post carries it back
+        let dealt: { seed: number; token: string } | null = null;
+        let runToken: string | undefined;
+        const fetchSeed = () =>
+            fetch("/api/run-seed?game=run", { cache: "no-store" })
+                .then((r) => (r.ok ? r.json() : null))
+                .then((d: { seed?: unknown; token?: unknown } | null) => {
+                    if (d && typeof d.seed === "number" && typeof d.token === "string") dealt = { seed: d.seed, token: d.token };
+                })
+                .catch(() => {});
+        fetchSeed();
+        let tape: number[][] = [];
+        let current = sample(0, 0, false, 0, 0);
+        let acc = 0;
+        // the field's speed as drawn: the run's while it's on, easing off after
+        let speed = 14;
         let shake = 0;
         let newBest = false;
         const vel = { x: 0, y: 0 };
         const shipPos = { x: 0, y: 0 };
+        const powerNow = (): Power | null => (phase === "playing" && sim ? sim.power : null);
 
-        const clearField = () => {
-            rocks.forEach((r) => ((r.live = false), (r.mesh.visible = false)));
-            named.forEach((r) => ((r.live = false), (r.mesh.visible = false)));
-            neoNext = 0;
-            neoTimer = 8;
-            dodged = [];
-            hitBy = null;
-            frags.forEach((f) => ((f.live = false), (f.mesh.visible = false)));
-            ringLive = false;
-            shieldRing.visible = false;
-            pickupLive = null;
-            starPickup.visible = arrowPickup.visible = false;
-            power = null;
-            powerLeft = 0;
-            aura.visible = false;
+        const pushHud = () => {
+            const s = sim;
+            const power = powerNow();
+            setHud({
+                dodged: dodged.slice(),
+                hitBy,
+                coming: named.find((r) => r.live)?.neo ?? null,
+                daily,
+                score: s ? runScore(s) : 0,
+                shields: s ? s.shields : SHIELDS,
+                speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36),
+                best,
+                phase,
+                hitAt: s && phase === "playing" && s.invulnerable > 0.9 ? Date.now() : 0,
+                newBest,
+                shieldAt,
+                power,
+                powerLeft: s ? s.powerLeft : 0,
+            });
         };
-        const spawnRock = (aimed: boolean) => {
-            const r = rocks.find((x) => !x.live);
-            if (!r) return;
-            const scale = 0.7 + rnd() * 1.7;
-            r.r = scale * 0.92;
-            r.mesh.scale.setScalar(scale);
-            const x = aimed ? shipPos.x + (rnd() - 0.5) * 2 : (rnd() - 0.5) * (BOUNDS.x * 2 + 6);
-            const y = aimed ? shipPos.y + (rnd() - 0.5) * 1.5 : (rnd() - 0.5) * (BOUNDS.y * 2 + 4);
-            r.mesh.position.set(x, y, FAR - rnd() * 20);
-            r.mesh.rotation.set(rnd() * 6, rnd() * 6, rnd() * 6);
-            r.spin.set((rnd() - 0.5) * 1.6, (rnd() - 0.5) * 1.6, (rnd() - 0.5) * 1.6);
-            r.live = true;
-            r.mesh.visible = true;
-        };
-        const spawnFrag = () => {
-            const f = frags.find((x) => !x.live);
-            if (!f) return;
-            f.mesh.position.set((rnd() - 0.5) * BOUNDS.x * 1.8, (rnd() - 0.5) * BOUNDS.y * 1.8, FAR);
-            f.live = true;
-            f.mesh.visible = true;
-        };
-        const score = () => Math.floor(distance / 10) + bonus;
-        const pushHud = () =>
-            setHud({ dodged: dodged.slice(), hitBy, coming: named.find((r) => r.live)?.neo ?? null, daily, score: score(), shields, speed: Math.round(speed * (power === "boost" ? 2.2 : 1) * 36), best, phase, hitAt: invulnerable > 0.9 ? Date.now() : 0, newBest, shieldAt, power, powerLeft });
 
         const begin = (asDaily = daily) => {
             daily = asDaily;
-            rnd = daily ? seededRandom(`run:${todayKey()}`) : Math.random;
-            clearField();
-            phase = "playing";
-            speed = 26;
-            time = distance = bonus = 0;
-            shields = SHIELDS;
-            invulnerable = 1;
-            rockTimer = fragTimer = 0;
-            ringTimer = nextRing();
-            pickupTimer = nextPickup();
+            runDay = daily ? todayKey() : null;
+            runNeos = daily ? todays.slice(0, 8) : [];
+            // (without one, offline say, it flies on a seed of its own, which the board can't check)
+            const d = daily ? null : dealt;
+            if (!daily) {
+                dealt = null;
+                fetchSeed();
+            }
+            seed = d ? d.seed : (Math.random() * 4294967296) >>> 0;
+            runToken = d?.token;
+            sim = newRun(seed, runDay, runNeos.map((n) => ({ d: n.d, v: n.v, h: n.hazardous })));
+            tape = [];
+            acc = 0;
+            [...rocks, ...named].forEach((r) => {
+                r.live = false;
+                r.mesh.visible = false;
+                r.neo = undefined;
+                r.mesh.material = rockMat;
+            });
+            frags.forEach((f) => ((f.live = false), (f.mesh.visible = false)));
+            shieldRing.visible = false;
+            starPickup.visible = arrowPickup.visible = false;
+            aura.visible = false;
+            dodged = [];
+            hitBy = null;
             shieldAt = 0;
             newBest = false;
-            shipPos.x = shipPos.y = vel.x = vel.y = 0;
-            for (let i = 0; i < 14; i++) {
-                spawnRock(false);
-                const r = rocks.filter((x) => x.live).at(-1);
-                if (r) r.mesh.position.z = FAR + i * 12;
-            }
+            phase = "playing";
+            speed = sim.speed;
             setEngine(0.05, 0.3);
             pushHud();
         };
@@ -461,8 +446,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             phase = "over";
             // the pointer back, for the buttons and the board
             unlockPointer();
-            const s = score();
-            trackEvent("asteroid_run_over", { score: s, seconds: Math.round(time) });
+            const s = sim ? runScore(sim) : 0;
+            trackEvent("asteroid_run_over", { score: s, seconds: Math.round(sim?.time ?? 0) });
             if (s > best) {
                 best = s;
                 newBest = true;
@@ -472,9 +457,53 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                     /* ignore */
                 }
             }
+            if (sim) setRecord({ seed, day: runDay, tape: encodeTape(tape, TAPE_DELTA), neos: sim.neos, token: runToken });
+            aura.visible = false;
             sfxOver();
             stopEngine();
             pushHud();
+        };
+        // what the run says happened: the sounds, flashes and captions
+        const handle = (events: RunEvent[]) => {
+            for (const e of events) {
+                if (e.kind === "hit") {
+                    if (e.neo !== null) hitBy = runNeos[e.neo] ?? null;
+                    shake = reduce ? 0 : 0.5;
+                    sfxHit();
+                    pushHud();
+                } else if (e.kind === "smash") {
+                    shake = reduce ? 0 : 0.15;
+                    sfxSmash();
+                } else if (e.kind === "fragment") sfxCollect();
+                else if (e.kind === "shield") {
+                    shieldAt = Date.now();
+                    sfxShield();
+                    pushHud();
+                } else if (e.kind === "power") {
+                    aura.visible = true;
+                    if (e.power === "star") sfxStar();
+                    else sfxBoost();
+                    pushHud();
+                } else if (e.kind === "powerEnd") {
+                    aura.visible = false;
+                    pushHud();
+                } else if (e.kind === "neo") styleNamed(e.index);
+                else if (e.kind === "passed") {
+                    const n = runNeos[e.neo];
+                    if (n) dodged.push(n);
+                } else if (e.kind === "over") end();
+            }
+        };
+        // a rock where the run has it; one just come gets a spin of its own
+        const show = (k: { mesh: THREE.Mesh; spin: THREE.Vector3; live: boolean }, t: Thing) => {
+            if (t.live && !k.live) {
+                k.mesh.scale.setScalar(t.r / 0.92);
+                k.mesh.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+                k.spin.set((Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6, (Math.random() - 0.5) * 1.6);
+            }
+            k.live = t.live;
+            k.mesh.visible = t.live;
+            if (t.live) k.mesh.position.set(t.x, t.y, t.z);
         };
 
         // ---- controls --------------------------------------------------------
@@ -602,39 +631,37 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             if (document.hidden) return;
             const playing = phase === "playing";
 
-            // steering
-            let tx = 0;
-            let ty = 0;
-            if (keys.has("arrowleft") || keys.has("a")) tx -= 1;
-            if (keys.has("arrowright") || keys.has("d")) tx += 1;
-            if (keys.has("arrowup") || keys.has("w")) ty += 1;
-            if (keys.has("arrowdown") || keys.has("s")) ty -= 1;
-            if (playing) {
-                if (aim.active && !tx && !ty) {
-                    vel.x += ((aim.x - shipPos.x) * 6 - vel.x) * Math.min(1, dt * 8);
-                    vel.y += ((aim.y - shipPos.y) * 6 - vel.y) * Math.min(1, dt * 8);
-                } else {
-                    vel.x += (tx * 11 - vel.x) * Math.min(1, dt * 7);
-                    vel.y += (ty * 9 - vel.y) * Math.min(1, dt * 7);
-                }
-                shipPos.x = THREE.MathUtils.clamp(shipPos.x + vel.x * dt, -BOUNDS.x, BOUNDS.x);
-                shipPos.y = THREE.MathUtils.clamp(shipPos.y + vel.y * dt, -BOUNDS.y, BOUNDS.y);
-                time += dt;
-                // (today's field goes at a pace set by today's asteroids' real speeds)
-                const pace = daily && todays.length ? Math.min(1.15, Math.max(0.9, 0.9 + (todays.reduce((a, n) => a + n.v, 0) / todays.length - 10) / 100)) : 1;
-                speed = Math.min(88, (26 + time * 1.15) * pace);
-                // a boost: over twice as fast, and its distance counts double
-                distance += speed * dt * (power === "boost" ? 4.4 : 1);
-                if (power) {
-                    powerLeft -= dt;
-                    if (powerLeft <= 0) {
-                        power = null;
-                        aura.visible = false;
-                        invulnerable = Math.max(invulnerable, 0.8);
-                        pushHud();
+            // the run: stepped at its fixed rate, the input sampled into its tape
+            if (playing && sim) {
+                acc += dt;
+                let n = 0;
+                while (acc >= DT && n < 24 && phase === "playing" && !sim.over) {
+                    const fresh = sim.step % INPUT_EVERY === 0;
+                    if (fresh) {
+                        let tx = 0;
+                        let ty = 0;
+                        if (keys.has("arrowleft") || keys.has("a")) tx -= 1;
+                        if (keys.has("arrowright") || keys.has("d")) tx += 1;
+                        if (keys.has("arrowup") || keys.has("w")) ty += 1;
+                        if (keys.has("arrowdown") || keys.has("s")) ty -= 1;
+                        current = sample(tx, ty, aim.active, aim.x, aim.y);
+                        tape.push(current);
                     }
+                    handle(stepRun(sim, fresh ? current : null));
+                    acc -= DT;
+                    n += 1;
                 }
-                invulnerable = Math.max(0, invulnerable - dt);
+                // (far behind, after a stall: the lost time goes, rather than racing to catch up)
+                if (n >= 24) acc = 0;
+            }
+            const running = phase === "playing" && !!sim;
+            const power = powerNow();
+            if (running && sim) {
+                shipPos.x = sim.ship.x;
+                shipPos.y = sim.ship.y;
+                vel.x = sim.ship.vx;
+                vel.y = sim.ship.vy;
+                speed = sim.speed;
                 setEngine(0.05, speed / 88);
             } else {
                 // idle: the ship drifts gently in the middle
@@ -646,7 +673,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             ship.position.set(shipPos.x, shipPos.y, 0);
             ship.rotation.z = THREE.MathUtils.lerp(ship.rotation.z, -vel.x * 0.07, 0.15);
             ship.rotation.x = THREE.MathUtils.lerp(ship.rotation.x, vel.y * 0.04, 0.15);
-            ship.visible = !(playing && invulnerable > 0 && Math.floor(now / 90) % 2 === 0);
+            ship.visible = !(running && sim && sim.invulnerable > 0 && Math.floor(now / 90) % 2 === 0);
             flame.scale.set(1, 0.7 + Math.random() * 0.4 + speed / 90 + (power === "boost" ? 0.8 : 0), 1);
             flameMat.opacity = 0.55 + Math.random() * 0.3;
             engineGlow.scale.setScalar(1 + Math.random() * 0.2 + (power === "boost" ? 0.6 : 0));
@@ -659,9 +686,9 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 camera.fov += (fovTo - camera.fov) * Math.min(1, dt * 5);
                 camera.updateProjectionMatrix();
             }
-            if (power) {
+            if (power && sim) {
                 auraMat.color.set(power === "star" ? 0xfbbf24 : 0xa855f7);
-                aura.visible = powerLeft > 1 || Math.floor(now / 110) % 2 === 0;
+                aura.visible = sim.powerLeft > 1 || Math.floor(now / 110) % 2 === 0;
                 aura.rotation.z += dt * 2;
                 auraMat.opacity = 0.2 + Math.sin(now / 90) * 0.08;
             }
@@ -677,149 +704,52 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             }
             dustGeo.attributes.position.needsUpdate = true;
             stars.position.copy(camera.position);
-            if (playing) {
-                rockTimer -= dt;
-                if (rockTimer <= 0) {
-                    spawnRock(rnd() < 0.28 + Math.min(0.3, time / 120));
-                    rockTimer = Math.max(0.08, 0.42 - time / 150);
-                }
-                fragTimer -= dt;
-                if (fragTimer <= 0) {
-                    spawnFrag();
-                    fragTimer = 2.2 + rnd() * 1.6;
-                }
-                if (daily && neoNext < todays.length) {
-                    neoTimer -= dt;
-                    if (neoTimer <= 0) {
-                        spawnNamed();
-                        neoTimer = 12;
-                    }
-                }
+
+            if (running && sim) {
+                // everything where the run has it
+                sim.rocks.forEach((t, i) => show(rocks[i], t));
+                sim.named.forEach((t, i) => show(named[i], t));
+                sim.frags.forEach((t, i) => {
+                    const f = frags[i];
+                    f.live = t.live;
+                    f.mesh.visible = t.live;
+                    if (t.live) f.mesh.position.set(t.x, t.y, t.z);
+                });
+                shieldRing.visible = sim.ring.live;
+                if (sim.ring.live) shieldRing.position.set(sim.ring.x, sim.ring.y, sim.ring.z);
+                const pk = sim.pickup;
+                starPickup.visible = pk.live && pk.kind === "star";
+                arrowPickup.visible = pk.live && pk.kind === "boost";
+                if (pk.live && pk.kind) pickups[pk.kind].position.set(pk.x, pk.y, pk.z);
+            } else {
+                // between runs: whatever was coming keeps coming, and goes
+                const drift = (o: THREE.Object3D) => {
+                    if (!o.visible) return;
+                    o.position.z += dz;
+                    if (o.position.z > 12) o.visible = false;
+                };
+                [...rocks, ...named, ...frags].forEach((r) => drift(r.mesh));
+                [shieldRing, starPickup, arrowPickup].forEach(drift);
             }
+            // turning and glowing, for the look of it
             for (const r of [...rocks, ...named]) {
-                if (!r.live) continue;
-                r.mesh.position.z += dz;
+                if (!r.mesh.visible) continue;
                 r.mesh.rotation.x += r.spin.x * dt;
                 r.mesh.rotation.y += r.spin.y * dt;
                 r.mesh.rotation.z += r.spin.z * dt;
-                if (r.mesh.position.z > 12) {
-                    // (one of today's real asteroids, got past)
-                    if (r.neo && playing) dodged.push(r.neo);
-                    r.live = false;
-                    r.mesh.visible = false;
-                    continue;
-                }
-                // invincible or boosting: rocks shatter on the ship, for points
-                if (playing && power && Math.abs(r.mesh.position.z) < r.r + 0.8) {
-                    tmp.set(shipPos.x, shipPos.y, 0);
-                    if (tmp.distanceTo(r.mesh.position) < r.r + 0.7) {
-                        r.live = false;
-                        r.mesh.visible = false;
-                        bonus += 25;
-                        shake = reduce ? 0 : 0.15;
-                        sfxSmash();
-                    }
-                    continue;
-                }
-                if (playing && invulnerable <= 0 && Math.abs(r.mesh.position.z) < r.r + 0.8) {
-                    tmp.set(shipPos.x, shipPos.y, 0);
-                    if (tmp.distanceTo(r.mesh.position) < r.r + 0.55) {
-                        shields -= 1;
-                        invulnerable = 1.4;
-                        if (r.neo) hitBy = r.neo;
-                        if (!ringLive) ringTimer = Math.min(ringTimer, soonRing());
-                        shake = reduce ? 0 : 0.5;
-                        r.live = false;
-                        r.mesh.visible = false;
-                        sfxHit();
-                        if (shields <= 0) end();
-                        else pushHud();
-                    }
-                }
             }
             for (const f of frags) {
-                if (!f.live) continue;
-                f.mesh.position.z += dz;
+                if (!f.mesh.visible) continue;
                 f.mesh.rotation.y += dt * 2.4;
                 f.mesh.rotation.x += dt * 1.1;
-                if (f.mesh.position.z > 12) {
-                    f.live = false;
-                    f.mesh.visible = false;
-                    continue;
-                }
-                if (playing && Math.abs(f.mesh.position.z) < 1.2) {
-                    tmp.set(shipPos.x, shipPos.y, 0);
-                    if (tmp.distanceTo(f.mesh.position) < 1.25) {
-                        bonus += 50;
-                        f.live = false;
-                        f.mesh.visible = false;
-                        sfxCollect();
-                    }
-                }
             }
-
-            // the shield ring: counts down only while a shield is down
-            if (playing && !ringLive && shields < SHIELDS) {
-                ringTimer -= dt;
-                if (ringTimer <= 0) {
-                    shieldRing.position.set((rnd() - 0.5) * BOUNDS.x * 1.6, (rnd() - 0.5) * BOUNDS.y * 1.6, FAR);
-                    ringLive = true;
-                    shieldRing.visible = true;
-                    ringTimer = nextRing();
-                }
-            }
-            if (ringLive) {
-                shieldRing.position.z += dz;
+            if (shieldRing.visible) {
                 shieldRing.rotation.y += dt * 1.8;
                 ringMat.emissiveIntensity = 1.3 + Math.sin(now / 160) * 0.5;
-                if (shieldRing.position.z > 12) {
-                    ringLive = false;
-                    shieldRing.visible = false;
-                } else if (playing && Math.abs(shieldRing.position.z) < 1.3) {
-                    tmp.set(shipPos.x, shipPos.y, 0);
-                    if (tmp.distanceTo(shieldRing.position) < 1.5) {
-                        ringLive = false;
-                        shieldRing.visible = false;
-                        shields = Math.min(SHIELDS, shields + 1);
-                        shieldAt = Date.now();
-                        sfxShield();
-                        pushHud();
-                    }
-                }
             }
-
-            // the power-ups: one at a time, never while one is running
-            if (playing && !pickupLive && !power) {
-                pickupTimer -= dt;
-                if (pickupTimer <= 0) {
-                    pickupLive = rnd() < 0.5 ? "star" : "boost";
-                    pickups[pickupLive].position.set((rnd() - 0.5) * BOUNDS.x * 1.5, (rnd() - 0.5) * BOUNDS.y * 1.5, FAR);
-                    pickups[pickupLive].visible = true;
-                    pickupTimer = nextPickup();
-                }
-            }
-            if (pickupLive) {
-                const g = pickups[pickupLive];
-                g.position.z += dz;
-                g.rotation.y += dt * 2.2;
-                if (pickupLive === "star") g.rotation.x += dt * 1.3;
-                if (g.position.z > 12) {
-                    g.visible = false;
-                    pickupLive = null;
-                } else if (playing && Math.abs(g.position.z) < 1.3) {
-                    tmp.set(shipPos.x, shipPos.y, 0);
-                    if (tmp.distanceTo(g.position) < 1.5) {
-                        power = pickupLive;
-                        powerLeft = POWER_TIME[power];
-                        g.visible = false;
-                        pickupLive = null;
-                        aura.visible = true;
-                        if (power === "star") sfxStar();
-                        else sfxBoost();
-                        pushHud();
-                    }
-                }
-            }
+            starPickup.rotation.y += dt * 2.2;
+            starPickup.rotation.x += dt * 1.3;
+            arrowPickup.rotation.y += dt * 2.2;
 
             // the camera follows, a little behind and above
             camera.position.x += (shipPos.x * 0.55 - camera.position.x) * Math.min(1, dt * 4);
@@ -961,9 +891,9 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                         {hud.phase === "over" && (
                             <div className="pointer-events-auto">
                                 {hud.daily ? (
-                                    <Board key="daily" game="run-daily" day={todayKey()} score={hud.score} title="Today's field" />
+                                    <Board key="daily" game="run-daily" day={record?.day ?? todayKey()} score={hud.score} run={record ?? undefined} title="Today's field" />
                                 ) : (
-                                    <Board key="all" game="asteroid-run" score={hud.score} />
+                                    <Board key="all" game="asteroid-run" score={hud.score} run={record ?? undefined} />
                                 )}
                             </div>
                         )}
