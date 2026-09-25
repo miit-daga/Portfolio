@@ -1,31 +1,37 @@
 "use client"
+import { useId } from "react"
 import { motion, SVGMotionProps } from "framer-motion"
 interface RocketIconProps extends SVGMotionProps<SVGSVGElement> {
     isIgnited?: boolean
 }
 
-export const RocketIcon = ({ isIgnited = false, ...props }: RocketIconProps) => (
+// Each rocket names its own gradients: with shared ids every rocket on the page
+// painted from the first one's, and when that one was hidden (display: none,
+// like the top progress bar's on desktop) the rest lost their colour
+export const RocketIcon = ({ isIgnited = false, ...props }: RocketIconProps) => {
+    const uid = useId().replace(/:/g, "")
+    return (
     <motion.svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none" {...props}>
         <defs>
-            <linearGradient id="bodyGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id={`bodyGradient-${uid}`} x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#8B9DC3" />
                 <stop offset="25%" stopColor="#DDE4ED" />
                 <stop offset="50%" stopColor="#F8FAFC" />
                 <stop offset="75%" stopColor="#CBD5E1" />
                 <stop offset="100%" stopColor="#64748B" />
             </linearGradient>
-            <linearGradient id="noseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <linearGradient id={`noseGradient-${uid}`} x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stopColor="#7C2D12" />
                 <stop offset="30%" stopColor="#DC2626" />
                 <stop offset="70%" stopColor="#EF4444" />
                 <stop offset="100%" stopColor="#991B1B" />
             </linearGradient>
-            <linearGradient id="finGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id={`finGradient-${uid}`} x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#92400E" />
                 <stop offset="50%" stopColor="#F59E0B" />
                 <stop offset="100%" stopColor="#78350F" />
             </linearGradient>
-            <radialGradient id="engineGradient" cx="50%" cy="30%">
+            <radialGradient id={`engineGradient-${uid}`} cx="50%" cy="30%">
                 <stop offset="0%" stopColor="#374151" />
                 <stop offset="70%" stopColor="#1F2937" />
                 <stop offset="100%" stopColor="#111827" />
@@ -34,12 +40,12 @@ export const RocketIcon = ({ isIgnited = false, ...props }: RocketIconProps) => 
 
         <path
             d="M36 70L36 42C36 32 41 25 50 25C59 25 64 32 64 42L64 70Z"
-            fill="url(#bodyGradient)"
+            fill={`url(#bodyGradient-${uid})`}
             stroke="#475569"
             strokeWidth="1"
         />
 
-        <path d="M36 42C36 32 41 15 50 8C59 15 64 32 64 42" fill="url(#noseGradient)" stroke="#7F1D1D" strokeWidth="1" />
+        <path d="M36 42C36 32 41 15 50 8C59 15 64 32 64 42" fill={`url(#noseGradient-${uid})`} stroke="#7F1D1D" strokeWidth="1" />
 
         <circle cx="50" cy="35" r="6" fill="#1E293B" stroke="#334155" strokeWidth="1.5" />
         <circle cx="50" cy="35" r="4.5" fill="#0F172A" />
@@ -57,11 +63,11 @@ export const RocketIcon = ({ isIgnited = false, ...props }: RocketIconProps) => 
         <circle cx="40" cy="59" r="0.8" fill="#475569" />
         <circle cx="60" cy="59" r="0.8" fill="#475569" />
 
-        <path d="M36 62L24 78C24 78 26 82 30 82L36 72Z" fill="url(#finGradient)" stroke="#92400E" strokeWidth="1" />
-        <path d="M64 62L76 78C76 78 74 82 70 82L64 72Z" fill="url(#finGradient)" stroke="#92400E" strokeWidth="1" />
+        <path d="M36 62L24 78C24 78 26 82 30 82L36 72Z" fill={`url(#finGradient-${uid})`} stroke="#92400E" strokeWidth="1" />
+        <path d="M64 62L76 78C76 78 74 82 70 82L64 72Z" fill={`url(#finGradient-${uid})`} stroke="#92400E" strokeWidth="1" />
 
-        <ellipse cx="50" cy="70" rx="8" ry="3" fill="url(#engineGradient)" stroke="#111827" strokeWidth="1" />
-        <rect x="42" y="70" width="16" height="8" fill="url(#engineGradient)" stroke="#111827" strokeWidth="1" />
+        <ellipse cx="50" cy="70" rx="8" ry="3" fill={`url(#engineGradient-${uid})`} stroke="#111827" strokeWidth="1" />
+        <rect x="42" y="70" width="16" height="8" fill={`url(#engineGradient-${uid})`} stroke="#111827" strokeWidth="1" />
         <ellipse cx="50" cy="78" rx="6" ry="2" fill="#0F172A" />
 
         {/* Engine chamber details */}
@@ -154,4 +160,5 @@ export const RocketIcon = ({ isIgnited = false, ...props }: RocketIconProps) => 
             </>
         )}
     </motion.svg>
-)
+    )
+}
