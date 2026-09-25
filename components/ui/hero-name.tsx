@@ -535,7 +535,7 @@ function Letter({
             <motion.span
                 ref={spanRef}
                 data-letter={space ? undefined : index}
-                className={cn("relative inline-block", !space && "cursor-default")}
+                className={cn("relative inline-block", !space && "cursor-pointer")}
                 style={{ width: space ? "0.26em" : undefined }}
                 animate={float}
                 onClick={knock}

@@ -269,7 +269,7 @@ const Paragraph: React.FC<ParagraphProps> = ({ para, className }) => {
       );
     } else {
       out.push(
-        <span key={`g${gi}`} tabIndex={0} className="group/kw relative cursor-default rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60">
+        <span key={`g${gi}`} tabIndex={0} className="group/kw relative rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sky-400/60">
           {members}
           <LanguageCard l={LANGUAGES[g.key]} />
         </span>,
