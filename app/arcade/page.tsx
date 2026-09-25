@@ -79,7 +79,7 @@ export default function ArcadePage() {
             </header>
             <Arcade />
             <p className="relative z-10 mx-auto mt-auto w-full max-w-5xl px-4 pb-6 lg:max-w-6xl font-mono text-[11px] text-neutral-600 md:px-6">
-                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps. Mercury, Venus, Mars, Jupiter, Saturn, Uranus and Neptune are from Solar System Scope, under CC BY 4.0. Today's sky places the planets with JPL's orbital elements. The music is &ldquo;Ambient Relaxing Loop&rdquo; by isaiah658, in the public domain (CC0).
+                The Earth, its city lights and the sky are NASA imagery: Blue Marble, Black Marble, and the Scientific Visualization Studio&apos;s Deep Star Maps. Mercury, Venus, Mars, Jupiter, Saturn, Uranus and Neptune are from Solar System Scope, under CC BY 4.0. Today's sky places the planets with JPL's orbital elements. The music is in the public domain (CC0), from OpenGameArt: &ldquo;Ambient Relaxing Loop&rdquo; by isaiah658 (Drift), &ldquo;Calm Ambient 1&rdquo; and &ldquo;Icy Realm&rdquo; by The Cynic Project, cynicmusic.com (Calm and Ice), and &ldquo;Out There&rdquo; by yd.
             </p>
         </main>
     );
