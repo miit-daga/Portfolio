@@ -72,7 +72,7 @@ export function Board({
     format = (n) => n.toLocaleString(),
     title = "Leaderboard",
 }: {
-    game: "asteroid-run" | "stack-station" | "assist-daily" | "assist-mission" | "run-daily" | "stack-daily";
+    game: "asteroid-run" | "stack-station" | "assist-daily" | "assist-mission" | "run-daily" | "stack-daily" | "free-flight" | "flight-daily";
     /** This run's score (for the daily mission, its time in hundredths) */
     score: number;
     day?: string;

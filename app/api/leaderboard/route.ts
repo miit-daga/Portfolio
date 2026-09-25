@@ -158,7 +158,7 @@ async function redisBoards(keys: string[]): Promise<Row[][]> {
 const today = () => dayKey();
 const yesterday = () => dayKey(new Date(Date.now() - 86_400_000));
 // A daily board, one per day; Gravity Assist's missions, one board each
-const DAILY = new Set<GameKey>(["assist-daily", "run-daily", "stack-daily"]);
+const DAILY = new Set<GameKey>(["assist-daily", "run-daily", "stack-daily", "flight-daily"]);
 const isMission = (m: unknown) => typeof m === "string" && /^\d{1,2}$/.test(m) && Number(m) < LEVELS.length;
 const boardKey = (game: GameKey, sub?: string | null) =>
   DAILY.has(game) ? `${game}:${sub}` : game === "assist-mission" ? `assist-mission:${sub}` : game;

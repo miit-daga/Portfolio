@@ -34,6 +34,7 @@ const EVENTS: Record<string, { split?: string[]; values?: string[] }> = {
     arcade_link: { split: ["from"] },
     arcade_game_open: { split: ["game"] },
     asteroid_run_over: {},
+    free_flight_over: {},
     stack_station_over: {},
     gravity_assist_arrived: { split: ["mission"] },
     gravity_assist_daily: {},

@@ -30,11 +30,12 @@ const DAYS = 14;
 
 const GROUPS: { title: string; prefix: string; label?: (v: string) => string }[] = [
     { title: "Came to the arcade from", prefix: "arcade_link:from=" },
-    { title: "Games opened", prefix: "arcade_game_open:game=", label: (v) => ({ run: "Asteroid Run", stack: "Stack the Station", assist: "Gravity Assist" })[v] ?? v },
+    { title: "Games opened", prefix: "arcade_game_open:game=", label: (v) => ({ run: "Asteroid Run", flight: "Free flight", stack: "Stack the Station", assist: "Gravity Assist" })[v] ?? v },
     { title: "Gravity Assist missions arrived", prefix: "gravity_assist_arrived:mission=", label: (v) => `Mission ${v}` },
 ];
 const SINGLES: [string, string][] = [
     ["asteroid_run_over", "Asteroid Runs played to the end"],
+    ["free_flight_over", "Free flights flown to the end"],
     ["stack_station_over", "Stations built to the end"],
     ["gravity_assist_daily", "Today's sky arrivals"],
 ];

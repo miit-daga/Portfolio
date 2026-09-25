@@ -34,7 +34,7 @@ type Neo = { name: string; d: number; v: number; ld: number; hazardous: boolean 
 const neoLabel = (n: Neo) => `${n.name} · ≈${n.d} m · ${n.v} km/s${n.hazardous ? " · potentially hazardous" : ""}`;
 type Hud = { dodged: Neo[]; hitBy: Neo | null; coming: Neo | null; daily: boolean; score: number; shields: number; speed: number; best: number; phase: Phase; hitAt: number; newBest: boolean; shieldAt: number; power: Power | null; powerLeft: number };
 
-export default function AsteroidRun({ onExit }: { onExit: () => void }) {
+export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; onFlight?: () => void }) {
     const mount = useRef<HTMLDivElement>(null);
     // where the ship is steering while the pointer is locked (there's no pointer then)
     const sight = useRef<HTMLDivElement>(null);
@@ -997,6 +997,12 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
                                 {hud.phase === "over" && hud.daily ? "Play the open field" : "Today's field"}
                             </button>
                         </div>
+                        {/* the same ship, loose in a field all round it */}
+                        {onFlight && (
+                            <button type="button" onClick={onFlight} className="pointer-events-auto mt-3 text-xs text-amber-200/90 underline-offset-4 hover:text-amber-100 hover:underline">
+                                Try Free flight: fly anywhere →
+                            </button>
+                        )}
                         {hud.phase !== "over" && !!neos?.length && (
                             <p className="mt-3 text-xs leading-snug text-sky-200/80">
                                 Today&apos;s field brings the {neos.length} real asteroids passing Earth today, from NASA

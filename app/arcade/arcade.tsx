@@ -15,7 +15,7 @@ import { leaveFullscreen } from "./fullscreen";
 // file, which is gone, and the page would fail. Then it reloads, once, into
 // the new version (and forgets it did, once a game loads)
 const RELOADED = "arcade-reloaded-for-new-version";
-function freshOnFail<T>(game: "run" | "stack" | "assist", load: () => Promise<T>) {
+function freshOnFail<T>(game: "run" | "stack" | "assist" | "flight", load: () => Promise<T>) {
     return () =>
         load().then(
             (m) => {
@@ -44,6 +44,8 @@ function freshOnFail<T>(game: "run" | "stack" | "assist", load: () => Promise<T>
 const AsteroidRun = dynamic(freshOnFail("run", () => import("./asteroid-run")), { ssr: false, loading: () => <Loading /> });
 const StackStation = dynamic(freshOnFail("stack", () => import("./stack-station")), { ssr: false, loading: () => <Loading /> });
 const GravityAssist = dynamic(freshOnFail("assist", () => import("./gravity-assist")), { ssr: false, loading: () => <Loading /> });
+// Asteroid Run's free flight: its own game, opened from Asteroid Run (no card of its own)
+const FreeFlight = dynamic(freshOnFail("flight", () => import("./free-flight")), { ssr: false, loading: () => <Loading /> });
 
 function Loading() {
     return (
@@ -53,7 +55,7 @@ function Loading() {
     );
 }
 
-type Game = "run" | "stack" | "assist";
+type Game = "run" | "stack" | "assist" | "flight";
 
 // If a game throws, the arcade stays up: a note and a way back, not a crashed page
 class GameBoundary extends Component<{ game: Game; onExit: () => void; children: ReactNode }, { failed: boolean }> {
@@ -95,7 +97,7 @@ const GAMES: { id: Game; no: string; title: string; blurb: string; how: string; 
         id: "run",
         no: "02",
         title: "Asteroid Run",
-        blurb: "Fly through an asteroid field, dodge the rocks and grab the glowing fragments. Look out for shield rings, invincibility stars and boosts. It gets faster the longer you last.",
+        blurb: "Fly through an asteroid field, dodge the rocks and grab the glowing fragments. Look out for shield rings, invincibility stars and boosts. It gets faster the longer you last. Or take Free flight, and fly anywhere in a field all round you.",
         how: "Arrows, WASD or the mouse · drag on a phone",
         best: "Best",
         bestKey: "arcade-run-best",
@@ -132,7 +134,7 @@ export function Arcade() {
     useEffect(() => {
         const q = new URLSearchParams(window.location.search).get("game");
         // (the docking game this replaced was ?game=dock)
-        if (q === "run" || q === "stack" || q === "assist") {
+        if (q === "run" || q === "stack" || q === "assist" || q === "flight") {
             setGame(q);
             trackEvent("arcade_game_open", { game: q, via: "link" });
         }
@@ -199,7 +201,15 @@ export function Arcade() {
     if (game)
         return (
             <GameBoundary key={game} game={game} onExit={() => open(null)}>
-                {game === "run" ? <AsteroidRun onExit={() => open(null)} /> : game === "stack" ? <StackStation onExit={() => open(null)} /> : <GravityAssist onExit={() => open(null)} />}
+                {game === "run" ? (
+                    <AsteroidRun onExit={() => open(null)} onFlight={() => open("flight")} />
+                ) : game === "flight" ? (
+                    <FreeFlight onExit={() => open(null)} onRunner={() => open("run")} />
+                ) : game === "stack" ? (
+                    <StackStation onExit={() => open(null)} />
+                ) : (
+                    <GravityAssist onExit={() => open(null)} />
+                )}
             </GameBoundary>
         );
 

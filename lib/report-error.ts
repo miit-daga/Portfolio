@@ -2,7 +2,7 @@
 // for /stats. One report per distinct problem per page, a beacon so it gets
 // out even as the page reloads or closes, and it never throws.
 
-type Game = "assist" | "run" | "stack" | "arcade" | "home" | "desk" | "resume" | "stats" | "page";
+type Game = "assist" | "run" | "flight" | "stack" | "arcade" | "home" | "desk" | "resume" | "stats" | "page";
 type Kind = "crash" | "no-webgl" | "load-failed" | "error" | "rejection" | "stuck-loading";
 const sent = new Set<string>();
 

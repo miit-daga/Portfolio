@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 const KEEP_DAYS = 30;
 // where it happened: an arcade game, the arcade page, or another page of the site
-const GAMES = new Set(["assist", "run", "stack", "arcade", "home", "desk", "resume", "stats", "page", "terminal"]);
+const GAMES = new Set(["assist", "run", "stack", "flight", "arcade", "home", "desk", "resume", "stats", "page", "terminal"]);
 const KINDS = new Set(["crash", "no-webgl", "load-failed", "error", "rejection", "stuck-loading"]);
 const MEMORY = process.env.NODE_ENV !== "production" && process.env.LEADERBOARD_MEMORY === "1";
 const memory = { days: {} as Record<string, Record<string, number>>, latest: [] as string[] };

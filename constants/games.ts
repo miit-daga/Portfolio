@@ -16,6 +16,8 @@ export type GameKey =
   | "assist-mission"
   | "run-daily"
   | "stack-daily"
+  | "free-flight"
+  | "flight-daily"
   | "snake"
   | "invaders"
   | "dodge"
@@ -84,6 +86,21 @@ export const GAMES: Record<GameKey, GameMeta> = {
     storageKey: "arcade-stack-daily",
     max: 5000,
     why: "that is a module a second for well over an hour",
+    arcade: true,
+  },
+  "free-flight": {
+    label: "Asteroid Run, free flight",
+    storageKey: "arcade-flight-best",
+    // at most about 5 points a second flat out, plus a ring every few seconds
+    max: 400000,
+    why: "that is several hours flat out without a scratch",
+    arcade: true,
+  },
+  "flight-daily": {
+    label: "Free flight, today's field",
+    storageKey: "arcade-flight-daily",
+    max: 400000,
+    why: "that is several hours flat out without a scratch",
     arcade: true,
   },
   snake: {
