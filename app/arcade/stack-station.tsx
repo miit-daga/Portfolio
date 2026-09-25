@@ -8,7 +8,7 @@ import { reportError } from "@/lib/report-error";
 import { Board } from "./board";
 import { isMuted, setMuted, sfxOver, sfxPlace, sfxPerfect, sfxSlice } from "./sound";
 import { FullscreenButton } from "./fullscreen";
-import { alignStars, fbm, loadTexture, normalMap, perlin, sharpen, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
+import { alignStars, fbm, glowTexture, loadTexture, normalMap, perlin, sharpen, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { subscribeIss } from "@/lib/iss";
 import { BASE, H, drop as dropModule, movingAt, newStack, roundTime, type Stack } from "./stack-sim";
 
@@ -577,7 +577,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         // A module, merged into a few meshes: its skin (blankets, bare plates
         // or gold foil), metal rings at its ends, handrails and boxes on its
         // sides, and on every fifth, a pair of solar wings on a mast
-        type Layer = { group: THREE.Group; w: number; d: number; x: number; z: number; y: number };
+        type Layer = { group: THREE.Group; w: number; d: number; x: number; z: number; y: number; fitted?: boolean };
         const skinOf = (n: number) => (n % 7 === 3 ? skins.foil : n % 2 ? skins.plates : skins.blanket);
         const makeModule = (w: number, d: number, n: number) => {
             const g = new THREE.Group();
@@ -662,6 +662,96 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         };
         const disposeGroup = (g: THREE.Object3D) => g.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
 
+        // Fitting out: once a module is a few below the top (out of the way of
+        // the drops), the crew fits it out, and its fittings grow into place:
+        // lit windows on some, white radiators on others, an antenna dish now
+        // and then, and blinking lights at the tips of each pair of solar wings.
+        // So a tall build looks like a station, not a stack.
+        const FIT_BELOW = 3;
+        const radiator = new THREE.MeshStandardMaterial({ color: 0xf1f0ea, roughness: 0.55, metalness: 0.05 });
+        const lit = new THREE.MeshBasicMaterial({ color: 0xffd49a });
+        const dish = new THREE.MeshStandardMaterial({ color: 0xeeeeea, roughness: 0.45, metalness: 0.2, side: THREE.DoubleSide });
+        const navGlow = glowTexture();
+        const navRed = new THREE.SpriteMaterial({ map: navGlow, color: 0xff3b3b, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+        const navGreen = new THREE.SpriteMaterial({ map: navGlow, color: 0x3bff7a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+        sharedMats.push(radiator, lit, dish, navRed, navGreen);
+        const dishGeo = (() => {
+            const pts: THREE.Vector2[] = [];
+            for (let i = 0; i <= 12; i++) {
+                const r = (i / 12) * 0.34;
+                pts.push(new THREE.Vector2(r, r * r * 1.4));
+            }
+            return new THREE.LatheGeometry(pts, 32);
+        })();
+        const fitOut = (l: Layer, n: number) => {
+            const { w, d } = l;
+            const g = new THREE.Group();
+            const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
+            const put = (mat: THREE.Material, geo: THREE.BufferGeometry, x: number, y: number, z: number) => {
+                geo.translate(x, y, z);
+                if (!parts.has(mat)) parts.set(mat, []);
+                parts.get(mat)!.push(geo);
+            };
+            // windows: a row of small lit squares on the faces toward the camera
+            if (n % 3 === 1) {
+                const across = (len: number) => Math.max(1, Math.min(4, Math.floor(len / 0.7)));
+                for (let i = 0, k = across(w); i < k; i++) put(lit, new THREE.PlaneGeometry(0.16, 0.1), (i - (k - 1) / 2) * (w / k), 0.05, d / 2 + 0.006);
+                for (let i = 0, k = across(d); i < k; i++) {
+                    const pane = new THREE.PlaneGeometry(0.16, 0.1);
+                    pane.rotateY(Math.PI / 2);
+                    put(lit, pane, w / 2 + 0.006, 0.05, (i - (k - 1) / 2) * (d / k));
+                }
+            }
+            // radiators: a white panel out from each side, edge-on to the sun
+            if (n % 5 === 2 && d > 0.8) {
+                [-1, 1].forEach((side) => {
+                    put(metal, new THREE.BoxGeometry(0.05, 0.05, 0.5), 0, 0, side * (d / 2 + 0.25));
+                    put(radiator, sizedBox(1.5, 0.03, 0.9), 0, 0, side * (d / 2 + 0.95));
+                    put(metal, new THREE.BoxGeometry(1.54, 0.04, 0.03), 0, 0, side * (d / 2 + 1.4));
+                    // its ribs
+                    for (let r = -2; r <= 2; r++) put(metal, new THREE.BoxGeometry(0.02, 0.045, 0.88), r * 0.3, 0, side * (d / 2 + 0.95));
+                });
+            }
+            // an antenna dish on a boom, looking out
+            if (n % 6 === 3 && w > 0.8) {
+                put(metal, new THREE.BoxGeometry(0.6, 0.04, 0.04), w / 2 + 0.3, 0, -d / 4);
+                const bowl = dishGeo.clone();
+                bowl.rotateZ(-Math.PI / 2);
+                put(dish, bowl, w / 2 + 0.62, 0, -d / 4);
+            }
+            for (const [mat, geos] of parts) {
+                const merged = mergeGeometries(geos);
+                geos.forEach((x) => x.dispose());
+                const mesh = new THREE.Mesh(merged, mat);
+                mesh.castShadow = mat !== lit;
+                mesh.receiveShadow = true;
+                g.add(mesh);
+            }
+            // the lights at the wing tips: red to port, green to starboard
+            if (n > 0 && n % 5 === 0) {
+                [-1, 1].forEach((side) => {
+                    const tip = new THREE.Sprite(side < 0 ? navRed : navGreen);
+                    tip.scale.setScalar(0.45);
+                    tip.position.set(side * (w / 2 + 3.72), 0, 0);
+                    g.add(tip);
+                });
+            }
+            if (!g.children.length) return;
+            g.scale.setScalar(0.001);
+            l.group.add(g);
+            growing.push({ g, t: 0 });
+        };
+        let growing: { g: THREE.Group; t: number }[] = [];
+        // the next module down to fit out, as the build rises (and all the rest at the end)
+        const fitUpTo = (top: number) => {
+            for (let i = 1; i < layers.length && i <= top; i++) {
+                const l = layers[i];
+                if (l.fitted) continue;
+                l.fitted = true;
+                fitOut(l, i);
+            }
+        };
+
         // ---- the build -------------------------------------------------------
         let phase: Phase = "ready";
         // the meshes of the station as built, and the one sliding in; the
@@ -685,6 +775,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 disposeGroup(c);
             });
             falling = [];
+            growing = [];
             layers = [];
             moving = null;
         };
@@ -763,6 +854,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 sfxPlace(0);
             }
             layers.push(addLayer({ group: null as unknown as THREE.Group, ...r.placed }, n));
+            fitUpTo(layers.length - 1 - FIT_BELOW);
             // a mark on the climb, passed
             const mark = MARKS.find((m) => m.n === score() && m.say);
             if (mark) setNote({ text: mark.say, at: Date.now() });
@@ -774,6 +866,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         start.current = (d?: boolean) => begin(d);
         const end = () => {
             phase = "over";
+            // the station finished: the last few fitted out too
+            fitUpTo(layers.length - 1);
             const s = score();
             trackEvent("stack_station_over", { modules: s });
             if (s > best) {
@@ -847,6 +941,16 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 f.mesh.rotation.z += f.spin.z * dt;
                 f.life -= dt;
             }
+            // fittings growing into place (a little past full size, then settling)
+            for (const f of growing) {
+                f.t = Math.min(1, f.t + dt / 0.7);
+                const e = 1 + 2.2 * Math.pow(f.t - 1, 3) + 1.2 * Math.pow(f.t - 1, 2);
+                f.g.scale.setScalar(Math.max(0.001, e));
+            }
+            growing = growing.filter((f) => f.t < 1);
+            // the wing-tip lights, blinking
+            const blink = (now / 1000) % 1.6 < 0.12 ? 1 : 0.08;
+            navRed.opacity = navGreen.opacity = blink;
             falling = falling.filter((f) => {
                 if (f.life > 0) return true;
                 station.remove(f.mesh);
@@ -940,7 +1044,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 if (mat && !sharedMats.includes(mat)) mat.dispose();
             });
             Object.values(earthMat.uniforms).forEach((u) => (u.value as THREE.Texture)?.isTexture && (u.value as THREE.Texture).dispose());
-            [white.map, white.normal, grey.map, grey.normal, foilNormal, cellMap].forEach((t) => t.dispose());
+            [white.map, white.normal, grey.map, grey.normal, foilNormal, cellMap, navGlow].forEach((t) => t.dispose());
+            dishGeo.dispose();
             sharedMats.forEach((m) => m.dispose());
             sky.dispose();
             env.dispose();
