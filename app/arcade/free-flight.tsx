@@ -214,6 +214,29 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
             k.mesh.visible = true;
         };
         let active = 160;
+        // Every so often a rock is put right in the way, 70 to 110 ahead and
+        // within a few units of the line the ship is on: there's always time
+        // to see it and turn, but flying straight on never works for long.
+        // It's the rock furthest behind, so the field doesn't grow.
+        let pathTimer = 0;
+        const inTheWay = () => {
+            let pick: Rock | null = null;
+            let behind = Infinity;
+            for (let i = 0; i < active; i++) {
+                const k = rocks[i];
+                if (!k.live) continue;
+                const d = tmp.copy(k.mesh.position).sub(pos).dot(fwd);
+                if (d < behind) {
+                    behind = d;
+                    pick = k;
+                }
+            }
+            if (!pick) return;
+            place(pick, false);
+            dir.set(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).projectOnPlane(fwd).normalize();
+            pick.mesh.position.copy(pos).addScaledVector(fwd, 70 + rnd() * 40).addScaledVector(dir, rnd() * 3.5);
+            pick.drift.multiplyScalar(0.3);
+        };
 
         let todays: Neo[] = [];
         let neoNext = 0;
@@ -328,6 +351,7 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
             active = 160;
             neoNext = 0;
             neoTimer = 8;
+            pathTimer = 2;
             dodged = [];
             hitBy = null;
             setField();
@@ -665,6 +689,14 @@ export default function FreeFlight({ onExit, onRunner }: { onExit: () => void; o
                 if (playing && invulnerable <= 0 && d < k.r + SHIP_R) {
                     hit(k);
                     place(k, false);
+                }
+            }
+            if (playing) {
+                pathTimer -= dt;
+                if (pathTimer <= 0) {
+                    inTheWay();
+                    // more often as the flight goes on, and at speed
+                    pathTimer = Math.max(0.9, 2.6 - time / 60) * (CRUISE / Math.max(speed, SLOW)) ** 0.5;
                 }
             }
             if (playing && daily && neoNext < todays.length) {
