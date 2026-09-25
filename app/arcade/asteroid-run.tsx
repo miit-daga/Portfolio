@@ -9,6 +9,7 @@ import { isMuted, setEngine, setMuted, sfxBoost, sfxCollect, sfxHit, sfxOver, sf
 import { FullscreenButton } from "./fullscreen";
 import { alignStars, glowTexture, rockGeometry, rockMaterial, skyTexture, spaceEnvironment, starPoints, todayKey } from "./space";
 import { encodeTape } from "./tape";
+import { buildEarth } from "./earth";
 // The run's rules: a seeded simulation, stepped here and replayed by the server
 // to score a posted run (the leaderboard doesn't take the browser's word for it)
 import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_DELTA, neoScale, newRun, runScore, sample, stepRun, type Power, type Run, type RunEvent, type RunNeo, type Thing } from "./run-sim";
@@ -24,7 +25,22 @@ import { BOUNDS, DT, FAR, FRAGS, INPUT_EVERY, POWER_TIME, ROCKS, SHIELDS, TAPE_D
 
 const BEST_KEY = "arcade-run-best";
 
-type Phase = "ready" | "playing" | "over";
+type Phase = "ready" | "intro" | "playing" | "over";
+// The opening flyby plays on the first launch of a visit (not on every retry)
+let flownBy = false;
+// the Earth for it: its radius, and the ship's loop round it (from its centre)
+const EARTH_R = 24;
+const ORBIT_R = 34;
+const ORBIT_S = 7;
+const SETTLE_S = 1.6;
+// While the run is on, it's in orbit: the Earth this big, this far below the
+// field, turning under it at 0.7 of the field's speed (the sun sets about
+// half a minute in; round once in about a minute and a half, sooner as the
+// run speeds up), through day, night and sunrise
+const PLAY_R = 300;
+const PLAY_ALT = 22;
+const ORBIT_RATE = 0.7;
+const X_AXIS = new THREE.Vector3(1, 0, 0);
 const POWER_NAME: Record<Power, string> = { star: "Invincible", boost: "Boost" };
 // Today's real asteroids, from NASA (app/api/space-today)
 type Neo = { name: string; d: number; v: number; ld: number; hazardous: boolean };
@@ -134,6 +150,33 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         scene.add(rim);
         const env = spaceEnvironment(renderer, SUN);
         scene.environment = env.texture;
+        // The Earth, for the opening flyby: below where the run starts, lit by
+        // the same sun, its textures loading quietly in the background
+        // (lit from ahead and above, so the flyby's loop crosses the night
+        // side, its city lights, and comes back round into the sunrise)
+        const SUN0 = new THREE.Vector3(0.35, 0.5, -0.8).normalize();
+        const earthSun = SUN0.clone();
+        const earthFx = buildEarth(renderer, EARTH_R, earthSun);
+        earthFx.group.visible = false;
+        scene.add(earthFx.group);
+        // In play the run is in orbit (see PLAY_R): how far round it's gone,
+        // which turns the Earth under it, the sun on it, and the sky
+        let orbit = 0;
+        const skyBase = new THREE.Quaternion().setFromEuler(scene.backgroundRotation);
+        const qOrbit = new THREE.Quaternion();
+        const placePlayEarth = () => {
+            earthFx.setScale(PLAY_R / EARTH_R);
+            earthFx.group.position.set(0, -(PLAY_R + PLAY_ALT), -40);
+        };
+        placePlayEarth();
+        const turnOrbit = (d: number) => {
+            orbit += d;
+            earthFx.group.rotation.x = orbit;
+            earthSun.copy(SUN0).applyAxisAngle(X_AXIS, orbit);
+            qOrbit.setFromAxisAngle(X_AXIS, orbit).multiply(skyBase);
+            scene.backgroundRotation.setFromQuaternion(qOrbit);
+            alignStars(stars, scene.backgroundRotation);
+        };
 
         // Dust, streaking past: the only thing near enough to show the speed
         const DUST = 420;
@@ -438,10 +481,113 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             newBest = false;
             phase = "playing";
             speed = sim.speed;
+            placeSight();
             setEngine(0.05, 0.3);
             pushHud();
         };
-        start.current = begin;
+        // ---- the flyby -------------------------------------------------------
+        // The first launch of a visit opens like a film: the ship loops once
+        // round the Earth, the camera out in space, then comes back round to
+        // where the run starts and heads off into the field as the camera
+        // swings in behind it. Any key, click or tap skips it. Scenery only:
+        // the run (and its simulation) starts after it.
+        let intro: { t: number; daily: boolean } | null = null;
+        const launch = (asDaily = daily) => {
+            if (phase === "playing" || phase === "intro") return;
+            if (!flownBy && !reduce && earthFx.ready()) {
+                flownBy = true;
+                phase = "intro";
+                intro = { t: 0, daily: asDaily };
+                [...rocks, ...named, ...frags].forEach((r) => (r.mesh.visible = false));
+                shieldRing.visible = starPickup.visible = arrowPickup.visible = false;
+                earthFx.setScale(1);
+                earthFx.group.position.set(0, -ORBIT_R, 0);
+                turnOrbit(-orbit);
+                earthFx.group.visible = true;
+                dust.visible = false;
+                setEngine(0.05, 0.25);
+                pushHud();
+                return;
+            }
+            begin(asDaily);
+        };
+        const skipIntro = () => {
+            if (intro) intro.t = Math.max(intro.t, ORBIT_S + SETTLE_S);
+        };
+        const finishIntro = () => {
+            const d = intro ? intro.daily : daily;
+            intro = null;
+            placePlayEarth();
+            dust.visible = true;
+            ship.up.set(0, 1, 0);
+            ship.rotation.set(0, 0, 0);
+            begin(d);
+        };
+        const camFrom = new THREE.Vector3();
+        const lookFrom = new THREE.Vector3();
+        const radial = new THREE.Vector3();
+        const along = new THREE.Vector3();
+        const wide = new THREE.Vector3();
+        const chase = new THREE.Vector3();
+        const lookWide = new THREE.Vector3();
+        const lookChase = new THREE.Vector3();
+        const upNow = new THREE.Vector3();
+        const flyby = (dt: number) => {
+            if (!intro) return;
+            intro.t += dt;
+            const t = intro.t;
+            earthFx.update(dt);
+            const cy = earthFx.group.position.y;
+            if (t < ORBIT_S) {
+                // once round, easing in and out, ending where the run begins
+                const u = t / ORBIT_S;
+                const e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2;
+                const th = -2 * Math.PI * (1 - e);
+                const c = Math.cos(th);
+                const sn = Math.sin(th);
+                radial.set(0, c, -sn);
+                along.set(0, -sn, -c);
+                ship.position.set(0, cy, 0).addScaledVector(radial, ORBIT_R);
+                // nose along the orbit, back to the Earth below
+                ship.up.copy(radial);
+                ship.lookAt(ship.position.x - along.x, ship.position.y - along.y, ship.position.z - along.z);
+                // the camera: wide from the side at first, then in behind the
+                // ship, riding along over the horizon for the rest of the loop
+                wide.set(40, cy + 10, 26);
+                lookWide.set(0, cy, 0).lerp(ship.position, 0.7);
+                chase.copy(ship.position).addScaledVector(radial, 5).addScaledVector(along, -9).add(new THREE.Vector3(2.6, 0, 0));
+                // (looking down toward the horizon: the Earth's curve fills the lower frame, the ship above it)
+                lookChase.copy(ship.position).addScaledVector(along, 12).addScaledVector(radial, -16);
+                const w = Math.min(1, Math.max(0, (u - 0.15) / 0.3));
+                const ws = w * w * (3 - 2 * w);
+                camera.position.lerpVectors(wide, chase, ws);
+                // (never close enough to the ground for the map to blur)
+                const off = camera.position.clone().sub(new THREE.Vector3(0, cy, 0));
+                if (off.length() < ORBIT_R + 3) camera.position.set(0, cy, 0).addScaledVector(off.normalize(), ORBIT_R + 3);
+                lookFrom.lerpVectors(lookWide, lookChase, ws);
+                upNow.set(0, 1, 0).lerp(radial, ws).normalize();
+                camera.up.copy(upNow);
+                camera.lookAt(lookFrom);
+                camFrom.copy(camera.position);
+                setEngine(0.05, 0.25 + u * 0.2);
+            } else {
+                // off into the field: the camera settles behind, the Earth drops away
+                const k = Math.min(1, (t - ORBIT_S) / SETTLE_S);
+                const ease = k * k * (3 - 2 * k);
+                ship.up.set(0, 1, 0);
+                ship.position.set(0, 0, 0);
+                ship.rotation.set(0, 0, 0);
+                // the Earth grows into its place below the field, where the run goes on round it
+                earthFx.setScale(1 + (PLAY_R / EARTH_R - 1) * ease);
+                earthFx.group.position.set(0, -ORBIT_R + (ORBIT_R - PLAY_R - PLAY_ALT) * ease, -40 * ease);
+                camera.position.lerpVectors(camFrom, new THREE.Vector3(0, 1.4, 7.5), ease);
+                camera.up.set(0, 1, 0);
+                camera.lookAt(lookFrom.lerp(new THREE.Vector3(0, 0, -20), Math.min(1, ease * 1.5)));
+                dust.visible = k > 0.3;
+                if (k >= 1) finishIntro();
+            }
+        };
+        start.current = launch;
         const end = () => {
             phase = "over";
             // the pointer back, for the buttons and the board
@@ -515,7 +661,9 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             const k = e.key.toLowerCase();
             if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(k)) e.preventDefault();
             if (e.type === "keydown") {
-                if ((k === " " || k === "enter") && phase !== "playing") begin();
+                if (phase === "intro") {
+                    if (k !== "m") skipIntro();
+                } else if ((k === " " || k === "enter") && phase !== "playing") launch();
                 if (k === "m") {
                     setMuted(!isMuted());
                     setMutedState(isMuted());
@@ -540,7 +688,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
         const placeSight = () => {
             const s = sight.current;
             if (!s) return;
-            s.style.display = locked() ? "block" : "none";
+            s.style.display = locked() && phase === "playing" ? "block" : "none";
             s.style.left = `${sightAt.x}px`;
             s.style.top = `${sightAt.y}px`;
         };
@@ -576,7 +724,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                     } else toAim(e.clientX, e.clientY);
                 }
                 if (e.type === "pointerdown") {
-                    if (phase !== "playing") begin();
+                    if (phase === "intro") skipIntro();
+                    else if (phase !== "playing") launch();
                     if (!locked()) {
                         sightAt.x = e.clientX;
                         sightAt.y = e.clientY;
@@ -587,7 +736,8 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             }
             // touch: drag moves the ship relative to where the finger went down
             if (e.type === "pointerdown") {
-                if (phase !== "playing") begin();
+                if (phase === "intro") skipIntro();
+                else if (phase !== "playing") launch();
                 dragFrom = { x: e.clientX, y: e.clientY, sx: shipPos.x, sy: shipPos.y };
             } else if (e.type === "pointermove" && dragFrom) {
                 const r = renderer.domElement.getBoundingClientRect();
@@ -751,15 +901,24 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
             starPickup.rotation.x += dt * 1.3;
             arrowPickup.rotation.y += dt * 2.2;
 
-            // the camera follows, a little behind and above
-            camera.position.x += (shipPos.x * 0.55 - camera.position.x) * Math.min(1, dt * 4);
-            camera.position.y += (1.4 + shipPos.y * 0.45 - camera.position.y) * Math.min(1, dt * 4);
-            if (shake > 0) {
-                camera.position.x += (Math.random() - 0.5) * shake;
-                camera.position.y += (Math.random() - 0.5) * shake;
-                shake = Math.max(0, shake - dt * 1.4);
+            if (phase === "intro") flyby(dt);
+            else {
+                // in orbit: the Earth turns under the field, the sun and the sky with it
+                if (earthFx.ready()) {
+                    earthFx.group.visible = true;
+                    turnOrbit((dz * ORBIT_RATE) / PLAY_R);
+                    earthFx.update(dt);
+                }
+                // the camera follows, a little behind and above
+                camera.position.x += (shipPos.x * 0.55 - camera.position.x) * Math.min(1, dt * 4);
+                camera.position.y += (1.4 + shipPos.y * 0.45 - camera.position.y) * Math.min(1, dt * 4);
+                if (shake > 0) {
+                    camera.position.x += (Math.random() - 0.5) * shake;
+                    camera.position.y += (Math.random() - 0.5) * shake;
+                    shake = Math.max(0, shake - dt * 1.4);
+                }
+                camera.lookAt(shipPos.x * 0.35, shipPos.y * 0.3, -20);
             }
-            camera.lookAt(shipPos.x * 0.35, shipPos.y * 0.3, -20);
             renderer.render(scene, camera);
 
             hudTimer -= dt;
@@ -788,6 +947,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 mat?.dispose();
             });
             sky.dispose();
+            earthFx.dispose();
             env.dispose();
             renderer.dispose();
             renderer.domElement.remove();
@@ -821,8 +981,13 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
                 </div>
             )}
 
+            {/* the flyby: how to skip it */}
+            {hud.phase === "intro" && (
+                <p className="pointer-events-none absolute inset-x-0 bottom-20 text-center font-mono text-[11px] uppercase tracking-[0.3em] text-neutral-400 sm:bottom-8">Click, tap or any key to skip</p>
+            )}
+
             {/* HUD */}
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4 font-mono text-xs uppercase tracking-[0.2em] sm:p-6">
+            <div className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-4 font-mono text-xs uppercase tracking-[0.2em] transition-opacity duration-500 sm:p-6 ${hud.phase === "intro" ? "opacity-0" : ""}`}>
                 <div>
                     <p className="text-teal-300/80">Score</p>
                     <p className="text-2xl font-bold tracking-normal text-white">{hud.score.toLocaleString()}</p>
@@ -882,7 +1047,7 @@ export default function AsteroidRun({ onExit, onFlight }: { onExit: () => void; 
 
             {/* the title, and game over */}
             {/* a tap or click anywhere (or the button) launches */}
-            {hud.phase !== "playing" && loaded && (
+            {(hud.phase === "ready" || hud.phase === "over") && loaded && (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
                     <div className="max-w-sm rounded-2xl border border-teal-400/25 bg-black/60 p-6 text-center backdrop-blur-md">
                         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">{hud.phase === "over" ? (hud.daily ? "Run over · today's field" : "Run over") : "Crew arcade · 02"}</p>
