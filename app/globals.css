@@ -2,14 +2,21 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom space-themed cursors */
+/* Custom space-themed cursors. The moon and the sun are drawn centred in
+   their 32x32 images, so the click point is their centre (16 16); without it
+   browsers click from the image's top-left corner, 16px off the moon. */
 body {
-  cursor: url('/moon-cursor.svg'), auto;
+  cursor: url('/moon-cursor.svg') 16 16, auto;
 }
 
 /* Different cursor for interactive elements */
 button, a, [role="button"], [onclick], .cursor-pointer {
-  cursor: url('/sun-cursor.svg'), pointer;
+  cursor: url('/sun-cursor.svg') 16 16, pointer;
+}
+
+/* The arcade's games aim at a point, so they get a precise crosshair */
+canvas.game-canvas {
+  cursor: crosshair;
 }
 
 /* Images should inherit the themed cursor instead of reverting to default */

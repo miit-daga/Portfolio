@@ -76,6 +76,7 @@ export default function AsteroidRun({ onExit }: { onExit: () => void }) {
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         el.appendChild(renderer.domElement);
         renderer.domElement.style.display = "block";
+        renderer.domElement.classList.add("game-canvas");
         const scene = new THREE.Scene();
         // far rocks come out of the dark
         scene.fog = new THREE.Fog(0x000000, 70, 185);

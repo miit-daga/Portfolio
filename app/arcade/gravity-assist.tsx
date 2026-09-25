@@ -249,6 +249,7 @@ export default function GravityAssist({ onExit }: { onExit: () => void }) {
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         el.appendChild(renderer.domElement);
         renderer.domElement.style.display = "block";
+        renderer.domElement.classList.add("game-canvas");
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(36, 1, 1, 3000);
         let ready = false;

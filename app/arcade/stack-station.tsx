@@ -340,6 +340,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         el.appendChild(renderer.domElement);
         renderer.domElement.style.display = "block";
+        renderer.domElement.classList.add("game-canvas");
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000);
         let ready = false;
