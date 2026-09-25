@@ -8,7 +8,9 @@ import { SECTIONS } from "@/constants/sections";
 // Each section is a tiny waypoint planet at its true position along the
 // journey; a glowing ship marker tracks the live scroll position. Clicking a
 // waypoint glides there (with hyperspace streaks on long jumps, same as the
-// navbar). The hero sits at the top as the launchpad.
+// navbar). The hero sits at the top as the launchpad. Dragging along the rail
+// scrubs the page, the ship under the pointer; a press that doesn't move is
+// still a click on the waypoint.
 //
 // Waypoint colours are derived from constants/sections.ts, so a planet here
 // always matches the heading, divider and ambient tint of the section it flies
@@ -57,6 +59,48 @@ export const FlightPath = () => {
     // Absolute section tops, cached at measure time so the scroll handler
     // doesn't walk the offset chain on every scroll tick
     const topsRef = useRef<number[]>([]);
+
+    // Scrubbing: the pointer is captured only once it has moved a few pixels,
+    // so a plain click still lands on its waypoint's button
+    const railRef = useRef<HTMLDivElement>(null);
+    const drag = useRef<{ y: number; on: boolean; id: number } | null>(null);
+    const swallowClick = useRef(false);
+    const [dragging, setDragging] = useState(false);
+    const scrubTo = (clientY: number) => {
+        const rail = railRef.current;
+        if (!rail) return;
+        const r = rail.getBoundingClientRect();
+        const f = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo({ top: f * max, behavior: "instant" as ScrollBehavior });
+        // The ship follows the pointer, not the spring
+        smooth.jump(f);
+    };
+    const onPointerDown = (e: React.PointerEvent) => {
+        if (e.button !== 0) return;
+        drag.current = { y: e.clientY, on: false, id: e.pointerId };
+    };
+    const onPointerMove = (e: React.PointerEvent) => {
+        const d = drag.current;
+        if (!d) return;
+        if (!d.on) {
+            if (Math.abs(e.clientY - d.y) < 4) return;
+            d.on = true;
+            railRef.current?.setPointerCapture(d.id);
+            setDragging(true);
+            setHoveredIdx(null);
+        }
+        scrubTo(e.clientY);
+    };
+    const onPointerEnd = () => {
+        const d = drag.current;
+        drag.current = null;
+        if (!d?.on) return;
+        setDragging(false);
+        // The click that follows a drag isn't a click on a waypoint
+        swallowClick.current = true;
+        setTimeout(() => (swallowClick.current = false), 0);
+    };
 
     useEffect(() => {
         // Layout position up the offset chain - immune to the reveal animations'
@@ -123,12 +167,24 @@ export const FlightPath = () => {
             className="fixed right-4 top-1/2 z-[5500] hidden -translate-y-1/2 lg:block [@media(max-height:540px)]:lg:hidden"
         >
             <motion.div
+                ref={railRef}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerEnd}
+                onPointerCancel={onPointerEnd}
+                onClickCapture={(e) => {
+                    if (!swallowClick.current) return;
+                    swallowClick.current = false;
+                    e.preventDefault();
+                    e.stopPropagation();
+                }}
+                style={dragging ? { cursor: "grabbing" } : undefined}
                 initial={{ opacity: 0, x: 8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.6, delay: 0.4 }}
                 // Height is clamped so the centred track always clears the
                 // back-to-top rocket parked in the bottom-right corner
-                className="relative h-[min(44vh,400px,calc(100vh-320px))] w-4"
+                className="relative h-[min(44vh,400px,calc(100vh-320px))] w-4 touch-none select-none"
             >
                 {/* Route line */}
                 <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/20 to-transparent" />
