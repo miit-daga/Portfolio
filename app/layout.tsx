@@ -43,14 +43,7 @@ export const metadata: Metadata = {
     siteName: "Miit Daga",
     title: "Miit Daga | Software Developer",
     description: "Portfolio of Miit Daga, a software developer specializing in full stack development and innovative web applications, with experience in artificial intelligence and machine learning.",
-    images: [
-      {
-        url: "/opengraph-image",
-        width: 1200,
-        height: 630,
-        alt: "Miit Daga - Portfolio",
-      },
-    ],
+    // (the share picture is opengraph-image.jpg, beside this file)
   },
   twitter: {
     card: "summary_large_image",
@@ -58,7 +51,6 @@ export const metadata: Metadata = {
     creator: "@miit_daga",
     title: "Miit Daga",
     description: "Portfolio of Miit Daga, a software developer specializing in full stack development and innovative web applications, with experience in artificial intelligence and machine learning.",
-    images: ["/opengraph-image"],
   },
 }
 
