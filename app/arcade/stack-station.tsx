@@ -108,6 +108,38 @@ const auroraFrag = /* glsl */ `
         #include <colorspace_fragment>
     }`;
 
+// ---- the climb -------------------------------------------------------------
+// Each module lifts the station higher: from the ISS's height to the Moon's,
+// faster the taller it gets (the height is worked out between these marks,
+// evenly in its logarithm). The Earth falls away below as it climbs, and the
+// real Moon, a speck at first, grows until the station is beside it.
+const MARKS = [
+    { n: 0, km: 420, name: "ISS", say: "" },
+    { n: 3, km: 540, name: "Hubble", say: "Hubble's height · 540 km" },
+    { n: 8, km: 3000, name: "Van Allen belts", say: "Into the Van Allen belts" },
+    { n: 16, km: 20200, name: "GPS", say: "The GPS satellites' height · 20,200 km" },
+    { n: 24, km: 35786, name: "Geostationary", say: "Geostationary · 35,786 km, once round a day" },
+    { n: 38, km: 192200, name: "Halfway", say: "Halfway to the Moon" },
+    { n: 50, km: 384400, name: "The Moon", say: "At the Moon · 384,400 km" },
+] as const;
+const PAST_MOON = 53; // and past it, on and on
+const EARTH_KM = 6371;
+const MOON_KM = 1737;
+/** How high the station is (km) at this many modules (fractional, as the climb eases). */
+function altitude(n: number) {
+    const k = Math.max(0, n);
+    for (let i = 1; i < MARKS.length; i++) {
+        const a = MARKS[i - 1];
+        const b = MARKS[i];
+        if (k <= b.n) return a.km * Math.pow(b.km / a.km, (k - a.n) / (b.n - a.n));
+    }
+    // past the Moon, on at the last stretch's rate
+    const a = MARKS[MARKS.length - 2];
+    const b = MARKS[MARKS.length - 1];
+    return b.km * Math.pow(b.km / a.km, (k - b.n) / (b.n - a.n));
+}
+const km = (x: number) => `${Math.round(x).toLocaleString("en-US")} km`;
+
 type Phase = "ready" | "playing" | "over";
 type Hud = { drops: number[]; daily: boolean; score: number; best: number; phase: Phase; perfect: number; streak: number; newBest: boolean };
 
@@ -309,6 +341,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
     const drop = useRef<() => void>(() => {});
     const start = useRef<(daily?: boolean) => void>(() => {});
     // today's space: the space weather, and the people up there now
+    // the climb's captions, as each mark is passed
+    const [note, setNote] = useState<{ text: string; at: number } | null>(null);
     const [space, setSpace] = useState<{ kp: number | null; people: number | null } | null>(null);
     // where the real ISS is, under today's station
     const [over, setOver] = useState<{ lat: number; lon: number; shadow: boolean } | null>(null);
@@ -497,6 +531,29 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
         });
         const air = new THREE.Mesh(new THREE.SphereGeometry(EARTH_R * 1.06, 160, 120), airMat);
         scene.add(air);
+        // The Moon, off to the upper right: at its real size for the height
+        // (from the ISS a speck a quarter of a degree across), lit by the sun.
+        // (Its picture loads in the background, not holding up the game.)
+        const moon = new THREE.Mesh(
+            new THREE.SphereGeometry(1, 64, 48),
+            new THREE.MeshStandardMaterial({ map: loadTexture(renderer, new THREE.TextureLoader(), "planet-moon.jpg"), roughness: 1, metalness: 0, envMapIntensity: 0 }),
+        );
+        moon.rotation.y = -1.2;
+        scene.add(moon);
+        // where on the screen the Earth goes as it shrinks (lower left, beside
+        // the station) and where the Moon is (upper right), as directions from the camera
+        const fwd = new THREE.Vector3();
+        const camRight = new THREE.Vector3();
+        const camUp = new THREE.Vector3();
+        const onScreen = (x: number, y: number, out: THREE.Vector3) => {
+            const ty = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+            return out.copy(fwd).addScaledVector(camRight, x * ty * camera.aspect).addScaledVector(camUp, y * ty).normalize();
+        };
+        const earthDir = new THREE.Vector3();
+        const earthAway = new THREE.Vector3();
+        const moonDir = new THREE.Vector3();
+        const EARTH_NEAR = EARTH_AT.clone().normalize();
+        let climb = 0; // the modules, eased: the height follows it
 
         // ---- the station -----------------------------------------------------
         const station = new THREE.Group();
@@ -660,6 +717,8 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             phase = "playing";
             streak = 0;
             newBest = false;
+            climb = 0;
+            setNote(null);
             // the hub
             layers.push(addLayer({ group: null as unknown as THREE.Group, w: BASE, d: BASE, x: 0, z: 0, y: 0 }, 0));
             spawnMoving();
@@ -704,6 +763,10 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 sfxPlace(0);
             }
             layers.push(addLayer({ group: null as unknown as THREE.Group, ...r.placed }, n));
+            // a mark on the climb, passed
+            const mark = MARKS.find((m) => m.n === score() && m.say);
+            if (mark) setNote({ text: mark.say, at: Date.now() });
+            else if (score() === PAST_MOON) setNote({ text: "Past the Moon · on and on", at: Date.now() });
             spawnMoving();
             pushHud();
         };
@@ -816,10 +879,29 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
             }
             sun.target.position.set(0, camTarget.y, 0);
             sun.position.copy(sunDir).multiplyScalar(size * 2 + 30).add(sun.target.position);
-            // the Earth and the sky stay where they are as the build rises
-            earth.position.copy(EARTH_AT).add(camTarget);
+            // the Earth and the sky stay where they are as the build rises;
+            // as it climbs, the Earth shrinks away (to the lower left, so it's
+            // still seen beside the station) and the Moon grows
+            climb += (score() - climb) * Math.min(1, dt * 2);
+            const alt = altitude(climb);
+            const shrink = Math.min(1, (1.3 * (EARTH_KM + MARKS[0].km)) / (EARTH_KM + alt));
+            camera.getWorldDirection(fwd);
+            camRight.crossVectors(fwd, camera.up).normalize();
+            camUp.crossVectors(camRight, fwd);
+            onScreen(camera.aspect < 0.9 ? -0.35 : -0.5, -0.55, earthAway);
+            earthDir.copy(EARTH_NEAR).lerp(earthAway, 1 - THREE.MathUtils.smoothstep(shrink, 0.3, 1)).normalize();
+            earth.position.copy(earthDir).multiplyScalar(EARTH_AT.length()).add(camTarget);
+            earth.scale.setScalar(shrink);
+            air.scale.setScalar(shrink);
+            airMat.uniforms.uR.value = EARTH_R * shrink;
+            airMat.uniforms.uH.value = EARTH_R * 0.012 * shrink;
+            earthShine.intensity = 0.55 * Math.sqrt(shrink);
             air.position.copy(earth.position);
             airMat.uniforms.uCenter.value.copy(earth.position);
+            const toMoon = Math.max(Math.abs(MARKS[MARKS.length - 1].km - alt), 7000);
+            onScreen(camera.aspect < 0.9 ? 0.4 : 0.55, 0.6, moonDir);
+            moon.position.copy(camera.position).addScaledVector(moonDir, 2500);
+            moon.scale.setScalar(2500 * Math.tan(Math.atan(MOON_KM / toMoon)));
             stars.position.copy(camera.position);
             if (live) {
                 // (the ISS moves on: the Earth turns after it, smoothly)
@@ -881,6 +963,7 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                 <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Modules</p>
                 <p className="font-display text-5xl font-bold">{hud.score}</p>
                 <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.2em] text-neutral-500">Best {hud.best}</p>
+                {hud.phase !== "ready" && <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.2em] text-sky-200/80">Altitude {km(altitude(hud.score))}</p>}
                 {hud.daily && over && (
                     <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.15em] text-sky-200/80">
                         The real ISS is over {Math.abs(over.lat).toFixed(1)}° {over.lat >= 0 ? "N" : "S"}, {Math.abs(over.lon).toFixed(1)}° {over.lon >= 0 ? "E" : "W"}
@@ -893,6 +976,15 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                     </p>
                 )}
             </div>
+
+            {/* the climb: a mark passed */}
+            {hud.phase === "playing" && note && (
+                <div key={`note-${note.at}`} className="pointer-events-none absolute inset-x-0 top-[12.5rem] flex animate-[arcade-hit_3.5s_ease-in_forwards] justify-center px-4">
+                    <p className="rounded-full border border-sky-300/30 bg-black/50 px-4 py-1.5 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-sky-100 backdrop-blur">{note.text}</p>
+                </div>
+            )}
+            {/* and how far up it is */}
+            {hud.phase !== "ready" && <Altimeter n={hud.score} />}
 
             <div className="absolute bottom-4 left-4 flex gap-2 sm:bottom-6 sm:left-6">
                 <button type="button" onClick={onExit} className="rounded-full border border-white/15 bg-black/50 px-4 py-2 text-sm text-neutral-200 backdrop-blur hover:border-white/30 hover:text-white">
@@ -964,6 +1056,37 @@ export default function StackStation({ onExit }: { onExit: () => void }) {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** The altimeter, up the right edge: the marks from the ISS's height to the Moon's, and the station climbing it. */
+function Altimeter({ n }: { n: number }) {
+    // up the bar by modules, so the marks come evenly; past the Moon it creeps on toward the top
+    const TOP = 58;
+    const last = MARKS[MARKS.length - 1].n;
+    const up = (k: number) => `${((k <= last ? k : last + (TOP - last) * (1 - Math.exp(-(k - last) / 8))) / TOP) * 100}%`;
+    const next = MARKS.find((m) => m.n > n);
+    return (
+        <div aria-hidden className="pointer-events-none absolute bottom-14 right-4 top-44 w-40 sm:right-6 sm:top-32">
+            <div className="absolute -inset-y-3 -left-2 -right-2 rounded-2xl bg-black/30 backdrop-blur-[2px]" />
+            <div className="absolute bottom-0 right-2 top-0 w-px bg-white/15" />
+            <div className="absolute bottom-0 right-2 w-px bg-sky-300/60 transition-[height] duration-700 ease-out" style={{ height: up(n) }} />
+            {MARKS.map((m) => {
+                const passed = n >= m.n;
+                return (
+                    <div key={m.name} className={`absolute right-0 flex translate-y-1/2 items-center gap-2 transition-opacity duration-500 ${passed ? "opacity-100" : "opacity-50"} ${m === next ? "" : "max-sm:hidden"}`} style={{ bottom: up(m.n) }}>
+                        <span className="text-right font-mono text-[9px] uppercase leading-tight tracking-[0.12em] text-neutral-300">
+                            {m.name}
+                            <span className="block text-neutral-500">{km(m.km)}</span>
+                        </span>
+                        <span className={`block h-2 w-2 shrink-0 rounded-full ${m.name === "The Moon" ? "bg-neutral-200 shadow-[0_0_6px_rgba(255,255,255,0.7)]" : passed ? "bg-sky-300" : "bg-white/40"}`} />
+                    </div>
+                );
+            })}
+            <span className="absolute -top-1 right-0.5 -translate-y-full font-mono text-[12px] leading-none text-neutral-500">∞</span>
+            {/* the station */}
+            <span className="absolute right-2 block h-2.5 w-2.5 translate-x-1/2 translate-y-1/2 rotate-45 border border-sky-100 bg-sky-300/80 shadow-[0_0_8px_rgba(125,211,252,0.9)] transition-[bottom] duration-700 ease-out" style={{ bottom: up(n) }} />
         </div>
     );
 }
