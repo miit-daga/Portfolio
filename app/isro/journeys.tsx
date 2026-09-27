@@ -50,12 +50,12 @@ const MISSIONS: Mission[] = [
             { date: "5 Aug 2023", title: "Captured by the Moon", scene: "moon", view: 21000, orbit: [164, 18074], kind: "orbit", text: "A braking burn, and the Moon's gravity takes hold: Chandrayaan-3 now circles the Moon instead of the Earth." },
             { date: "6 Aug 2023", title: "Lunar orbit reduced", scene: "moon", view: 7000, orbit: [170, 4313], kind: "orbit", text: "Burns now go the other way, shrinking the orbit: its far end comes in by three quarters." },
             { date: "9 Aug 2023", title: "Lunar orbit reduced", scene: "moon", view: 3900, orbit: [174, 1437], kind: "orbit", text: "The far end comes in by two thirds again." },
-            { date: "14 Aug 2023", title: "Lunar orbit reduced", scene: "moon", view: 2600, orbit: [150, 177], kind: "orbit", text: "Nearly a circle now: its high and low points are only 27 km apart." },
-            { date: "16 Aug 2023", title: "Final circular orbit", scene: "moon", view: 2600, orbit: [153, 163], kind: "orbit", text: "The orbit the lander will leave from, a near-circle about 160 km up." },
-            { date: "17 Aug 2023", title: "Separation", scene: "moon", view: 2600, orbit: [153, 163], kind: "separate", text: "Vikram, with the Pragyan rover folded inside, separates from the propulsion module, which stays in orbit." },
-            { date: "18 Aug 2023", title: "Deboost 1", scene: "moon", view: 2600, orbit: [113, 157], kind: "orbit", text: "Vikram fires its own engines for the first time, lowering its orbit." },
-            { date: "20 Aug 2023, early hours", title: "Deboost 2", scene: "moon", view: 2600, orbit: [25, 134], kind: "orbit", text: "Its low point is now where the powered descent will begin." },
-            { date: "23 Aug 2023, 6:03 pm", title: "Landing", scene: "moon", view: 2600, orbit: [25, 134], kind: "land", text: "From 25 km, a powered descent of about 20 minutes to a soft touchdown near the south pole, at 69.37°S 32.32°E, now named Shiv Shakti point. India became the fourth country to land softly on the Moon, and the first near its south pole." },
+            { date: "14 Aug 2023", title: "Lunar orbit reduced", scene: "moon", view: 3300, orbit: [150, 177], kind: "orbit", text: "Nearly a circle now: its high and low points are only 27 km apart." },
+            { date: "16 Aug 2023", title: "Final circular orbit", scene: "moon", view: 3300, orbit: [153, 163], kind: "orbit", text: "A last small trim: its high and low points now just 10 km apart, a near-circle about 160 km up, the orbit the lander will leave from." },
+            { date: "17 Aug 2023", title: "Separation", scene: "moon", view: 3300, orbit: [153, 163], kind: "separate", text: "Vikram, with the Pragyan rover folded inside, separates from the propulsion module, which stays in orbit." },
+            { date: "18 Aug 2023", title: "Deboost 1", scene: "moon", view: 3300, orbit: [113, 157], kind: "orbit", text: "Vikram fires its own engines for the first time, lowering its orbit." },
+            { date: "20 Aug 2023, early hours", title: "Deboost 2", scene: "moon", view: 3300, orbit: [25, 134], kind: "orbit", text: "Its low point is now where the powered descent will begin." },
+            { date: "23 Aug 2023, 6:03 pm", title: "Landing", scene: "moon", view: 3300, orbit: [25, 134], kind: "land", text: "From 25 km, a powered descent of about 20 minutes to a soft touchdown near the south pole, at 69.37°S 32.32°E, now named Shiv Shakti point. India became the fourth country to land softly on the Moon, and the first near its south pole." },
         ],
     },
     {
@@ -219,7 +219,9 @@ export function Journeys() {
                 }
                 ctx.fillStyle = "rgba(226,232,240,0.75)";
                 ctx.font = "11px ui-monospace, monospace";
-                ctx.fillText(label, X(x) + pr + 6, Y(y) - pr - 4);
+                // (below-left for a big close-up body, where the craft labels won't be)
+                if (pr > 90) ctx.fillText(label, X(x) - pr * 0.72 - 20, Y(y) + pr * 0.72 + 22);
+                else ctx.fillText(label, X(x) + pr + 6, Y(y) - pr - 4);
             };
             const path = (pts: [number, number][], style: string, width = 1.2, dash: number[] = []) => {
                 ctx.strokeStyle = style;
@@ -230,15 +232,26 @@ export function Journeys() {
                 ctx.stroke();
                 ctx.setLineDash([]);
             };
-            const craft = (x: number, y: number) => {
-                ctx.fillStyle = "#fbbf24";
-                ctx.shadowColor = "rgba(251,191,36,0.9)";
+            const craft = (x: number, y: number, label?: string, colour = "#fbbf24") => {
+                ctx.fillStyle = colour;
+                ctx.shadowColor = colour;
                 ctx.shadowBlur = 10;
                 ctx.beginPath();
                 ctx.arc(X(x), Y(y), 3.5, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.shadowBlur = 0;
+                if (label) {
+                    ctx.fillStyle = colour;
+                    ctx.font = "10px ui-monospace, monospace";
+                    ctx.fillText(label, X(x) + 8, Y(y) - 8);
+                }
             };
+            // low lunar orbits (under ~200 km over a 1,737 km Moon) differ by a few km, far
+            // under a pixel at scale; in those close-ups heights are drawn 6 times taller
+            const tall = L.scene === "moon" && st.view <= 3400 ? 6 : 1;
+            // past the separation (Chandrayaan-3's deboosts and landing), Vikram flies alone
+            const sepAt = L.mission.steps.findIndex((x) => x.kind === "separate");
+            const afterSeparation = sepAt >= 0 && L.si > sepAt;
             // the orbits flown so far in this scene, faint; the current one bright
             const earlier = L.mission.steps.slice(0, L.si).filter((s) => s.scene === L.scene && s.orbit);
             const centreBody = L.scene === "moon" ? "moon" : L.scene === "mars" ? "mars" : "earth";
@@ -251,12 +264,12 @@ export function Journeys() {
                     path(Array.from({ length: 181 }, (_, i) => [Math.cos((i / 180) * Math.PI * 2) * MOON_DIST, Math.sin((i / 180) * Math.PI * 2) * MOON_DIST] as [number, number]), "rgba(148,163,184,0.18)", 1, [4, 6]);
                     if (st.kind === "transfer") body(R + (st.orbit?.[1] ?? 0) + 1737, 0, 1737, "#e5e7eb", "#6b7280", "Moon", "moon");
                 }
-                for (const e of earlier) path(orbitPath(R + e.orbit![0], R + e.orbit![1]), "rgba(94,234,212,0.16)");
+                for (const e of earlier) path(orbitPath(R + e.orbit![0] * tall, R + e.orbit![1] * tall), "rgba(94,234,212,0.16)");
                 if (L.scene === "earth") body(0, 0, R, "#7dd3fc", "#1e3a8a", "Earth", "earth");
                 if (L.scene === "moon") body(0, 0, R, "#f3f4f6", "#4b5563", "Moon", "moon");
                 if (L.scene === "mars") body(0, 0, R, "#fdba74", "#9a3412", "Mars", "mars");
                 if (st.orbit) {
-                    const [p, a] = [R + st.orbit[0], R + st.orbit[1]];
+                    const [p, a] = [R + st.orbit[0] * tall, R + st.orbit[1] * tall];
                     path(orbitPath(p, a), "rgba(94,234,212,0.85)", 1.6);
                     if (st.kind === "land") {
                         // from the low point, down along the orbit to the surface at 69°S (the Moon seen side-on, north up), and stopped
@@ -276,8 +289,22 @@ export function Journeys() {
                     } else if (st.kind === "transfer") {
                         // out along the half orbit toward the Moon, again and again
                         craft(...onOrbit(p, a, ((t / loop) % 1) * 0.5));
+                    } else if (st.kind === "separate") {
+                        // the two parting: the propulsion module goes on round the orbit, and
+                        // Vikram, with Pragyan inside, drifts back from it
+                        const f = (t / loop) % 1;
+                        const gap = Math.min(0.06, t * 0.02);
+                        craft(...onOrbit(p, a, f), "Propulsion module", "#cbd5e1");
+                        craft(...onOrbit(p, a, (f - gap + 1) % 1), gap > 0.015 ? "Vikram (with Pragyan)" : undefined);
                     } else {
-                        craft(...onOrbit(p, a, (t / loop) % 1));
+                        craft(...onOrbit(p, a, (t / loop) % 1), afterSeparation ? "Vikram" : undefined);
+                    }
+                    // after the separation, the propulsion module still circles its old orbit
+                    if (afterSeparation) {
+                        const sep = L.mission.steps.find((x) => x.kind === "separate")!;
+                        const [pp, pa] = [R + sep.orbit![0] * tall, R + sep.orbit![1] * tall];
+                        path(orbitPath(pp, pa), "rgba(203,213,225,0.25)", 1, [3, 5]);
+                        craft(...onOrbit(pp, pa, ((t / 5) + 0.35) % 1), "Propulsion module", "#94a3b8");
                     }
                 }
                 // a scale bar
@@ -291,6 +318,10 @@ export function Journeys() {
                 ctx.stroke();
                 ctx.font = "10px ui-monospace, monospace";
                 ctx.fillText(`${nice.toLocaleString("en-US")} km`, 16, h - 24);
+                if (tall > 1) {
+                    ctx.fillStyle = "rgba(148,163,184,0.85)";
+                    ctx.fillText(`Heights above the Moon drawn ${tall}× taller, so these low orbits show`, 16, 22);
+                }
             }
 
             if (L.scene === "sun") {
