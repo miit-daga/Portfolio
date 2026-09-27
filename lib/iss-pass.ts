@@ -27,8 +27,8 @@ export type Pass = {
     brightness: "very bright" | "bright" | "low";
 };
 
-/** The Sun: its direction in the Earth-centred frame, and the point on Earth it's overhead. */
-function sun(date: Date) {
+/** The Sun: its direction in the Earth-centred frame, and the point on Earth it's overhead (also the ISRO page's globe). */
+export function sun(date: Date) {
     const n = (date.getTime() - Date.UTC(2000, 0, 1, 12)) / 86_400_000;
     const L = 280.46 + 0.9856474 * n;
     const g = (357.528 + 0.9856003 * n) * RAD;
