@@ -367,8 +367,11 @@ export const FloatingNav = ({
     const meta = "eyebrow" in acc ? acc : null;
     const isTerminal = navItem.name === "Terminal";
     const isArcade = navItem.name === "Arcade";
+    const isIsro = navItem.name === "ISRO";
     const isFirst = navItem.link === navItems.find((i) => i.link.startsWith("#"))?.link;
-    const newTab = isTerminal || isArcade;
+    // (the bar's last tool hangs its preview from its right edge, as Resume does)
+    const isLastTool = tool && navItem.link === navItems.filter((i) => !i.link.startsWith("#")).pop()?.link;
+    const newTab = isTerminal || isArcade || isIsro;
     return (
       <MagneticWrapper key={navItem.link} strength={0.2}>
         <Link
@@ -381,6 +384,7 @@ export const FloatingNav = ({
           prefetch={false}
           onClick={(e) => {
             if (isArcade) trackEvent("arcade_link", { from: "navbar" });
+            if (isIsro) trackEvent("isro_link", { from: "navbar" });
             fireTrail(activeSection, navItem.link);
             handleNavClick(e, navItem.link);
           }}
@@ -391,7 +395,9 @@ export const FloatingNav = ({
           target={newTab ? "_blank" : undefined}
           rel={newTab ? "noopener noreferrer" : undefined}
           className={cn(
-            "relative items-center flex hidden lg:flex px-2 py-1 transition-colors duration-300 min-[1400px]:px-3",
+            // (isro only from 1280 px: below that the bar can't fit it beside Resume)
+            "relative items-center flex hidden px-2 py-1 transition-colors duration-300 min-[1400px]:px-3",
+            isIsro ? "xl:flex" : "lg:flex",
             isActive ? "" : "text-white hover:text-neutral-300"
           )}
           style={isActive ? { color: acc.light } : undefined}
@@ -418,6 +424,10 @@ export const FloatingNav = ({
             <span className="relative z-10 font-mono text-xs font-semibold tracking-wide">
               <span className="text-teal-300/90">▶</span> arcade <span className="text-neutral-500">↗</span>
             </span>
+          ) : tool && isIsro ? (
+            <span className="relative z-10 font-mono text-xs font-semibold tracking-wide">
+              <span className="text-teal-300/90">⊕</span> isro <span className="text-neutral-500">↗</span>
+            </span>
           ) : (
             <span className="relative z-10 flex items-center gap-1.5 text-sm font-bold">
               <span
@@ -441,10 +451,10 @@ export const FloatingNav = ({
               <motion.span
                 // Centred under its item (framer's own x, since its transform
                 // would override a translate class); at the bar's two ends, the
-                // first hangs from its left edge and the arcade from its right,
+                // first hangs from its left edge and the last tool from its right,
                 // as Resume's does, so neither runs off a narrow screen
-                className={cn("pointer-events-none absolute top-full z-20 mt-3 block w-max max-w-[260px]", isArcade ? "right-0" : isFirst ? "left-0" : "left-1/2")}
-                style={isArcade || isFirst ? undefined : { x: "-50%" }}
+                className={cn("pointer-events-none absolute top-full z-20 mt-3 block w-max max-w-[260px]", isLastTool ? "right-0" : isFirst ? "left-0" : "left-1/2")}
+                style={isLastTool || isFirst ? undefined : { x: "-50%" }}
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
@@ -459,7 +469,7 @@ export const FloatingNav = ({
                     {meta?.eyebrow ?? (newTab ? "new tab" : "about")}
                   </span>
                   <span className="mt-0.5 block text-xs font-medium leading-snug text-neutral-200">
-                    {isTerminal ? "a real shell, with an arcade" : isArcade ? "three 3D space games, made for this site" : TEASERS[navItem.link] ?? navItem.name}
+                    {isTerminal ? "a real shell, with an arcade" : isArcade ? "three 3D space games, made for this site" : isIsro ? "India's satellites live, and ISRO's journeys to scale" : TEASERS[navItem.link] ?? navItem.name}
                   </span>
                 </span>
               </motion.span>

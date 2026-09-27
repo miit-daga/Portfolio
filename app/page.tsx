@@ -13,6 +13,7 @@ import {
   IconSchool,
   IconTerminal,
   IconDeviceGamepad2,
+  IconSatellite,
 } from "@tabler/icons-react";
 import { EnterScreen } from "@/components/EnterScreen";
 import { CollectiblesProvider, CollectibleHUD, Fragment as Collectible, FRAGMENTS_STORAGE_KEY } from "@/components/ui/collectibles";
@@ -255,6 +256,11 @@ const Home = () => {
       name: "Arcade",
       link: "/arcade",
       icon: <IconDeviceGamepad2 className="h-4 w-4 text-neutral-500 dark:text-white" />,
+    },
+    {
+      name: "ISRO",
+      link: "/isro",
+      icon: <IconSatellite className="h-4 w-4 text-neutral-500 dark:text-white" />,
     },
   ];
 
