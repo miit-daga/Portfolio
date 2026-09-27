@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import { describeLocation } from "@/lib/locate"
 import { skyPalette } from "@/lib/sky"
 import { renderSunDisc } from "@/lib/sun-disc"
+import { createSolarSystem } from "@/lib/solar-system"
 import { subscribeIss } from "@/lib/iss"
 
 interface AnimatedBackgroundProps {
@@ -497,10 +498,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     // cool at night); the hero nebula reads the same table in lib/sky.ts
     const keyLight = skyPalette(hour).keyLight
 
-    // The Sun, by day: a big half-disc on the left edge, off to the side of
-    // the page's content. By the visitor's clock (or ?sky=) it climbs the
-    // edge from the bottom-left around 6 am, is highest at noon and sinks
-    // again toward 6 pm; none at night. The planets are lit from it.
+    // The Sun: a big half-disc on the left edge, off to the side of the
+    // page's content, the centre of the solar system round it (lib/solar-system.ts:
+    // the planets where they really are today, each spinning). Always there,
+    // so it no longer rises and sets; the time of day shows in the sky's
+    // colours. (sunPhase stays for reference: 0 at 6 am to 1 at 6 pm.)
     // Where it is along its day, 0 at sunrise to 1 at sunset
     const sunPhase = () => {
       const d = new Date()
@@ -509,21 +511,20 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     }
     // its disc, drawn once, the first time it's up (granulation, limb darkening; lib/sun-disc.ts), then scaled
     let sunDisc: HTMLCanvasElement | null = null
+    void sunPhase
     const sunAt = (w: number, h: number) => {
-      const t = sunPhase()
-      if (t < -0.05 || t > 1.05) return null
       const r = Math.min(h * 0.42, w * 0.34)
-      const up = Math.sin(Math.PI * Math.max(0, Math.min(1, t)))
       return {
         r,
-        // half off the left edge (more so on a narrow screen)
+        // half off the left edge (more so on a narrow screen), halfway down
         x: (w < 768 ? -r * 0.45 : -r * 0.08) + mouseRef.current.x * 8,
-        // from below the bottom edge up to 40% down the screen at noon
-        y: h + r * 0.35 - (h + r * 0.35 - h * 0.4) * up + mouseRef.current.y * 8,
-        // warmer and redder near the horizons
-        low: 1 - up,
+        y: h * 0.5 + mouseRef.current.y * 8,
+        low: 0,
       }
     }
+    const solar = createSolarSystem()
+    let implode = 1
+    let lastSun = sunAt(window.innerWidth, window.innerHeight)
     const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; r: number; low: number }) => {
       const { x, y, r, low } = s
       c.save()
@@ -539,7 +540,8 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       c.fill()
       // the disc itself, a little dimmed so it sits in the sky rather than blazing
       c.globalCompositeOperation = "source-over"
-      c.globalAlpha = 0.95
+      // (opaque, so the planets behind it are hidden)
+      c.globalAlpha = 1
       sunDisc ??= renderSunDisc(768, "fire")
       c.drawImage(sunDisc, x - r, y - r, r * 2, r * 2)
       // and a bright rim of light just inside the limb, where it glows
@@ -596,15 +598,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     // NEW: Create Planets
     const createPlanets = () => {
       planets = [];
-      const planetConfigs = [
-        // AMBER GAS-GIANT (Inner orbit) - warm tone, distinct from the teal UI/dividers
-        { color: "#f59e0b", ring: true, distMult: 0.22, size: 28, speed: 0.00015, parallax: 10, moon: true },
-
-        // VIOLET PLANET (Outer orbit)
-        // CHANGED: distMult reduced from 0.55 to 0.40.
-        // This ensures it stays within the vertical bounds of a laptop screen (0.40 < 0.50).
-        { color: "#8b5cf6", ring: false, distMult: 0.40, size: 45, speed: 0.0002, parallax: 40, moon: false },
-      ];
+      // (the two made-up planets that were here are replaced by the real
+      // solar system round the Sun, lib/solar-system.ts)
+      const planetConfigs: { color: string; ring: boolean; distMult: number; size: number; speed: number; parallax: number; moon: boolean }[] = [];
       // On phones the two orbits, sized to the narrow side, are closer together
       // than the planets are wide: there the orbits stretch into the screen's
       // height, and the planets keep to opposite sides, circling together, so
@@ -612,7 +608,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       const narrow = canvas.width < 768;
       const squash = narrow && canvas.height > canvas.width ? Math.min(1.8, canvas.height / canvas.width) : 1;
       const firstAngle = Math.random() * Math.PI * 2;
-      const firstSpeed = planetConfigs[0].speed * (Math.random() > 0.5 ? 1 : -1);
+      const firstSpeed = (planetConfigs[0]?.speed ?? 0) * (Math.random() > 0.5 ? 1 : -1);
       planetConfigs.forEach((cfg, i) => {
         const angle = narrow ? firstAngle + i * Math.PI : Math.random() * Math.PI * 2;
         const dist = Math.min(canvas.width, canvas.height) * cfg.distMult;
@@ -815,7 +811,15 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
       // 0. The Sun, by day (behind the planets)
       const sunNow = isImploding ? null : sunAt(canvas.width, canvas.height)
+      if (sunNow) lastSun = sunNow
+      // the solar system round it: the far side, then the Sun, then the near side
+      implode = isImploding ? implode * 0.96 : 1
+      solar.layout(canvas.width, canvas.height, lastSun, mouseRef.current, implode)
+      const tNow = performance.now()
+      solar.drawBack(bgCtx, tNow)
       if (sunNow) drawSun(bgCtx, sunNow)
+      const fine = mouseRef.current.x !== 0 || mouseRef.current.y !== 0
+      solar.drawFront(bgCtx, tNow, fine && !isImploding ? { x: (mouseRef.current.x + 0.5) * canvas.width, y: (mouseRef.current.y + 0.5) * canvas.height } : null)
 
       // 1. Draw Planets (Behind Stars)
       planets.forEach(planet => {
@@ -1068,6 +1072,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       document.removeEventListener("visibilitychange", handleVisibility)
       if (animationFrame) cancelAnimationFrame(animationFrame)
       if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)
+      solar.dispose()
     }
   }, [isImploding])
 
