@@ -19,6 +19,7 @@ import {
     IconTicket,
     IconAlien,
     IconHeadset,
+    IconHistory,
     IconStars,
     IconMoon,
     IconSunrise,
@@ -397,6 +398,9 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 </Item>
                                                 <Item value="orcid publications papers research record" external icon={<OrcidIcon />} hint="every publication, not only the highlights" onSelect={() => runCommand(() => window.open(ORCID_URL, "_blank"))}>
                                                     ORCID
+                                                </Item>
+                                                <Item value="time machine history old versions how the site grew" icon={<IconHistory />} hint="every version since March 2025" onSelect={() => runCommand(() => (window.location.href = "/time-machine"))}>
+                                                    Time machine
                                                 </Item>
                                                 <Item value="terminal mode shell" external icon={<IconTerminal />} hint="or type > here" onSelect={() => runCommand(() => window.open("/terminal.html", "_blank"))}>
                                                     Terminal Mode

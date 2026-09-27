@@ -233,6 +233,14 @@ export function Contact() {
                 >
                     ▶ Crew arcade · Gravity Assist · Asteroid Run · Stack the Station
                 </a>
+                {/* How the site grew (app/time-machine) */}
+                <a
+                    href="/time-machine"
+                    onClick={() => trackEvent("time_machine_link", { from: "footer" })}
+                    className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"
+                >
+                    ⏳ Time machine · how this site grew since March 2025
+                </a>
                 <BigCrunchKeys />
             </div>
 
