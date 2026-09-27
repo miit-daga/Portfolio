@@ -72,7 +72,7 @@ const MISSIONS: Mission[] = [
             { date: "11 Nov 2013", title: "A burn falls short", scene: "earth", view: 90000, orbit: [260, 78276], farOnly: true, kind: "orbit", text: "This burn delivered far less than planned, adding only about 6,600 km to the far end. ISRO added a supplementary burn to make it up." },
             { date: "13 Nov 2013", title: "Supplementary burn", scene: "earth", view: 135000, orbit: [260, 118642], farOnly: true, kind: "orbit", text: "Back on plan: the far end out by another 40,000 km." },
             { date: "16 Nov 2013", title: "Final orbit raise", scene: "earth", view: 215000, orbit: [260, 192874], farOnly: true, kind: "orbit", text: "The far end now reaches half the way to the Moon, eight times further out than the orbit it launched into." },
-            { date: "1 Dec 2013, 12:49 am", title: "Trans-Mars injection", scene: "sun", view: 1.75 * AU, kind: "cruise", text: "The last burn at the low point sends Mangalyaan out of Earth's grip for good, onto an orbit round the Sun whose far end meets Mars: 298 days and 780 million km of coasting, with small corrections on the way." },
+            { date: "1 Dec 2013, 12:49 am", title: "Trans-Mars injection", scene: "sun", view: 1.75 * AU, kind: "cruise", text: "The last burn at the low point sends Mangalyaan out of Earth's grip for good, onto an orbit round the Sun whose far end meets Mars. From this burn to Mars was about 297 days (1 December 2013 to 24 September 2014, 323 days after launch) and 780 million km of coasting, with small course corrections on the way." },
             { date: "24 Sep 2014, 7:40 am", title: "Mars orbit insertion", scene: "mars", view: 88000, orbit: [421.7, 76993.6], kind: "orbit", text: "A braking burn, and Mars captures it, once round every 72 hours 52 minutes. It went on to work for eight years, planned for six months." },
         ],
     },
@@ -243,7 +243,7 @@ export function Journeys() {
             const earlier = L.mission.steps.slice(0, L.si).filter((s) => s.scene === L.scene && s.orbit);
             const centreBody = L.scene === "moon" ? "moon" : L.scene === "mars" ? "mars" : "earth";
             const R = RADIUS[centreBody];
-            const loop = (st.kind === "cruise" ? 9 : 3 + 4 * Math.min(1, (st.orbit?.[1] ?? 0) / 150000) ** 0.6);
+            const loop = (st.kind === "cruise" ? 12 : 3 + 4 * Math.min(1, (st.orbit?.[1] ?? 0) / 150000) ** 0.6);
 
             if (L.scene === "earth" || L.scene === "moon" || L.scene === "mars") {
                 if (L.scene === "earth" && L.view > 150000) {
@@ -294,25 +294,49 @@ export function Journeys() {
             }
 
             if (L.scene === "sun") {
-                // Earth's and Mars's orbits, and the half orbit between them, 298 days long
+                // Earth's and Mars's orbits, and the half orbit between them: from the
+                // trans-Mars injection (1 Dec 2013) to Mars (24 Sep 2014), about 297
+                // days. The craft leaves from where the Earth is, and Mars is timed to
+                // arrive where the craft does; a pause at the arrival before it repeats
+                const DAYS = 297;
+                const LEFT = Date.UTC(2013, 11, 1);
                 const rE = AU;
                 const rM = 1.524 * AU;
                 path(Array.from({ length: 181 }, (_, i) => [Math.cos((i / 180) * Math.PI * 2) * rE, Math.sin((i / 180) * Math.PI * 2) * rE] as [number, number]), "rgba(125,211,252,0.35)", 1);
                 path(Array.from({ length: 181 }, (_, i) => [Math.cos((i / 180) * Math.PI * 2) * rM, Math.sin((i / 180) * Math.PI * 2) * rM] as [number, number]), "rgba(253,186,116,0.35)", 1);
-                const half = orbitPath(rE, rM, 240).slice(0, 121).map(([x, y]) => [-x, y] as [number, number]);
-                path(half, "rgba(94,234,212,0.8)", 1.6, [5, 5]);
                 body(0, 0, 696000 * 20, "#fff7ed", "#f59e0b", "Sun (20× size)", "sun");
-                const f = (t / loop) % 1;
-                const days = f * 298;
+                const cycle = loop + 2.5;
+                const f = Math.min(1, (t % cycle) / loop);
+                const days = f * DAYS;
+                // the path: flown so far solid, still to come dashed
+                const half = orbitPath(rE, rM, 240).slice(0, 121).map(([x, y]) => [-x, y] as [number, number]);
+                const done = Math.round(f * 120);
+                path(half.slice(done), "rgba(94,234,212,0.45)", 1.4, [5, 5]);
+                path(half.slice(0, done + 1), "rgba(94,234,212,0.95)", 2);
+                // where it left, and where it met Mars
+                const mark = (x: number, y: number, text: string, colour: string, dx: number) => {
+                    ctx.fillStyle = colour;
+                    ctx.beginPath();
+                    ctx.arc(X(x), Y(y), 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.font = "10px ui-monospace, monospace";
+                    ctx.fillText(text, X(x) + dx, Y(y) + 16);
+                };
+                mark(rE, 0, "Left Earth · 1 Dec 2013", "rgba(125,211,252,0.9)", -40);
+                mark(-rM, 0, "Met Mars · 24 Sep 2014", "rgba(253,186,116,0.9)", -60);
                 const aE = (days / 365.25) * Math.PI * 2;
-                const aM = Math.PI - (298 / 687) * Math.PI * 2 + (days / 687) * Math.PI * 2;
+                const aM = Math.PI - (DAYS / 687) * Math.PI * 2 + (days / 687) * Math.PI * 2;
                 body(Math.cos(aE) * rE, Math.sin(aE) * rE, 6371 * 900, "#7dd3fc", "#1e3a8a", "Earth", "earth");
                 body(Math.cos(aM) * rM, Math.sin(aM) * rM, 3390 * 900, "#fdba74", "#9a3412", "Mars", "mars");
                 const [sx, sy] = onOrbit(rE, rM, f * 0.5);
                 craft(-sx, sy);
-                ctx.fillStyle = "rgba(226,232,240,0.85)";
-                ctx.font = "11px ui-monospace, monospace";
-                ctx.fillText(`Day ${Math.round(days)} of 298`, 16, 22);
+                const date = new Date(LEFT + days * 86_400_000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+                ctx.fillStyle = "rgba(226,232,240,0.9)";
+                ctx.font = "12px ui-monospace, monospace";
+                ctx.fillText(f < 1 ? `Day ${Math.round(days)} of ${DAYS} since the last burn · ${date}` : `Day ${DAYS} · ${date}: arrived at Mars`, 16, 22);
+                ctx.fillStyle = "rgba(148,163,184,0.75)";
+                ctx.font = "10px ui-monospace, monospace";
+                ctx.fillText("Earth and Mars move as they did; the craft coasts, the Sun's gravity bending its path", 16, 38);
             }
 
             if (L.scene === "l1") {
