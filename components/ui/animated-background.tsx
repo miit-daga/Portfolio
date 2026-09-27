@@ -159,6 +159,9 @@ const drawPlanet = (
   p: Planet,
   // Colour of the light on the lit limb and specular; white when not given
   key?: { r: number; g: number; b: number },
+  // Where the light comes from on the screen (the background's Sun, by day);
+  // upper-left when not given
+  from?: { x: number; y: number },
 ) => {
   const r = p.radius;
   if (r <= 0.5) return;
@@ -166,8 +169,12 @@ const drawPlanet = (
   const base = hexToRgb(p.color);
   const light = key ? mixRgb(shadeRgb(base, 0.55), key, 0.5) : shadeRgb(base, 0.55);
   const dark = shadeRgb(base, -0.62);
-  const lx = p.x - r * 0.4; // light source (upper-left)
-  const ly = p.y - r * 0.4;
+  // the direction toward the light, as a unit vector (upper-left by default)
+  const fd = from ? Math.hypot(from.x - p.x, from.y - p.y) || 1 : 0;
+  const ux = from ? (from.x - p.x) / fd : -Math.SQRT1_2;
+  const uy = from ? (from.y - p.y) / fd : -Math.SQRT1_2;
+  const lx = p.x + ux * r * 0.566; // light source
+  const ly = p.y + uy * r * 0.566;
 
   // 1. Atmospheric halo
   const halo = ctx.createRadialGradient(p.x, p.y, r * 0.85, p.x, p.y, r * 1.95);
@@ -231,7 +238,7 @@ const drawPlanet = (
   ctx.restore();
 
   // Deepen the terminator (shaded lower-right)
-  const term = ctx.createRadialGradient(lx, ly, r * 0.2, p.x + r * 0.35, p.y + r * 0.35, r * 1.45);
+  const term = ctx.createRadialGradient(lx, ly, r * 0.2, p.x - ux * r * 0.495, p.y - uy * r * 0.495, r * 1.45);
   term.addColorStop(0, "rgba(0, 0, 0, 0)");
   term.addColorStop(0.65, "rgba(0, 0, 0, 0)");
   term.addColorStop(1, "rgba(0, 0, 0, 0.55)");
@@ -252,12 +259,14 @@ const drawPlanet = (
   // 4. Rim light along the lit limb
   ctx.save();
   ctx.lineWidth = Math.max(1, r * 0.05);
-  const rim = ctx.createLinearGradient(p.x - r, p.y - r, p.x + r, p.y + r);
+  const rim = ctx.createLinearGradient(p.x + ux * r * 1.414, p.y + uy * r * 1.414, p.x - ux * r * 1.414, p.y - uy * r * 1.414);
   rim.addColorStop(0, `rgba(${light.r}, ${light.g}, ${light.b}, 0.85)`);
   rim.addColorStop(0.55, `rgba(${light.r}, ${light.g}, ${light.b}, 0)`);
   ctx.strokeStyle = rim;
   ctx.beginPath();
-  ctx.arc(p.x, p.y, r - ctx.lineWidth * 0.4, Math.PI * 0.85, Math.PI * 1.95);
+  // (the lit limb, centred on the light's side: 0.85 to 1.95 pi for upper-left)
+  const rimAt = from ? Math.atan2(uy, ux) + Math.PI * 0.15 : Math.PI * 1.4;
+  ctx.arc(p.x, p.y, r - ctx.lineWidth * 0.4, rimAt - Math.PI * 0.55, rimAt + Math.PI * 0.55);
   ctx.stroke();
   ctx.restore();
 
@@ -486,6 +495,54 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     // The planets' key light follows the same hour (gold around dawn and dusk,
     // cool at night); the hero nebula reads the same table in lib/sky.ts
     const keyLight = skyPalette(hour).keyLight
+
+    // The Sun, by day: it rises at the left around 6 am, is highest at noon
+    // and sets at the right around 6 pm, by the visitor's clock (or ?sky=),
+    // faint, so the page stays readable; the planets are lit from its side.
+    // Where it is along its arc, 0 at sunrise to 1 at sunset (outside that, below the horizon)
+    const sunPhase = () => {
+      const d = new Date()
+      const h = skyOverride ? hour + 0.5 : d.getHours() + d.getMinutes() / 60
+      return (h - 6) / 12
+    }
+    const sunAt = (w: number, h: number) => {
+      const t = sunPhase()
+      if (t < -0.06 || t > 1.06) return null
+      // fading in and out at the horizons
+      const fade = Math.max(0, Math.min(1, Math.min(t + 0.06, 1.06 - t) / 0.12))
+      return {
+        x: w * (0.08 + 0.84 * t) + mouseRef.current.x * 6,
+        y: h * (0.36 - 0.27 * Math.sin(Math.PI * Math.max(0, Math.min(1, t)))) + mouseRef.current.y * 6,
+        fade,
+        // warmer and redder near the horizons
+        low: 1 - Math.sin(Math.PI * Math.max(0, Math.min(1, t))),
+      }
+    }
+    const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; fade: number; low: number }, w: number) => {
+      const r = Math.max(14, Math.min(34, w * 0.018))
+      const warm = { r: 255, g: Math.round(236 - 70 * s.low), b: Math.round(190 - 130 * s.low) }
+      c.save()
+      c.globalCompositeOperation = "lighter"
+      // the wide glow
+      const glow = c.createRadialGradient(s.x, s.y, r * 0.5, s.x, s.y, r * 9)
+      glow.addColorStop(0, `rgba(${warm.r}, ${warm.g}, ${warm.b}, ${0.16 * s.fade})`)
+      glow.addColorStop(0.35, `rgba(${warm.r}, ${warm.g - 40}, ${Math.max(0, warm.b - 60)}, ${0.05 * s.fade})`)
+      glow.addColorStop(1, "rgba(255, 150, 60, 0)")
+      c.fillStyle = glow
+      c.beginPath()
+      c.arc(s.x, s.y, r * 9, 0, Math.PI * 2)
+      c.fill()
+      // the disc, soft-edged
+      const disc = c.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 1.15)
+      disc.addColorStop(0, `rgba(255, 252, 240, ${0.55 * s.fade})`)
+      disc.addColorStop(0.75, `rgba(${warm.r}, ${warm.g}, ${warm.b}, ${0.45 * s.fade})`)
+      disc.addColorStop(1, `rgba(${warm.r}, ${warm.g}, ${warm.b}, 0)`)
+      c.fillStyle = disc
+      c.beginPath()
+      c.arc(s.x, s.y, r * 1.15, 0, Math.PI * 2)
+      c.fill()
+      c.restore()
+    }
 
     // --- State ---
     let stars: Star[] = []
@@ -734,6 +791,10 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         bgCtx.fillRect(0, 0, canvas.width, atmoHeight)
       }
 
+      // 0. The Sun, by day (behind the planets)
+      const sunNow = isImploding ? null : sunAt(canvas.width, canvas.height)
+      if (sunNow) drawSun(bgCtx, sunNow, canvas.width)
+
       // 1. Draw Planets (Behind Stars)
       planets.forEach(planet => {
         if (!isImploding) {
@@ -754,7 +815,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         planet.y = centerY + Math.sin(planet.orbitAngle) * planet.distanceFromCenter * planet.orbitSquash + offsetY;
 
         // Draw the planet (shaded body, cloud bands, ring system)
-        drawPlanet(bgCtx, planet, keyLight);
+        drawPlanet(bgCtx, planet, keyLight, sunNow ?? undefined);
       });
 
       // 2. Draw Stars. Normally on their own layer, and only when they have

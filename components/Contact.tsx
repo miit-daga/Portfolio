@@ -25,6 +25,7 @@ const CrewCard = dynamic(() => import("./ui/crew-card").then((m) => m.CrewCard),
 const SignalGlobe = dynamic(() => import("./ui/signal-globe").then((m) => m.SignalGlobe), { ssr: false, loading: GlobeSpace });
 const ContactActions = dynamic(() => import("./ui/contact-actions").then((m) => m.ContactActions), { ssr: false, loading: ActionsSpace });
 const ExplorersLine = dynamic(() => import("./ui/explorers").then((m) => m.ExplorersLine), { ssr: false });
+const SunToday = dynamic(() => import("./ui/sun-today").then((m) => m.SunToday), { ssr: false });
 const IssPass = dynamic(() => import("./ui/iss-pass").then((m) => m.IssPass), { ssr: false });
 const DsnLive = dynamic(() => import("./ui/dsn-live").then((m) => m.DsnLive), { ssr: false });
 const GuestbookSignal = dynamic(() => import("./ui/radar-guestbook").then((m) => m.GuestbookSignal), { ssr: false });
@@ -215,6 +216,8 @@ export function Contact() {
             {near && <DsnLive />}
             {/* and when the ISS will next fly over the visitor */}
             {near && <IssPass />}
+            {/* and the Sun, today */}
+            {near && <SunToday />}
 
             {/* Footer. On phones it ends well below the Big Crunch keys, so the
                 back-to-top rocket (fixed, bottom right) does not sit on them */}
