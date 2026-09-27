@@ -87,3 +87,29 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ explorers: explorers.slice(0, 40) }, { headers: { "Cache-Control": "no-store" } });
 }
+
+/** Who's aboard, read-only (the terminal's `aboard`): nobody is checked in by asking. */
+export async function GET() {
+    const now = Date.now();
+    let all: Record<string, string> = {};
+    try {
+        if (MEMORY) all = Object.fromEntries(mem);
+        else {
+            const [flat] = await kvPipeline<unknown>([["HGETALL", KEY]]);
+            if (Array.isArray(flat)) for (let i = 0; i + 1 < flat.length; i += 2) all[String(flat[i])] = String(flat[i + 1]);
+            else if (flat && typeof flat === "object") all = flat as Record<string, string>;
+        }
+    } catch {
+        return NextResponse.json({ explorers: [] });
+    }
+    const explorers: Explorer[] = [];
+    for (const v of Object.values(all)) {
+        try {
+            const e = JSON.parse(v) as Entry;
+            if (now - e.t <= LIVE_MS) explorers.push({ section: e.s, city: e.c, country: e.k });
+        } catch {
+            /* skip */
+        }
+    }
+    return NextResponse.json({ explorers: explorers.slice(0, 40) }, { headers: { "Cache-Control": "no-store" } });
+}

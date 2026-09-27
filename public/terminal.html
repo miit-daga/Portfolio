@@ -478,7 +478,8 @@
             "stats", "alias", "unalias", "curl", "login", "logout", "scp", "telnet", "open", "leaderboard", "submit", "screensaver", "tour",
             "abstract", "demo", "which",
             "git", "dig", "nslookup", "uptime", "uname", "hostname", "lsb_release", "ps", "kill",
-            "echo", "env", "printenv", "export", "cal", "finger", "cowsay", "figlet", "base64", "sha256sum"
+            "echo", "env", "printenv", "export", "cal", "finger", "cowsay", "figlet", "base64", "sha256sum",
+            "ask", "dsn", "aboard", "timemachine"
           ]
         };
 
@@ -2700,6 +2701,148 @@
             await typeRaw(`${hex}  -`);
         }
 
+        // --- LIVE COMMANDS -------------------------------------------------
+        // The site's live features, from the shell, each reading the same API
+        // the page does: ask Mission Control (app/api/mission-control), who
+        // NASA's Deep Space Network is talking to (app/api/dsn), who else is
+        // aboard (app/api/presence), and the time machine's versions.
+        const LIVE_COMMANDS = ['ask', 'dsn', 'aboard', 'timemachine'];
+        const askHistory = [];
+        // Mission Control's section ids, as `open` knows them
+        const ASK_OPEN = { 'about-me': 'about', workex: 'work', education: 'education', 'skills-achievements': 'skills', projects: 'projects', publications: 'publications', contact: 'contact', arcade: '/arcade' };
+        const ABOARD_SECTIONS = { hero: 'the top of the page', 'about-me': 'About', workex: 'Work Experience', education: 'Education', 'skills-achievements': 'Skills & Achievements', projects: 'Projects', publications: 'Publications', contact: 'Contact' };
+        const TIME_MACHINE = [
+            { month: 'Mar 2025', keys: ['mar', 'march', '2025-03'], title: 'First launch', url: 'https://portfolio-march-2025-two.vercel.app' },
+            { month: 'May 2025', keys: ['may', '2025-05'], title: 'Work Experience', url: 'https://portfolio-may-2025-eight.vercel.app' },
+            { month: 'Jun 2025', keys: ['jun', 'june', '2025-06'], title: 'The full picture', url: 'https://portfolio-june-2025-ashen.vercel.app' },
+            { month: 'Aug 2025', keys: ['aug', 'august', '2025-08'], title: 'Ready for liftoff', url: 'https://portfolio-august-2025.vercel.app' },
+            { month: 'Nov 2025', keys: ['nov', 'november', '2025-11'], title: 'Into the cosmos', url: 'https://portfolio-november-2025.vercel.app' },
+            { month: 'Today', keys: ['today', 'now'], title: 'Mission control', url: 'home' },
+        ];
+
+        async function runLive(command) {
+            const parts = command.trim().split(/\s+/);
+            const name = parts[0].toLowerCase();
+            const rest = command.trim().slice(parts[0].length).trim();
+            switch (name) {
+                case 'ask': return liveAsk(rest);
+                case 'dsn': return liveDsn();
+                case 'aboard': return liveAboard();
+                case 'timemachine': return liveTimeMachine(rest);
+            }
+        }
+
+        // ask: Mission Control, answered from the site; follow-ups keep the last two exchanges
+        async function liveAsk(question) {
+            if (!question) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">usage: ask &lt;question&gt;</span>');
+                await typeRaw(`Try <span class="nav-link" onclick="runCommandFromClick('ask what is his backend experience')">ask what is his backend experience</span>.`);
+                return;
+            }
+            await typeRaw('<span class="highlight-dim">Mission Control, transmitting…</span>');
+            let data = null;
+            let ok = false;
+            try {
+                const res = await fetch('/api/mission-control', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: question.slice(0, 300), history: askHistory.slice(-2) }),
+                });
+                data = await res.json();
+                ok = res.ok && data && data.answer;
+            } catch { /* handled below */ }
+            if (!ok) {
+                SoundFX.error();
+                await typeRaw(`<span class="error-text">${escapeHtml((data && data.error) || 'Mission Control lost the signal. Try again in a moment.')}</span>`);
+                return;
+            }
+            askHistory.push({ q: question, a: data.answer });
+            SoundFX.dataBurst();
+            await typeRaw(`<div style="white-space:pre-wrap">${escapeHtml(data.answer)}</div>`);
+            const places = (data.sections || []).map((x) => ASK_OPEN[x.id]).filter(Boolean);
+            if (places.length) {
+                await typeRaw('<span class="highlight-dim">see:</span> ' + places.map((t) => `<span class="nav-link" onclick="runCommandFromClick('open ${t}')">open ${t}</span>`).join('  '));
+            }
+        }
+
+        // dsn: who NASA's Deep Space Network is talking to, right now
+        async function liveDsn() {
+            let data = null;
+            try {
+                const res = await fetch('/api/dsn');
+                data = await res.json();
+            } catch { /* handled below */ }
+            const links = (data && data.links) || [];
+            if (!links.length) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">NASA\'s feed isn\'t answering just now. The dishes are still listening.</span>');
+                return;
+            }
+            const dist = (km) => (km >= 1e9 ? `${(km / 1e9).toFixed(1)} billion km` : km >= 1e6 ? `${(km / 1e6).toFixed(1)} million km` : `${Math.round(km).toLocaleString('en-US')} km`);
+            const light = (s) => (s < 60 ? `${s < 10 ? s.toFixed(1) : Math.round(s)} s` : s < 3600 ? `${Math.floor(s / 60)} min ${Math.round(s % 60)} s` : `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min`);
+            const rate = (b) => (b >= 1e6 ? `${(b / 1e6).toFixed(1)} Mb/s` : b >= 1e3 ? `${Math.round(b / 1e3)} kb/s` : `${b} b/s`);
+            SoundFX.dataBurst();
+            await typeRaw('<div class="section-title">Deep Space Network · live</div>');
+            const lead = links.find((l) => l.km) || links[0];
+            await typeRaw(`Right now ${escapeHtml(lead.station)}'s ${lead.size} m dish is ${lead.down !== null ? 'hearing' : 'sending commands to'} <span class="highlight-name">${escapeHtml(lead.spacecraft)}</span>${lead.km ? `, ${dist(lead.km)} out` : ''}.` + (lead.light && lead.light > 5 && lead.down !== null ? ` The signal arriving now left it ${light(lead.light)} ago.` : ''));
+            await typeRaw(unixPre(`${'SPACECRAFT'.padEnd(34)}${'STATION'.padEnd(11)}${'DISH'.padEnd(6)}DISTANCE / RATE`, 'color:#888'));
+            for (const l of links) {
+                const far = l.km ? `${dist(l.km)} · ${light(l.light || 0)}` : l.down ? rate(l.down) : '·';
+                await typeRaw(unixPre(`${escapeHtml(l.spacecraft.slice(0, 32)).padEnd(34)}${escapeHtml(l.station).padEnd(11)}${(l.size + 'm').padEnd(6)}${far}`));
+            }
+            await typeRaw('<span class="highlight-dim">Goldstone (California), Madrid (Spain) and Canberra (Australia): spaced round the globe so one can always see each spacecraft. Data: NASA DSN Now.</span>');
+        }
+
+        // aboard: who else is on the site right now, and what they're reading
+        async function liveAboard() {
+            let data = null;
+            try {
+                const res = await fetch('/api/presence');
+                data = await res.json();
+            } catch { /* handled below */ }
+            if (!data) {
+                SoundFX.error();
+                await typeRaw('<span class="error-text">Could not reach the crew manifest. Network trouble.</span>');
+                return;
+            }
+            const list = data.explorers || [];
+            SoundFX.enter();
+            if (!list.length) {
+                await typeRaw('Nobody else is on the site right now. Just you, and this terminal.');
+                return;
+            }
+            const region = (code) => { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code; } catch { return code; } };
+            await typeRaw(`<span class="highlight-name">${list.length}</span> ${list.length === 1 ? 'explorer is' : 'explorers are'} on the site right now:`);
+            for (const e of list) {
+                const where = e.city || (e.country ? region(e.country) : 'somewhere on Earth');
+                await typeRaw(`  · someone in ${escapeHtml(where)}, reading ${escapeHtml(ABOARD_SECTIONS[e.section] || 'the page')}`);
+            }
+        }
+
+        // timemachine: the site's versions since March 2025; with a month, that version, live
+        async function liveTimeMachine(which) {
+            const want = (which || '').toLowerCase().replace(/\s+2025$/, '').trim();
+            if (want) {
+                const v = TIME_MACHINE.find((x) => x.keys.includes(want));
+                if (!v) {
+                    SoundFX.error();
+                    await typeRaw(`<span class="error-text">timemachine: no version for '${escapeHtml(which)}'. Try: ${TIME_MACHINE.map((x) => x.keys[0]).join(', ')}.</span>`);
+                    return;
+                }
+                await typeRaw(`<span class="highlight-dim">${v.month} · ${v.title}</span>`);
+                await runOpen(' ' + v.url);
+                return;
+            }
+            SoundFX.enter();
+            await typeRaw('<div class="section-title">Time machine</div>');
+            await typeRaw('How this site grew, one version at a time. Every one is still live:');
+            for (const v of TIME_MACHINE) {
+                await typeRaw(unixPre(`  ${v.month.padEnd(10)}${v.title.padEnd(20)}`) .replace('</div>', `<span class="nav-link" onclick="runCommandFromClick('timemachine ${v.keys[0]}')">timemachine ${v.keys[0]}</span></div>`));
+            }
+            await typeRaw(`The whole story, with a slider: <span class="nav-link" onclick="runCommandFromClick('open /time-machine')">open /time-machine</span>`);
+        }
+
         // --- MANUAL ------------------------------------------------------
         const MANUAL = {
             help:         { syn: 'help',                    sum: 'List every command, grouped by category.' },
@@ -2771,6 +2914,10 @@
             reboot:       { syn: 'reboot',                  sum: 'Replay the boot sequence.' },
             exit:         { syn: 'exit',                    sum: 'End the session and close the tab.' },
             home:         { syn: 'home',                    sum: 'Return to the portfolio.' },
+            ask:          { syn: 'ask <question>',          sum: "Ask Mission Control about Miit, and get an answer from the site's own content, the same as the site's Mission Control. Follow-ups remember the last two exchanges. The sections it cites can be opened: open work." },
+            dsn:          { syn: 'dsn',                     sum: "Who NASA's Deep Space Network is talking to right now: each spacecraft, the station and dish, and how far away it is (or how fast its data comes in). Live, from NASA's DSN Now." },
+            aboard:       { syn: 'aboard',                  sum: 'Who else is on the site right now, and what they are reading. Anonymous: a city, never a name. Asking does not add you to the list.' },
+            timemachine:  { syn: 'timemachine [month]',     sum: 'The versions of this site since its first launch in March 2025. With a month (mar, may, jun, aug, nov, today), that version opens here, live.' },
         };
 
         async function showManual(topic) {
@@ -5123,6 +5270,13 @@
                 return;
             }
 
+            // The site's live features (see LIVE COMMANDS)
+            if (LIVE_COMMANDS.includes(cmd.split(/\s+/)[0])) {
+                await runLive(command);
+                endTurn();
+                return;
+            }
+
             // Everyday Unix commands (see UNIX COMMANDS)
             if (UNIX_COMMANDS.includes(cmd.split(/\s+/)[0])) {
                 await runUnix(command);
@@ -5532,6 +5686,7 @@
                         'Shell': ['sudo', 'whoami', 'ls', 'tree', 'pwd', 'cd', 'alias', 'unalias', 'vim', 'cat', 'rm', 'mkdir'],
                         'Fun': ['fortune'],
                         'Arcade': ['play', 'leaderboard', 'submit'],
+                        'Live': ['ask', 'dsn', 'aboard', 'timemachine'],
                     };
                     let helpHtml = '<div class="section-title">Available Commands</div>';
                     helpHtml += '<div class="help-grid">';
