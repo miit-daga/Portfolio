@@ -21,6 +21,13 @@ const PROBES = [
 const dot = (ok: boolean | null) => (ok === null ? "bg-neutral-600" : ok ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.8)]");
 const ms = (n: number | null) => (n === null ? "·" : `${n} ms`);
 
+const ago = (t: number) => {
+    const m = Math.round((Date.now() - t) / 60_000);
+    return m < 1 ? "just now" : m < 60 ? `${m} min ago` : m < 48 * 60 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} days ago`;
+};
+/** What's actually known about a model's health: when it last answered, or that it hasn't been tried. */
+const lastSeen = (m: Status["models"][number]) => (m.lastAnswered ? `last answered ${ago(m.lastAnswered)}` : m.used ? "tried today, no answer yet" : "not tried today");
+
 /** A model's state in words, from why it's resting. */
 function modelState(m: Status["models"][number]) {
     if (!m.keyed) return { label: "no key", tone: "text-neutral-500", ok: null };
@@ -30,7 +37,8 @@ function modelState(m: Status["models"][number]) {
         const why = m.resting === "429" ? "rate-limited" : m.resting === "timeout" ? "slow" : /^5/.test(m.resting) ? "busy upstream" : m.resting === "empty" ? "empty answer" : `error ${m.resting}`;
         return { label: `resting${left ? ` ${left}` : ""} · ${why}`, tone: "text-amber-300", ok: false };
     }
-    return { label: "up", tone: "text-emerald-300", ok: true };
+    // (ready: keyed, not resting, under its cap. Not a live check: see lastSeen)
+    return { label: "ready", tone: "text-emerald-300", ok: true };
 }
 
 /** The last 24 hours of one response time, as a small line. */
@@ -107,7 +115,7 @@ export function MissionStatus() {
                 </p>
                 {s && (
                     <p className="font-mono text-[11px] uppercase tracking-[0.15em] text-neutral-400">
-                        {upModels} of {keyedModels.length} models up · {s.aboard ?? "·"} {s.aboard === 1 ? "explorer" : "explorers"} aboard · {s.crashesToday ?? "·"} crash {s.crashesToday === 1 ? "report" : "reports"} today
+                        {upModels} of {keyedModels.length} models ready · {s.aboard ?? "·"} {s.aboard === 1 ? "explorer" : "explorers"} aboard · {s.crashesToday ?? "·"} crash {s.crashesToday === 1 ? "report" : "reports"} today
                     </p>
                 )}
             </div>
@@ -116,7 +124,9 @@ export function MissionStatus() {
                 {/* Mission Control's models */}
                 <section className="rounded-2xl border border-white/10 bg-neutral-950/70 p-5">
                     <h2 className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-400">Mission Control&apos;s models</h2>
-                    <p className="mt-1 text-xs text-neutral-500">Tried in this order; a busy one rests and the next answers. The bar is today&apos;s share of its free quota.</p>
+                    <p className="mt-1 text-xs text-neutral-500">
+                        Tried in this order; a busy one rests and the next answers. &quot;Ready&quot; means no recent failure, not a live test: the first few answer nearly every question, so the rest are tried only when those are busy. The bar is today&apos;s share of its free quota.
+                    </p>
                     <ul className="mt-4 space-y-2.5">
                         {(s?.models ?? []).map((m) => {
                             const st = modelState(m);
@@ -124,7 +134,9 @@ export function MissionStatus() {
                                 <li key={m.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 text-sm">
                                     <span className={`h-2 w-2 rounded-full ${dot(st.ok)}`} />
                                     <span className="min-w-0">
-                                        <span className="block truncate text-neutral-200">{m.label}</span>
+                                        <span className="block truncate text-neutral-200">
+                                            {m.label} <span className="text-xs text-neutral-500">· {lastSeen(m)}</span>
+                                        </span>
                                         <span className="mt-1 block h-1 overflow-hidden rounded-full bg-white/[0.06]">
                                             <span className="block h-full rounded-full bg-teal-300/70" style={{ width: `${Math.min(100, (m.used / m.cap) * 100)}%` }} />
                                         </span>

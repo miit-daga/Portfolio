@@ -3,9 +3,9 @@ import { hasKv, kvPipeline } from "@/lib/store";
 import { routeStates, type RouteState } from "@/lib/mission-control/chain";
 
 // The site's own machinery, for the status page (app/status): each of
-// Mission Control's models (up, resting and why, or out for today, from the
-// counters the chain already keeps: no model is asked anything, so no quota
-// is spent), Redis, and the outside services the live cards lean on. Every
+// Mission Control's models (ready, resting and why, or out for today, and
+// when it last answered, from what the chain records as it answers visitors:
+// no model is asked anything here, so no quota is spent), Redis, and the outside services the live cards lean on. Every
 // few minutes a check is also kept (status:history, a day's worth), so the
 // page can draw the last 24 hours. Worked out at most every 20 seconds.
 

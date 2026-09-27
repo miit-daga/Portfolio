@@ -116,6 +116,16 @@ function pacific() {
 
 const coolKey = (id: string) => `mc:cool:${id}`;
 const countKey = (id: string, day: string) => `mc:n:${id}:${day}`;
+const okKey = (id: string) => `mc:ok:${id}`;
+
+/** A route answered: when, for the status page (kept a week). */
+export async function markAnswered(id: string) {
+    try {
+        await setFor(okKey(id), String(Date.now()), 7 * 86400);
+    } catch {
+        /* only for the status page */
+    }
+}
 
 /** The routes worth trying now: keyed, not resting, and under today's count. */
 async function available(): Promise<Route[]> {
@@ -130,12 +140,12 @@ async function available(): Promise<Route[]> {
     return keyed.filter((r, i) => !vals[2 * i] && Number(vals[2 * i + 1] ?? 0) < r.daily);
 }
 
-export type RouteState = { id: string; label: string; provider: Provider; keyed: boolean; resting: string | null; restLeft: number | null; used: number; cap: number };
+export type RouteState = { id: string; label: string; provider: Provider; keyed: boolean; resting: string | null; restLeft: number | null; used: number; cap: number; lastAnswered: number | null };
 
 /** Each route as it stands (for the status page): keyed, resting and why (and for how long), and today's attempts against its cap. */
 export async function routeStates(): Promise<RouteState[]> {
     const { day } = pacific();
-    const keys = ROUTES.flatMap((r) => [coolKey(r.id), countKey(r.id, day)]);
+    const keys = ROUTES.flatMap((r) => [coolKey(r.id), countKey(r.id, day), okKey(r.id)]);
     let vals: (string | null)[] = keys.map(() => null);
     const left: (number | null)[] = ROUTES.map(() => null);
     try {
@@ -152,10 +162,11 @@ export async function routeStates(): Promise<RouteState[]> {
         label: r.label,
         provider: r.provider,
         keyed: !!keyFor(r.provider),
-        resting: vals[2 * i] || null,
-        restLeft: vals[2 * i] ? left[i] : null,
-        used: Number(vals[2 * i + 1] ?? 0),
+        resting: vals[3 * i] || null,
+        restLeft: vals[3 * i] ? left[i] : null,
+        used: Number(vals[3 * i + 1] ?? 0),
         cap: r.daily,
+        lastAnswered: Number(vals[3 * i + 2]) || null,
     }));
 }
 

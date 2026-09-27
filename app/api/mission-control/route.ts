@@ -1,7 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { createHash } from "crypto";
 import { FACTS, KNOWLEDGE, PLACES, type SectionId } from "@/lib/mission-control/knowledge";
-import { ask, bump, getMany, setFor } from "@/lib/mission-control/chain";
+import { ask, bump, getMany, markAnswered, setFor } from "@/lib/mission-control/chain";
 
 // Mission Control: a visitor asks about Miit, and the answer comes from the
 // site's own content (lib/mission-control/knowledge.ts) through a chain of free
@@ -199,6 +199,12 @@ export async function POST(req: Request) {
     const { answer, sections } = parse(got.text);
     if (!answer) return NextResponse.json(search(question));
     const reply: Reply = { answer, sections: places(sections), via: got.route.label };
+    // (for the status page: when this model last answered; after the reply, like the cache)
+    try {
+        after(() => markAnswered(got.route.id));
+    } catch {
+        markAnswered(got.route.id);
+    }
     console.info(`mission-control: ${got.route.id} in ${got.ms} ms (tried ${got.tried.join(", ")})`);
     // (kept after the reply is sent: the function stays up for it; outside a
     // request, as in a test, straight away)
