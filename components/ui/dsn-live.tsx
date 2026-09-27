@@ -9,6 +9,7 @@ import type { Dsn, DsnLink } from "@/app/api/dsn/route";
 // minute while in view.
 
 const STATIONS = ["Goldstone", "Madrid", "Canberra"] as const;
+const WHERE: Record<(typeof STATIONS)[number], string> = { Goldstone: "California", Madrid: "Spain", Canberra: "Australia" };
 
 function distance(km: number) {
     if (km >= 1e9) return `${(km / 1e9).toFixed(1)} billion km`;
@@ -90,8 +91,12 @@ export function DsnLive() {
                     </p>
                     <div className="flex gap-2">
                         {STATIONS.map((s) => (
-                            <span key={s} className="rounded-full border border-white/10 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-neutral-400">
-                                {s} <span className="text-neutral-200">{dsn ? per(s) : "·"}</span>
+                            <span
+                                key={s}
+                                title={dsn ? `${s}, ${WHERE[s]}: talking to ${per(s)} spacecraft right now` : `${s}, ${WHERE[s]}`}
+                                className="rounded-full border border-white/10 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em] text-neutral-400"
+                            >
+                                {s} <span className="hidden text-neutral-600 sm:inline">{WHERE[s]}</span> <span className="text-neutral-200">{dsn ? per(s) : "·"}</span>
                             </span>
                         ))}
                     </div>
@@ -121,7 +126,7 @@ export function DsnLive() {
                 )}
 
                 <p className="mt-4 font-mono text-[10px] uppercase tracking-[0.15em] text-neutral-600">
-                    NASA&apos;s dishes in California, Spain and Australia · data from{" "}
+                    NASA&apos;s three dish sites, spaced round the globe so one can always see each spacecraft · the number is who each is talking to now · data from{" "}
                     <a href="https://eyes.nasa.gov/dsn/dsn.html" target="_blank" rel="noopener noreferrer" className="underline decoration-neutral-700 underline-offset-2 hover:text-neutral-400">
                         DSN Now
                     </a>

@@ -65,6 +65,9 @@ importers:
       react-icons:
         specifier: latest
         version: 5.5.0(react@19.0.0)
+      satellite.js:
+        specifier: 7.1.0
+        version: 7.1.0
       tailwind-merge:
         specifier: ^2.5.5
         version: 2.5.5
@@ -1387,6 +1390,9 @@ packages:
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
 
+  satellite.js@7.1.0:
+    resolution: {integrity: sha512-U6nRml9Nb7dV9LJPiMNPyna7U7ry+1nXYkOeCEG7K/YbojQQLHHmcjPisp03VNY+HLcbQHqbt7t4t1vQMaKCLQ==}
+
   scheduler@0.25.0:
     resolution: {integrity: sha512-xFVuu11jh+xcO7JOAGJNOXld8/TcEHK/4CituBUeUb5hqxJLj9YuemAEuvm9gQ/+pgXYfbQuqAkiYu+u7YEsNA==}
 
@@ -2586,6 +2592,8 @@ snapshots:
   run-parallel@1.2.0:
     dependencies:
       queue-microtask: 1.2.3
+
+  satellite.js@7.1.0: {}
 
   scheduler@0.25.0: {}
 
