@@ -252,6 +252,14 @@ export function Contact() {
                 >
                     📡 Mission status · the machinery behind this site, live
                 </a>
+                {/* How it's built (app/log) */}
+                <a
+                    href="/log"
+                    onClick={() => trackEvent("log_link", { from: "footer" })}
+                    className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"
+                >
+                    📓 Engineering log · how this site is built
+                </a>
                 <BigCrunchKeys />
             </div>
 
