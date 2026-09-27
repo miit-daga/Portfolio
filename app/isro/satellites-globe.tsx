@@ -47,6 +47,7 @@ export function SatellitesGlobe() {
     const [now, setNow] = useState<Now | null>(null);
     const [overhead, setOverhead] = useState<number | null>(null);
     const [nextPass, setNextPass] = useState<string | null>(null);
+    const [youTapped, setYouTapped] = useState(false);
     const state = useRef({ selected, hidden, speed, zoom, me, simT: Date.now(), last: performance.now() });
     state.current.selected = selected;
     state.current.hidden = hidden;
@@ -148,7 +149,7 @@ export function SatellitesGlobe() {
         const points = new THREE.Points(geo, new THREE.PointsMaterial({ size: 11, sizeAttenuation: false, vertexColors: true, map: dotTex, transparent: true, depthWrite: false }));
         scene.add(points);
 
-        // the selected one: a ring round it, and its path over one orbit
+        // the selected one: a ring round it, and its orbit
         const halo = new THREE.Sprite(
             new THREE.SpriteMaterial({
                 map: (() => {
@@ -175,7 +176,29 @@ export function SatellitesGlobe() {
         let pathAt = 0;
 
         // where the visitor is
-        const home = new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 8), new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
+        // (a white ring with a dot, not a coloured dot, so it can't be mistaken for a satellite)
+        const home = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+                map: (() => {
+                    const c = document.createElement("canvas");
+                    c.width = c.height = 64;
+                    const g = c.getContext("2d")!;
+                    g.strokeStyle = "rgba(255,255,255,0.95)";
+                    g.lineWidth = 5;
+                    g.beginPath();
+                    g.arc(32, 32, 22, 0, Math.PI * 2);
+                    g.stroke();
+                    g.fillStyle = "white";
+                    g.beginPath();
+                    g.arc(32, 32, 7, 0, Math.PI * 2);
+                    g.fill();
+                    return new THREE.CanvasTexture(c);
+                })(),
+                sizeAttenuation: false,
+                depthTest: true,
+            }),
+        );
+        home.scale.setScalar(0.03);
         home.visible = false;
         scene.add(home);
 
@@ -215,7 +238,19 @@ export function SatellitesGlobe() {
             ray.setFromCamera(ndc, camera);
             ray.params.Points = { threshold: camera.position.length() * 0.012 };
             const hits = ray.intersectObject(points).filter((h) => h.index !== undefined && !state.current.hidden.has(live[h.index!].sat.category));
-            setSelected(hits.length ? live[hits[0].index!].sat.norad : null);
+            if (hits.length) {
+                setSelected(live[hits[0].index!].sat.norad);
+                setYouTapped(false);
+                return;
+            }
+            // your own marker says so, rather than doing nothing
+            if (home.visible && ray.intersectObject(home).length) {
+                setSelected(null);
+                setYouTapped(true);
+                return;
+            }
+            setSelected(null);
+            setYouTapped(false);
         };
         renderer.domElement.addEventListener("pointerdown", onDown);
         renderer.domElement.addEventListener("pointerup", onUp);
@@ -257,12 +292,17 @@ export function SatellitesGlobe() {
                 if (pathFor !== l.sat.norad || t - pathAt > 4000) {
                     pathFor = l.sat.norad;
                     pathAt = t;
+                    // the orbit itself, a closed ring in space, as it lies right now: every
+                    // point of one lap turned into the Earth's frame at this moment (the
+                    // ground track would end a lap displaced, the Earth having turned)
                     const steps = 240;
-                    const span = Math.min(l.periodMin, 1440) * 60_000;
+                    const span = l.periodMin * 60_000;
+                    const gmst = gstime(new Date(s.simT));
                     const pts: THREE.Vector3[] = [];
                     for (let k = 0; k <= steps; k++) {
-                        const w = whereAt(l.rec, new Date(s.simT + (k / steps) * span));
-                        if (w) pts.push(toScene(w.ecf));
+                        const pv = propagate(l.rec, new Date(s.simT + (k / steps) * span));
+                        const p = pv?.position;
+                        if (p && typeof p !== "boolean") pts.push(toScene(eciToEcf(p, gmst)));
                     }
                     path.geometry.dispose();
                     path.geometry = new THREE.BufferGeometry().setFromPoints(pts);
@@ -429,6 +469,14 @@ export function SatellitesGlobe() {
                                 </li>
                             ))}
                     </ul>
+                    {me && (
+                        <p className="mt-3 flex items-center gap-2.5 border-t border-white/[0.07] pt-3 text-sm text-neutral-200">
+                            <span aria-hidden className="grid h-3 w-3 shrink-0 place-items-center rounded-full border-2 border-white">
+                                <span className="h-1 w-1 rounded-full bg-white" />
+                            </span>
+                            You{me.city ? ` · ${me.city}` : ""}
+                        </p>
+                    )}
                     <p className="mt-3 text-[11px] leading-snug text-neutral-500">Tap a category to hide it. Orbits from CelesTrak, positions worked out live in your browser.</p>
                 </div>
 
@@ -476,6 +524,10 @@ export function SatellitesGlobe() {
                                 Clear
                             </button>
                         </>
+                    ) : youTapped && me ? (
+                        <p className="text-sm leading-relaxed text-neutral-300">
+                            That ring is you{me.city ? `, in ${me.city}` : ""}, placed roughly from your internet connection (nothing is stored). {overhead !== null ? `${overhead} of India's satellites are above your horizon right now.` : ""}
+                        </p>
                     ) : (
                         <p className="text-sm leading-relaxed text-neutral-400">
                             Tap a satellite to see what it does. The cluster high over India is the geostationary fleet: communication, weather, and NavIC, whose tilted orbits trace figure-eights (try ×1200). The fast ones close in are the Earth observers, sweeping pole to pole.

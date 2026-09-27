@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { loadBodies, type BodyKey } from "./bodies";
 
 // ISRO's journeys, replayed to scale (for app/isro): Chandrayaan-3 to the
 // Moon, Mangalyaan to Mars, Aditya-L1 to the Sun–Earth L1 point. Every orbit
@@ -139,6 +140,9 @@ export function Journeys() {
         const ctx = cv.getContext("2d")!;
         let raf = 0;
         const stars = Array.from({ length: 140 }, () => [Math.random(), Math.random(), Math.random() * 0.8 + 0.2]);
+        // the worlds, rendered from their real maps as they arrive (gradients until then)
+        const worlds: Partial<Record<BodyKey, HTMLCanvasElement[]>> = {};
+        loadBodies((key, c) => (worlds[key] = c));
         const draw = () => {
             raf = requestAnimationFrame(draw);
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -176,15 +180,43 @@ export function Journeys() {
             const k = (Math.min(w * (L.scene === "earth" ? 0.6 : L.scene === "l1" ? 0.66 : 0.46), h * 0.46) * 1) / L.view;
             const X = (x: number) => cx + x * k;
             const Y = (y: number) => cy - y * k;
-            const body = (x: number, y: number, r: number, c1: string, c2: string, label: string) => {
+            const body = (x: number, y: number, r: number, c1: string, c2: string, label: string, key?: BodyKey) => {
                 const pr = Math.max(3.5, r * k);
-                const g = ctx.createRadialGradient(X(x) - pr * 0.35, Y(y) - pr * 0.35, pr * 0.1, X(x), Y(y), pr);
-                g.addColorStop(0, c1);
-                g.addColorStop(1, c2);
-                ctx.fillStyle = g;
-                ctx.beginPath();
-                ctx.arc(X(x), Y(y), pr, 0, Math.PI * 2);
-                ctx.fill();
+                // the smallest prepared size at least as big as it's drawn
+                const sizes = key ? worlds[key] : undefined;
+                const need = pr * 2 * (window.devicePixelRatio || 1);
+                const world = sizes ? ([...sizes].reverse().find((c) => c.width >= need) ?? sizes[0]) : undefined;
+                if (key === "sun") {
+                    // its glow first
+                    const glow = ctx.createRadialGradient(X(x), Y(y), pr * 0.9, X(x), Y(y), pr * 3.2);
+                    glow.addColorStop(0, "rgba(255,200,120,0.45)");
+                    glow.addColorStop(1, "rgba(255,140,40,0)");
+                    ctx.fillStyle = glow;
+                    ctx.beginPath();
+                    ctx.arc(X(x), Y(y), pr * 3.2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (key === "earth" && pr > 6) {
+                    // a thin blue glow of air round the limb
+                    const air = ctx.createRadialGradient(X(x), Y(y), pr * 0.98, X(x), Y(y), pr * 1.12);
+                    air.addColorStop(0, "rgba(110,170,255,0.45)");
+                    air.addColorStop(1, "rgba(110,170,255,0)");
+                    ctx.fillStyle = air;
+                    ctx.beginPath();
+                    ctx.arc(X(x), Y(y), pr * 1.12, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (world) {
+                    ctx.drawImage(world, X(x) - pr, Y(y) - pr, pr * 2, pr * 2);
+                } else {
+                    const g = ctx.createRadialGradient(X(x) - pr * 0.35, Y(y) - pr * 0.35, pr * 0.1, X(x), Y(y), pr);
+                    g.addColorStop(0, c1);
+                    g.addColorStop(1, c2);
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(X(x), Y(y), pr, 0, Math.PI * 2);
+                    ctx.fill();
+                }
                 ctx.fillStyle = "rgba(226,232,240,0.75)";
                 ctx.font = "11px ui-monospace, monospace";
                 ctx.fillText(label, X(x) + pr + 6, Y(y) - pr - 4);
@@ -217,12 +249,12 @@ export function Journeys() {
                 if (L.scene === "earth" && L.view > 150000) {
                     // the Moon's orbit, for scale, and the Moon where the transfer meets it
                     path(Array.from({ length: 181 }, (_, i) => [Math.cos((i / 180) * Math.PI * 2) * MOON_DIST, Math.sin((i / 180) * Math.PI * 2) * MOON_DIST] as [number, number]), "rgba(148,163,184,0.18)", 1, [4, 6]);
-                    if (st.kind === "transfer") body(R + (st.orbit?.[1] ?? 0) + 1737, 0, 1737, "#e5e7eb", "#6b7280", "Moon");
+                    if (st.kind === "transfer") body(R + (st.orbit?.[1] ?? 0) + 1737, 0, 1737, "#e5e7eb", "#6b7280", "Moon", "moon");
                 }
                 for (const e of earlier) path(orbitPath(R + e.orbit![0], R + e.orbit![1]), "rgba(94,234,212,0.16)");
-                if (L.scene === "earth") body(0, 0, R, "#7dd3fc", "#1e3a8a", "Earth");
-                if (L.scene === "moon") body(0, 0, R, "#f3f4f6", "#4b5563", "Moon");
-                if (L.scene === "mars") body(0, 0, R, "#fdba74", "#9a3412", "Mars");
+                if (L.scene === "earth") body(0, 0, R, "#7dd3fc", "#1e3a8a", "Earth", "earth");
+                if (L.scene === "moon") body(0, 0, R, "#f3f4f6", "#4b5563", "Moon", "moon");
+                if (L.scene === "mars") body(0, 0, R, "#fdba74", "#9a3412", "Mars", "mars");
                 if (st.orbit) {
                     const [p, a] = [R + st.orbit[0], R + st.orbit[1]];
                     path(orbitPath(p, a), "rgba(94,234,212,0.85)", 1.6);
@@ -269,13 +301,13 @@ export function Journeys() {
                 path(Array.from({ length: 181 }, (_, i) => [Math.cos((i / 180) * Math.PI * 2) * rM, Math.sin((i / 180) * Math.PI * 2) * rM] as [number, number]), "rgba(253,186,116,0.35)", 1);
                 const half = orbitPath(rE, rM, 240).slice(0, 121).map(([x, y]) => [-x, y] as [number, number]);
                 path(half, "rgba(94,234,212,0.8)", 1.6, [5, 5]);
-                body(0, 0, 696000 * 20, "#fff7ed", "#f59e0b", "Sun (20× size)");
+                body(0, 0, 696000 * 20, "#fff7ed", "#f59e0b", "Sun (20× size)", "sun");
                 const f = (t / loop) % 1;
                 const days = f * 298;
                 const aE = (days / 365.25) * Math.PI * 2;
                 const aM = Math.PI - (298 / 687) * Math.PI * 2 + (days / 687) * Math.PI * 2;
-                body(Math.cos(aE) * rE, Math.sin(aE) * rE, 6371 * 900, "#7dd3fc", "#1e3a8a", "Earth");
-                body(Math.cos(aM) * rM, Math.sin(aM) * rM, 3390 * 900, "#fdba74", "#9a3412", "Mars");
+                body(Math.cos(aE) * rE, Math.sin(aE) * rE, 6371 * 900, "#7dd3fc", "#1e3a8a", "Earth", "earth");
+                body(Math.cos(aM) * rM, Math.sin(aM) * rM, 3390 * 900, "#fdba74", "#9a3412", "Mars", "mars");
                 const [sx, sy] = onOrbit(rE, rM, f * 0.5);
                 craft(-sx, sy);
                 ctx.fillStyle = "rgba(226,232,240,0.85)";
@@ -286,7 +318,7 @@ export function Journeys() {
             if (L.scene === "l1") {
                 // the Earth at the right, L1 1.5 million km toward the Sun, off to the left
                 path(Array.from({ length: 181 }, (_, i) => [Math.cos((i / 180) * Math.PI * 2) * MOON_DIST, Math.sin((i / 180) * Math.PI * 2) * MOON_DIST] as [number, number]), "rgba(148,163,184,0.2)", 1, [4, 6]);
-                body(0, 0, 6371, "#7dd3fc", "#1e3a8a", "Earth");
+                body(0, 0, 6371, "#7dd3fc", "#1e3a8a", "Earth", "earth");
                 ctx.fillStyle = "rgba(226,232,240,0.55)";
                 ctx.font = "10px ui-monospace, monospace";
                 ctx.fillText("Moon's orbit", X(-MOON_DIST * 0.72), Y(MOON_DIST * 0.72) - 6);
