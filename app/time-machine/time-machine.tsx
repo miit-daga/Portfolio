@@ -2,12 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
-// The time machine: how this site grew, one version at a time. Each stop is
-// the whole page as it was (public/time-machine/*.jpg, stitched from
-// screenshots of that version scrolled top to bottom, at 1440 wide), in a
-// browser frame you can scroll inside, with what changed and a link to that
-// version, still live on its own Vercel project. The bars over the slider
-// are each version's page length, so the growth shows at a glance.
+// The time machine: how this site grew, one version at a time. Each stop runs
+// that version live, in a browser frame (each is still deployed, on its own
+// Vercel project): only the one selected loads, at a desktop's 1440 px width
+// scaled to fit (on a phone, at the phone's own width, as it looked there).
+// A still of its first screen (public/time-machine/*.jpg) shows until it has
+// loaded. With it, what changed and a link to open it. The bars over the
+// slider are each version's page length, so the growth shows at a glance.
 //
 // The old versions are the last commit of each month that changed how the
 // site looks (April and July 2025 changed only text, so they're left out).
@@ -20,6 +21,10 @@ type Version = {
     title: string;
     /** the version's own live site, or null for today */
     url: string | null;
+    /** what the frame loads */
+    frame: string;
+    /** a word on getting past its launch screen, if it has one */
+    hint?: string;
     host: string;
     commits: string;
     /** the page's length at 1440 px wide, for the bars */
@@ -33,6 +38,7 @@ const VERSIONS: Version[] = [
         month: "Mar 2025",
         title: "First launch",
         url: "https://portfolio-march-2025-two.vercel.app",
+        frame: "https://portfolio-march-2025-two.vercel.app",
         host: "portfolio-march-2025-two.vercel.app",
         commits: "9 commits, in a week",
         height: 4586,
@@ -43,6 +49,7 @@ const VERSIONS: Version[] = [
         month: "May 2025",
         title: "Work Experience",
         url: "https://portfolio-may-2025-eight.vercel.app",
+        frame: "https://portfolio-may-2025-eight.vercel.app",
         host: "portfolio-may-2025-eight.vercel.app",
         commits: "14 commits since",
         height: 5826,
@@ -53,6 +60,7 @@ const VERSIONS: Version[] = [
         month: "Jun 2025",
         title: "The full picture",
         url: "https://portfolio-june-2025-ashen.vercel.app",
+        frame: "https://portfolio-june-2025-ashen.vercel.app",
         host: "portfolio-june-2025-ashen.vercel.app",
         commits: "19 commits since",
         height: 9624,
@@ -63,6 +71,8 @@ const VERSIONS: Version[] = [
         month: "Aug 2025",
         title: "Ready for liftoff",
         url: "https://portfolio-august-2025.vercel.app",
+        frame: "https://portfolio-august-2025.vercel.app",
+        hint: "Click Blast off to enter",
         host: "portfolio-august-2025.vercel.app",
         commits: "7 commits since",
         height: 9764,
@@ -73,6 +83,8 @@ const VERSIONS: Version[] = [
         month: "Nov 2025",
         title: "Into the cosmos",
         url: "https://portfolio-november-2025.vercel.app",
+        frame: "https://portfolio-november-2025.vercel.app",
+        hint: "Click Begin journey to enter",
         host: "portfolio-november-2025.vercel.app",
         commits: "18 commits since",
         height: 9889,
@@ -83,6 +95,8 @@ const VERSIONS: Version[] = [
         month: "Today",
         title: "Mission control",
         url: null,
+        // (the terminal's embed mode: straight to the site, past the entry screen)
+        frame: "/?embed=1",
         host: "miitdaga.dev",
         commits: "251 commits since",
         height: 13653,
@@ -90,15 +104,52 @@ const VERSIONS: Version[] = [
     },
 ];
 const TALLEST = Math.max(...VERSIONS.map((v) => v.height));
+const DESKTOP = 1440;
+
+/** One version, running live, sized as a desktop would see it (or a phone, on a phone). */
+function LiveScreen({ v }: { v: Version }) {
+    const box = useRef<HTMLDivElement>(null);
+    const [size, setSize] = useState({ w: 0, h: 0 });
+    const [loaded, setLoaded] = useState(false);
+    useEffect(() => {
+        const el = box.current;
+        if (!el) return;
+        const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }));
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+    // on a phone, the version as it looked on a phone; otherwise a desktop's width, scaled down
+    const phone = size.w > 0 && size.w < 700;
+    const scale = phone || !size.w ? 1 : size.w / DESKTOP;
+    const width = phone ? size.w : DESKTOP;
+    const height = size.h / scale;
+    return (
+        <div ref={box} className="relative h-[62vh] overflow-hidden bg-black md:h-[68vh]">
+            {size.w > 0 && (
+                <iframe
+                    src={v.frame}
+                    title={`miitdaga.dev as it was in ${v.month}, running live`}
+                    onLoad={() => window.setTimeout(() => setLoaded(true), 700)}
+                    className="absolute left-0 top-0 origin-top-left border-0"
+                    style={{ width, height, transform: `scale(${scale})` }}
+                />
+            )}
+            {/* its first screen, until the live version has loaded */}
+            <div className={`pointer-events-none absolute inset-0 flex items-center justify-center transition-opacity duration-700 ${loaded ? "opacity-0" : "opacity-100"}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {!phone && <img src={`/time-machine/${v.id}.jpg`} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />}
+                <p className="relative animate-pulse rounded-full bg-black/70 px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.25em] text-teal-200 backdrop-blur">Loading {v.month}…</p>
+            </div>
+        </div>
+    );
+}
 
 export function TimeMachine() {
     const [at, setAt] = useState(0);
     const v = VERSIONS[at];
-    const screen = useRef<HTMLDivElement>(null);
 
-    // a new version starts at its top; its neighbours load ahead of time
+    // the neighbours' stills load ahead, so moving along shows something at once
     useEffect(() => {
-        screen.current?.scrollTo({ top: 0 });
         [at - 1, at + 1].forEach((i) => {
             if (VERSIONS[i]) new Image().src = `/time-machine/${VERSIONS[i].id}.jpg`;
         });
@@ -122,7 +173,7 @@ export function TimeMachine() {
             <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.3em] text-teal-300/80">Time machine</p>
             <h1 className="font-display mt-2 text-3xl font-bold md:text-4xl">How this site grew</h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-400 md:text-base">
-                From its first launch in March 2025 to today, one version at a time. Drag through the months, scroll inside the screen, and open any version: they&apos;re all still live.
+                From its first launch in March 2025 to today, one version at a time. Drag through the months: each one runs live below, so scroll it, click around, play with it.
             </p>
 
             {/* the slider, with each version's page length as a bar */}
@@ -200,14 +251,12 @@ export function TimeMachine() {
                         <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/70" />
                     </span>
                     <span className="min-w-0 flex-1 truncate rounded-md bg-black/40 px-3 py-1 font-mono text-[11px] text-neutral-400">{v.host}</span>
+                    {v.hint && <span className="hidden shrink-0 font-mono text-[10px] uppercase tracking-[0.15em] text-amber-200/80 sm:inline">{v.hint}</span>}
                 </div>
-                <div ref={screen} className="h-[62vh] overflow-y-auto overscroll-contain md:h-[68vh]">
-                    {/* (a plain img: each is already sized for this frame, and a stitched page is too tall for the image optimiser) */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img key={v.id} src={`/time-machine/${v.id}.jpg`} alt={`miitdaga.dev in ${v.month}, the whole page top to bottom`} className="block w-full animate-in fade-in duration-500" />
-                </div>
+                {/* (keyed, so moving on starts the next version fresh, and only one runs at a time) */}
+                <LiveScreen key={v.id} v={v} />
             </div>
-            <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-600">Scroll inside the screen to see the whole page · ← → to move through time</p>
+            <p className="mt-2 text-center font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-600">Each version runs live · scroll and click inside it<span className="hidden sm:inline"> · ← → to move through time</span></p>
         </div>
     );
 }
