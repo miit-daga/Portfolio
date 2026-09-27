@@ -20,6 +20,7 @@ import {
     IconAlien,
     IconHeadset,
     IconHistory,
+    IconActivityHeartbeat,
     IconStars,
     IconMoon,
     IconSunrise,
@@ -401,6 +402,9 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 </Item>
                                                 <Item value="time machine history old versions how the site grew" icon={<IconHistory />} hint="every version since March 2025" onSelect={() => runCommand(() => (window.location.href = "/time-machine"))}>
                                                     Time machine
+                                                </Item>
+                                                <Item value="mission status systems uptime models health" icon={<IconActivityHeartbeat />} hint="the machinery behind this site, live" onSelect={() => runCommand(() => (window.location.href = "/status"))}>
+                                                    Mission status
                                                 </Item>
                                                 <Item value="terminal mode shell" external icon={<IconTerminal />} hint="or type > here" onSelect={() => runCommand(() => window.open("/terminal.html", "_blank"))}>
                                                     Terminal Mode

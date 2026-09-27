@@ -130,6 +130,35 @@ async function available(): Promise<Route[]> {
     return keyed.filter((r, i) => !vals[2 * i] && Number(vals[2 * i + 1] ?? 0) < r.daily);
 }
 
+export type RouteState = { id: string; label: string; provider: Provider; keyed: boolean; resting: string | null; restLeft: number | null; used: number; cap: number };
+
+/** Each route as it stands (for the status page): keyed, resting and why (and for how long), and today's attempts against its cap. */
+export async function routeStates(): Promise<RouteState[]> {
+    const { day } = pacific();
+    const keys = ROUTES.flatMap((r) => [coolKey(r.id), countKey(r.id, day)]);
+    let vals: (string | null)[] = keys.map(() => null);
+    const left: (number | null)[] = ROUTES.map(() => null);
+    try {
+        vals = await getMany(keys);
+        if (!MEMORY) {
+            const ttls = await kvPipeline<number>(ROUTES.map((r) => ["TTL", coolKey(r.id)]));
+            ttls.forEach((t, i) => (left[i] = t > 0 ? t : null));
+        }
+    } catch {
+        /* as if all were fine */
+    }
+    return ROUTES.map((r, i) => ({
+        id: r.id,
+        label: r.label,
+        provider: r.provider,
+        keyed: !!keyFor(r.provider),
+        resting: vals[2 * i] || null,
+        restLeft: vals[2 * i] ? left[i] : null,
+        used: Number(vals[2 * i + 1] ?? 0),
+        cap: r.daily,
+    }));
+}
+
 async function rest(r: Route, seconds: number, why: string) {
     try {
         await setFor(coolKey(r.id), why, seconds);

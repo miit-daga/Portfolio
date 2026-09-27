@@ -244,6 +244,14 @@ export function Contact() {
                 >
                     ⏳ Time machine · how this site grew since March 2025
                 </a>
+                {/* The site's own systems, live (app/status) */}
+                <a
+                    href="/status"
+                    onClick={() => trackEvent("status_link", { from: "footer" })}
+                    className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"
+                >
+                    📡 Mission status · the machinery behind this site, live
+                </a>
                 <BigCrunchKeys />
             </div>
 
