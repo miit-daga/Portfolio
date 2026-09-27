@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { describeLocation } from "@/lib/locate"
 import { skyPalette } from "@/lib/sky"
+import { renderSunDisc } from "@/lib/sun-disc"
 import { subscribeIss } from "@/lib/iss"
 
 interface AnimatedBackgroundProps {
@@ -496,51 +497,72 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     // cool at night); the hero nebula reads the same table in lib/sky.ts
     const keyLight = skyPalette(hour).keyLight
 
-    // The Sun, by day: it rises at the left around 6 am, is highest at noon
-    // and sets at the right around 6 pm, by the visitor's clock (or ?sky=),
-    // faint, so the page stays readable; the planets are lit from its side.
-    // Where it is along its arc, 0 at sunrise to 1 at sunset (outside that, below the horizon)
+    // The Sun, by day: a big half-disc on the left edge, off to the side of
+    // the page's content. By the visitor's clock (or ?sky=) it climbs the
+    // edge from the bottom-left around 6 am, is highest at noon and sinks
+    // again toward 6 pm; none at night. The planets are lit from it.
+    // Where it is along its day, 0 at sunrise to 1 at sunset
     const sunPhase = () => {
       const d = new Date()
       const h = skyOverride ? hour + 0.5 : d.getHours() + d.getMinutes() / 60
       return (h - 6) / 12
     }
+    // its disc, drawn once, the first time it's up (granulation, limb darkening; lib/sun-disc.ts), then scaled
+    let sunDisc: HTMLCanvasElement | null = null
     const sunAt = (w: number, h: number) => {
       const t = sunPhase()
-      if (t < -0.06 || t > 1.06) return null
-      // fading in and out at the horizons
-      const fade = Math.max(0, Math.min(1, Math.min(t + 0.06, 1.06 - t) / 0.12))
+      if (t < -0.05 || t > 1.05) return null
+      const r = Math.min(h * 0.42, w * 0.34)
+      const up = Math.sin(Math.PI * Math.max(0, Math.min(1, t)))
       return {
-        x: w * (0.08 + 0.84 * t) + mouseRef.current.x * 6,
-        y: h * (0.36 - 0.27 * Math.sin(Math.PI * Math.max(0, Math.min(1, t)))) + mouseRef.current.y * 6,
-        fade,
+        r,
+        // half off the left edge (more so on a narrow screen)
+        x: (w < 768 ? -r * 0.45 : -r * 0.08) + mouseRef.current.x * 8,
+        // from below the bottom edge up to 40% down the screen at noon
+        y: h + r * 0.35 - (h + r * 0.35 - h * 0.4) * up + mouseRef.current.y * 8,
         // warmer and redder near the horizons
-        low: 1 - Math.sin(Math.PI * Math.max(0, Math.min(1, t))),
+        low: 1 - up,
       }
     }
-    const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; fade: number; low: number }, w: number) => {
-      const r = Math.max(14, Math.min(34, w * 0.018))
-      const warm = { r: 255, g: Math.round(236 - 70 * s.low), b: Math.round(190 - 130 * s.low) }
+    const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; r: number; low: number }) => {
+      const { x, y, r, low } = s
       c.save()
+      // the corona: a wide, soft glow
       c.globalCompositeOperation = "lighter"
-      // the wide glow
-      const glow = c.createRadialGradient(s.x, s.y, r * 0.5, s.x, s.y, r * 9)
-      glow.addColorStop(0, `rgba(${warm.r}, ${warm.g}, ${warm.b}, ${0.16 * s.fade})`)
-      glow.addColorStop(0.35, `rgba(${warm.r}, ${warm.g - 40}, ${Math.max(0, warm.b - 60)}, ${0.05 * s.fade})`)
-      glow.addColorStop(1, "rgba(255, 150, 60, 0)")
+      const glow = c.createRadialGradient(x, y, r * 0.95, x, y, r * 2.3)
+      glow.addColorStop(0, `rgba(255, ${Math.round(160 - 50 * low)}, ${Math.round(60 - 40 * low)}, 0.38)`)
+      glow.addColorStop(0.3, `rgba(255, ${Math.round(120 - 40 * low)}, 30, 0.12)`)
+      glow.addColorStop(1, "rgba(255, 100, 30, 0)")
       c.fillStyle = glow
       c.beginPath()
-      c.arc(s.x, s.y, r * 9, 0, Math.PI * 2)
+      c.arc(x, y, r * 2.3, 0, Math.PI * 2)
       c.fill()
-      // the disc, soft-edged
-      const disc = c.createRadialGradient(s.x, s.y, 0, s.x, s.y, r * 1.15)
-      disc.addColorStop(0, `rgba(255, 252, 240, ${0.55 * s.fade})`)
-      disc.addColorStop(0.75, `rgba(${warm.r}, ${warm.g}, ${warm.b}, ${0.45 * s.fade})`)
-      disc.addColorStop(1, `rgba(${warm.r}, ${warm.g}, ${warm.b}, 0)`)
-      c.fillStyle = disc
+      // the disc itself, a little dimmed so it sits in the sky rather than blazing
+      c.globalCompositeOperation = "source-over"
+      c.globalAlpha = 0.95
+      sunDisc ??= renderSunDisc(768, "fire")
+      c.drawImage(sunDisc, x - r, y - r, r * 2, r * 2)
+      // and a bright rim of light just inside the limb, where it glows
+      c.globalCompositeOperation = "lighter"
+      c.globalAlpha = 1
+      const rim = c.createRadialGradient(x, y, r * 0.86, x, y, r * 1.02)
+      rim.addColorStop(0, "rgba(255, 150, 50, 0)")
+      rim.addColorStop(0.85, "rgba(255, 170, 70, 0.16)")
+      rim.addColorStop(1, "rgba(255, 150, 50, 0)")
+      c.fillStyle = rim
       c.beginPath()
-      c.arc(s.x, s.y, r * 1.15, 0, Math.PI * 2)
+      c.arc(x, y, r * 1.02, 0, Math.PI * 2)
       c.fill()
+      c.globalCompositeOperation = "source-over"
+      // redder when low
+      if (low > 0.05) {
+        c.globalCompositeOperation = "multiply"
+        c.globalAlpha = 0.5 * low
+        c.fillStyle = "rgb(255, 120, 60)"
+        c.beginPath()
+        c.arc(x, y, r, 0, Math.PI * 2)
+        c.fill()
+      }
       c.restore()
     }
 
@@ -793,7 +815,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
 
       // 0. The Sun, by day (behind the planets)
       const sunNow = isImploding ? null : sunAt(canvas.width, canvas.height)
-      if (sunNow) drawSun(bgCtx, sunNow, canvas.width)
+      if (sunNow) drawSun(bgCtx, sunNow)
 
       // 1. Draw Planets (Behind Stars)
       planets.forEach(planet => {
