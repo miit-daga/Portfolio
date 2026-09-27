@@ -96,7 +96,7 @@ export const FACTS: { section: SectionId; text: string; keys?: string }[] = [
     },
     {
         section: "arcade",
-        text: "The site also has a Crew Arcade (/arcade) of space games Miit built with three.js: Gravity Assist, Asteroid Run (with Free flight) and Stack the Station, with daily challenges and leaderboards, plus a terminal page, hidden easter eggs, a time machine (/time-machine) showing every version of the site since its first launch in March 2025, a live status page (/status) for the site's systems, and an engineering log (/log) of write-ups on how it's built: scores replayed on the server so they can't be faked, Mission Control's chain of free AI models, deploying the old versions, and predicting ISS passes.",
+        text: "The site also has a Crew Arcade (/arcade) of space games Miit built with three.js: Gravity Assist, Asteroid Run (with Free flight) and Stack the Station, with daily challenges and leaderboards, plus a terminal page, hidden easter eggs, a time machine (/time-machine) showing every version of the site since its first launch in March 2025, a live status page (/status) for the site's systems, and an India in space page (/isro) with every active Indian satellite live on a globe and ISRO's Chandrayaan-3, Mangalyaan and Aditya-L1 journeys replayed to scale, an engineering log (/log) of write-ups on how it's built: scores replayed on the server so they can't be faked, Mission Control's chain of free AI models, deploying the old versions, and predicting ISS passes.",
         keys: "games arcade game play fun easter eggs terminal",
     },
 ];

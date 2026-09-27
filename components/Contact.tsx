@@ -260,6 +260,14 @@ export function Contact() {
                 >
                     📓 Engineering log · how this site is built
                 </a>
+                {/* India in space (app/isro) */}
+                <a
+                    href="/isro"
+                    onClick={() => trackEvent("isro_link", { from: "footer" })}
+                    className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300 sm:text-xs"
+                >
+                    🛰 India in space · ISRO&apos;s satellites live, and its journeys to scale
+                </a>
                 <BigCrunchKeys />
             </div>
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { IsroSatellites } from "./isro-client";
+import { IsroJourneys, IsroSatellites } from "./isro-client";
 
 export const metadata: Metadata = {
     title: "ISRO",
@@ -31,6 +31,17 @@ export default function IsroPage() {
                     <h2 className="font-display mt-1 text-2xl font-bold">India&apos;s satellites, live</h2>
                     <div className="mt-5">
                         <IsroSatellites />
+                    </div>
+                </section>
+
+                <section className="mt-16">
+                    <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-amber-300/90">02 · The long way round</p>
+                    <h2 className="font-display mt-1 text-2xl font-bold">ISRO&apos;s journeys, to scale</h2>
+                    <p className="mt-2 max-w-3xl text-sm leading-relaxed text-neutral-400">
+                        ISRO&apos;s rockets are modest, so its deep-space missions take the patient route: loop after loop round the Earth, each burn stretching the orbit further, until one last push sends the craft on its way. Every orbit here is drawn at its real size.
+                    </p>
+                    <div className="mt-5">
+                        <IsroJourneys />
                     </div>
                 </section>
             </div>

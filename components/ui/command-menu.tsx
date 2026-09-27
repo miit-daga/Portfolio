@@ -404,6 +404,9 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 <Item value="time machine history old versions how the site grew" icon={<IconHistory />} hint="every version since March 2025" onSelect={() => runCommand(() => (window.location.href = "/time-machine"))}>
                                                     Time machine
                                                 </Item>
+                                                <Item value="isro india in space satellites navic chandrayaan mangalyaan aditya" icon={<IconSatellite />} hint="India's satellites live, ISRO's journeys to scale" onSelect={() => runCommand(() => (window.location.href = "/isro"))}>
+                                                    India in space (ISRO)
+                                                </Item>
                                                 <Item value="engineering log blog write-ups how it is built" icon={<IconNotebook />} hint="how this site is built" onSelect={() => runCommand(() => (window.location.href = "/log"))}>
                                                     Engineering log
                                                 </Item>

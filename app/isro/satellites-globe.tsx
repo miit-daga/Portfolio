@@ -396,7 +396,7 @@ export function SatellitesGlobe() {
                                 </button>
                             ))}
                         </div>
-                        <div className="absolute right-3 top-3 flex gap-1.5">
+                        <div className="absolute left-3 top-12 flex gap-1.5 sm:left-auto sm:right-3 sm:top-3">
                             {SPEEDS.map((sp) => (
                                 <button key={sp} type="button" onClick={() => setSpeed(sp)} className={`rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.15em] backdrop-blur ${speed === sp ? "border-amber-300/60 bg-amber-300/15 text-amber-100" : "border-white/15 bg-black/50 text-neutral-400 hover:text-white"}`}>
                                     {sp === 1 ? "Live" : `×${sp}`}
