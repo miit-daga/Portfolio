@@ -338,7 +338,8 @@ export function createSolarSystem() {
                 arrows.push({ text: `${label} →`, x: sun.x + dx * t, y: sun.y + dy * t, align: "right" });
             } else {
                 // out past the left edge: at the edge, above or below the Sun
-                arrows.push({ text: `← ${label}`, x: 14, y: Math.max(20, Math.min(h - 14, sun.y + Math.sign(dy || 1) * h * 0.44)), align: "left" });
+                // (kept above the bottom-left corner, where the fragments counter sits)
+                arrows.push({ text: `← ${label}`, x: 14, y: Math.max(20, Math.min(h - 84, sun.y + Math.sign(dy || 1) * h * 0.44)), align: "left" });
             }
         }
     };
@@ -483,7 +484,8 @@ export function createSolarSystem() {
             // the spacecraft: named faintly, and more on hover; labels to the side away from the Earth
             const ex = (earth as Placed | null)?.x ?? 0;
             for (const d of dots) {
-                if (!d.dot || lastImplode < 1) continue;
+                // (none for one off the screen: its label would be cut off at the edge)
+                if (!d.dot || lastImplode < 1 || d.x < 4 || d.y < 4 || d.x > w - 4 || d.y > h - 4) continue;
                 const hovered = pointer && Math.hypot(pointer.x - d.x, pointer.y - d.y) < 10;
                 const leftSide = d.spec.name !== "ISS" && d.spec.name !== "Parker Solar Probe" && d.x < ex;
                 const x = leftSide ? d.x - 8 : d.x + 8;
