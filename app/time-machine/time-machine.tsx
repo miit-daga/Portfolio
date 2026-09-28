@@ -144,6 +144,31 @@ function LiveScreen({ v }: { v: Version }) {
     );
 }
 
+/** A slim arrow in the page's margin to the version before or after, its month beside it (wide screens). */
+function Neighbour({ side, v, onGo }: { side: "left" | "right"; v: Version | undefined; onGo: () => void }) {
+    if (!v) return null;
+    return (
+        <button
+            type="button"
+            onClick={onGo}
+            aria-label={`${side === "left" ? "Earlier" : "Later"}: ${v.month}`}
+            className={`group fixed top-1/2 z-20 hidden -translate-y-1/2 flex-col items-center gap-2 text-neutral-500 transition-colors hover:text-teal-300 xl:flex ${side === "left" ? "left-8 2xl:left-14" : "right-8 2xl:right-14"}`}
+        >
+            <svg
+                width="18"
+                height="34"
+                viewBox="0 0 18 34"
+                fill="none"
+                aria-hidden
+                className={`transition-transform duration-200 ${side === "left" ? "group-hover:-translate-x-0.5" : "group-hover:translate-x-0.5"}`}
+            >
+                <path d={side === "left" ? "M15 2 3 17l12 15" : "M3 2l12 15L3 32"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em]">{v.month}</span>
+        </button>
+    );
+}
+
 export function TimeMachine() {
     const [at, setAt] = useState(0);
     const v = VERSIONS[at];
@@ -167,6 +192,9 @@ export function TimeMachine() {
 
     return (
         <div className="mx-auto max-w-5xl px-4 pb-16 pt-8 md:px-8">
+            {/* to the version before or after: arrows in the margins */}
+            <Neighbour side="left" v={VERSIONS[at - 1]} onGo={() => setAt(at - 1)} />
+            <Neighbour side="right" v={VERSIONS[at + 1]} onGo={() => setAt(at + 1)} />
             <Link href="/" className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-500 transition-colors hover:text-teal-300">
                 ← miitdaga.dev
             </Link>
@@ -215,6 +243,22 @@ export function TimeMachine() {
                         </button>
                     ))}
                 </div>
+            </div>
+
+            {/* the same, on a narrower screen, where the margins are too thin for the arrows */}
+            <div className="mt-5 flex justify-between gap-3 xl:hidden">
+                {VERSIONS[at - 1] ? (
+                    <button type="button" onClick={() => setAt(at - 1)} className="rounded-full border border-teal-300/30 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-teal-100 transition-colors hover:border-teal-300/70">
+                        ‹ {VERSIONS[at - 1].month}
+                    </button>
+                ) : (
+                    <span />
+                )}
+                {VERSIONS[at + 1] && (
+                    <button type="button" onClick={() => setAt(at + 1)} className="rounded-full border border-teal-300/30 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.12em] text-teal-100 transition-colors hover:border-teal-300/70">
+                        {VERSIONS[at + 1].month} ›
+                    </button>
+                )}
             </div>
 
             {/* what changed */}
