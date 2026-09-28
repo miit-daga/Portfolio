@@ -262,9 +262,10 @@ export const Timeline = ({
                 }`}
                 style={{
                   color: glowingBalls.has(index) ? accent.light : undefined,
+                  // (a soft dark edge under its glow, so it reads over the background's Sun too)
                   textShadow: glowingBalls.has(index)
-                    ? `0 0 18px ${glow(0.35)}`
-                    : "none",
+                    ? `0 1px 3px rgba(2, 6, 23, 0.85), 0 0 18px ${glow(0.35)}`
+                    : "0 1px 3px rgba(2, 6, 23, 0.85)",
                   transition: "color 0.5s, text-shadow 0.5s",
                 }}
               >
@@ -286,6 +287,20 @@ export const Timeline = ({
           style={{ overflow: "visible" }}
           aria-hidden
         >
+          {/* A dark edge under the trajectory, the flown path and the planets, so they
+              still read where they cross something bright (the background's Sun);
+              over dark space it doesn't show */}
+          <path d={pathD} fill="none" stroke="rgba(2, 6, 23, 0.7)" strokeWidth={5} strokeDasharray="2 7" strokeLinecap="round" />
+          {pathLength > 0 && !isMobile && (
+            <motion.path
+              d={pathD}
+              fill="none"
+              stroke="rgba(2, 6, 23, 0.75)"
+              strokeWidth={6}
+              strokeLinecap="round"
+              style={{ strokeDasharray: pathLength, strokeDashoffset: revealOffset }}
+            />
+          )}
           {/* Dim dashed trajectory */}
           <path
             ref={pathRef}
@@ -318,6 +333,7 @@ export const Timeline = ({
             const lit = glowingBalls.has(i)
             return (
               <g key={i} transform={`translate(${pt.x} ${pt.y})`}>
+                <circle r={8.5} fill="none" stroke="rgba(2, 6, 23, 0.75)" strokeWidth={3} />
                 <circle
                   r={6}
                   fill={lit ? accent.hex : "#1f2937"}
