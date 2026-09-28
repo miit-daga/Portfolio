@@ -42,7 +42,7 @@ import { describeLocation } from "@/lib/locate";
 //   goes about a degree a day). And time can run backwards, a reverse
 //   time-lapse to where they were on any date in the past (their speeds and the
 //   gaps between them real; the view's angle stays put, so the Earth goes round
-//   too), never into the future; back to now replays it forward to the present
+//   too), never into the future, back as far as year 1; back to now replays it forward to the present
 //   (and leaving the view does).
 // - In the solar system view, the Sun is its real map (Solar System Scope's, as
 //   the planets' are), turning once in 25.4 days, sped up the same 3,600 times;
@@ -63,8 +63,14 @@ const SQUASH = 0.34;
 // in the solar system view on a tall, narrow screen (a phone held upright): seen more
 // from above, so the orbits use its height
 const SQUASH_TALL = 0.8;
-// how far back the reverse time-lapse goes: to the start of 1800
-const MAX_BACK_DAYS = (Date.now() - Date.UTC(1800, 0, 1)) / 86_400_000;
+// how far back the reverse time-lapse goes: to the start of year 1, as far as a date picker
+// goes (the ephemeris holds up that far and further; set so, since Date.UTC takes 0 to 99 as 1900s)
+const YEAR_ONE = (() => {
+    const d = new Date(Date.UTC(2000, 0, 1, 12));
+    d.setUTCFullYear(1);
+    return d.getTime();
+})();
+const MAX_BACK_DAYS = (Date.now() - YEAR_ONE) / 86_400_000;
 // where the Earth would sit on its orbit, on the screen, all else equal (radians;
 // 0 is to the Sun's right, positive toward the viewer); the framing picks the
 // angle that shows the most planets, nearest this
@@ -1094,7 +1100,7 @@ export function createSolarSystem() {
             sim.fromAt = performance.now();
             sim.span = Math.max(1, Math.min(3, 0.6 + Math.log10(Math.abs(sim.days) + 1) * 0.5));
         },
-        /** To a date in the past (never ahead of now, nor before 1800): a glide there, then waiting on it. */
+        /** To a date in the past (never ahead of now, nor before year 1): a glide there, then waiting on it. */
         goTo(ms: number) {
             if (!Astro) import("astronomy-engine").then((m) => (Astro = m)).catch(() => {});
             // (today or later: back to now, and real time)

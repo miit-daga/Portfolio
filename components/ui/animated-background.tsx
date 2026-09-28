@@ -1428,7 +1428,12 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
                     {(skyTime?.date ?? new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                   </>
                 ) : (
-                  skyTime.date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+                  <>
+                    {skyTime.date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}
+                    {/* (before October 1582 the date is the Gregorian calendar's, carried back: history
+                        wrote them in the Julian one, days apart) */}
+                    {skyTime.date.getTime() < Date.UTC(1582, 9, 15) && <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-neutral-500">Gregorian calendar</span>}
+                  </>
                 )}
               </p>
             </div>
@@ -1454,20 +1459,22 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
                   <span className="hidden sm:inline">{o.label}</span>
                 </button>
               ))}
-              {/* or straight to a date: any day from 1800 to today */}
+              {/* or straight to a date: any day from year 1 to today */}
               <label className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-neutral-950/60 py-0.5 pl-3 pr-1.5 font-mono text-[11px] text-neutral-300 hover:border-white/30 sm:text-[10px]">
                 <span className="sr-only sm:not-sr-only">Go to</span>
                 <input
                   type="date"
-                  min="1800-01-01"
+                  min="0001-01-01"
                   max={todayIso()}
                   ref={datePickRef}
                   defaultValue={todayIso()}
                   onChange={(e) => {
                     const [y, m, d] = e.target.value.split("-").map(Number)
-                    // (noon, UTC, on the day picked; one typed before 1800 goes to 1800's first day)
+                    // (noon, UTC, on the day picked; set so, since Date.UTC takes years 0 to 99 as 1900s)
                     if (!y || !m || !d) return
-                    solarRef.current?.goTo(y < 1800 ? Date.UTC(1800, 0, 1, 12) : Date.UTC(y, m - 1, d, 12))
+                    const at = new Date(Date.UTC(2000, m - 1, d, 12))
+                    at.setUTCFullYear(y)
+                    solarRef.current?.goTo(at.getTime())
                   }}
                   aria-label="Go to a date in the past"
                   className="bg-transparent font-mono text-[11px] text-neutral-200 [color-scheme:dark] focus:outline-none sm:text-[10px]"
