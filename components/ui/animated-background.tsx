@@ -395,7 +395,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       for (const s of satellitePosRef.current) {
         const dx = e.clientX - s.x
         const dy = e.clientY - s.y
-        if (dx * dx + dy * dy <= 32 * 32) {
+        // (close to it, now it circles the Earth; and the Moon or the Earth takes a click
+        // nearer to it than to the ISS, for its fact)
+        const body = solarRef.current?.hitTest(e.clientX, e.clientY)
+        if (body && body.name !== "Sun" && (body.dist ?? Infinity) < Math.hypot(dx, dy)) continue
+        if (dx * dx + dy * dy <= 16 * 16) {
           issFactIdx.current = (issFactIdx.current + 1) % ISS_FACTS.length
           issSarcasmIdx.current = (issSarcasmIdx.current + 1) % ISS_SARCASM.length
           issPausedRef.current = true

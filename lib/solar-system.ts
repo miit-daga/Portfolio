@@ -914,16 +914,19 @@ export function createSolarSystem() {
             c.restore();
         },
         /** What's at a point on the screen, for the click-for-a-fact pop-up: a planet or the Moon in view, or the Sun. */
-        hitTest(x: number, y: number): { name: string; detail: string | null } | null {
+        hitTest(x: number, y: number): { name: string; detail: string | null; dist?: number } | null {
             if (lastImplode < 1) return null;
             const bodies = [...placed.filter((p) => !p.hidden), ...(moon ? [moon] : [])].sort((a, b) => b.depth - a.depth);
+            // (`dist`: how far the click was from its centre, so the ISS's own click can
+            // give way when the Moon or the Earth is nearer)
             for (const p of bodies) {
-                if (Math.hypot(x - p.x, y - p.y) > Math.max(12, p.r + 6)) continue;
-                if (p.spec.name === "Earth") return { name: "Earth", detail: "You are here" };
-                if (p.spec.name === "Moon") return { name: "Moon", detail: "Circling the Earth, shown at today's phase" };
-                if (p.fromEarthAu === null) return { name: p.spec.name, detail: null };
+                const dist = Math.hypot(x - p.x, y - p.y);
+                if (dist > Math.max(12, p.r + 6)) continue;
+                if (p.spec.name === "Earth") return { name: "Earth", detail: "You are here", dist };
+                if (p.spec.name === "Moon") return { name: "Moon", detail: "Circling the Earth, shown at today's phase", dist };
+                if (p.fromEarthAu === null) return { name: p.spec.name, detail: null, dist };
                 const mins = (p.fromEarthAu * 499.005) / 60;
-                return { name: p.spec.name, detail: `${p.fromEarthAu.toFixed(2)} AU from Earth ${when} · its light takes ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`} to reach you` };
+                return { name: p.spec.name, detail: `${p.fromEarthAu.toFixed(2)} AU from Earth ${when} · its light takes ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`} to reach you`, dist };
             }
             if (sunAt && Math.hypot(x - sunAt.x, y - sunAt.y) < sunAt.r) return { name: "Sun", detail: "The centre of it all" };
             return null;
