@@ -302,9 +302,10 @@ export function createSolarSystem() {
     };
     let sunPainted = { at: -1e9, size: 0 };
     // the time-lapse: days from now (never ahead of it), and how many a second (negative,
-    // back in time; 0 is real time); `toNow`, replaying it forward to the present
+    // back in time; 0 is real time); `toNow`, gliding to a moment: the present (replaying it
+    // forward), or a date picked (`toMs`, then waiting there)
     let Astro: typeof import("astronomy-engine") | null = null;
-    const sim = { days: 0, rate: 0, toNow: false, last: performance.now(), from: 0, fromAt: 0, span: 1, pace: 0 };
+    const sim = { days: 0, rate: 0, toNow: false, last: performance.now(), from: 0, fromAt: 0, span: 1, pace: 0, toMs: null as number | null };
     const stepSim = () => {
         const t = performance.now();
         const dt = Math.min(0.1, (t - sim.last) / 1000);
@@ -314,10 +315,12 @@ export function createSolarSystem() {
             // (eased, in a second for a few weeks back up to three for centuries)
             const k = Math.min(1, (t - sim.fromAt) / 1000 / sim.span);
             const ease = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-            sim.days = sim.from * (1 - ease);
+            const to = sim.toMs === null ? 0 : Math.min(0, (sim.toMs - Date.now()) / 86_400_000);
+            sim.days = sim.from + (to - sim.from) * ease;
             if (k >= 1) {
-                sim.days = 0;
+                sim.days = to;
                 sim.toNow = false;
+                sim.toMs = null;
             }
         } else if (Astro) {
             sim.days = Math.max(-MAX_BACK_DAYS, Math.min(0, sim.days + sim.rate * dt));
@@ -1086,13 +1089,28 @@ export function createSolarSystem() {
             sim.rate = 0;
             if (sim.days === 0) return;
             sim.toNow = true;
+            sim.toMs = null;
             sim.from = sim.days;
             sim.fromAt = performance.now();
             sim.span = Math.max(1, Math.min(3, 0.6 + Math.log10(Math.abs(sim.days) + 1) * 0.5));
         },
+        /** To a date in the past (never ahead of now, nor before 1800): a glide there, then waiting on it. */
+        goTo(ms: number) {
+            if (!Astro) import("astronomy-engine").then((m) => (Astro = m)).catch(() => {});
+            // (today or later: back to now, and real time)
+            if (ms >= Date.now() - 86_400_000 / 2) return this.toNow();
+            const toMs = Math.max(Date.now() - MAX_BACK_DAYS * 86_400_000, ms);
+            const to = (toMs - Date.now()) / 86_400_000;
+            sim.rate = 0;
+            sim.toNow = true;
+            sim.toMs = toMs;
+            sim.from = sim.days;
+            sim.fromAt = performance.now();
+            sim.span = Math.max(1, Math.min(3, 0.6 + Math.log10(Math.abs(to - sim.days) + 1) * 0.5));
+        },
         /** The date shown, whether it's now (real time), and the pace (days a second). */
         simNow() {
-            return { date: new Date(Date.now() + sim.days * 86_400_000), now: sim.days === 0, rate: sim.toNow ? 0 : sim.rate, toNow: sim.toNow };
+            return { date: new Date(Date.now() + sim.days * 86_400_000), now: sim.days === 0, rate: sim.toNow ? 0 : sim.rate, toNow: sim.toNow && sim.toMs === null };
         },
         /** Zoom by `f` toward a point on the screen (the view only; between the whole view and 12 times). */
         zoomAt(px: number, py: number, f: number) {

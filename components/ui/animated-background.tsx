@@ -345,6 +345,9 @@ const ISS_FACTS = [
   "It is visible to the naked eye and is the third-brightest object in the night sky.",
 ]
 
+/** A day as the date picker writes it (YYYY-MM-DD, in the visitor's own time zone): today, unless given one. */
+const todayIso = (d = new Date()) => `${String(d.getFullYear()).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
 export const AnimatedBackground = ({ children, className, isImploding = false }: AnimatedBackgroundProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const backgroundCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -561,6 +564,14 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   }, [skyView])
   // time in the view: real time, or back in the past (a reverse time-lapse); read a few times a second for the clock
   const [skyTime, setSkyTime] = useState<{ date: Date; now: boolean; rate: number; toNow: boolean } | null>(null)
+  // the date picker follows the date shown, except while it's being used (so typing isn't undone)
+  const datePickRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const el = datePickRef.current
+    if (!el || !skyTime || document.activeElement === el) return
+    const iso = todayIso(skyTime.date)
+    if (el.value !== iso) el.value = iso
+  }, [skyTime])
   useEffect(() => {
     const solar = solarRef.current
     if (!skyView) {
@@ -1443,6 +1454,25 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
                   <span className="hidden sm:inline">{o.label}</span>
                 </button>
               ))}
+              {/* or straight to a date: any day from 1800 to today */}
+              <label className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/15 bg-neutral-950/60 py-0.5 pl-3 pr-1.5 font-mono text-[11px] text-neutral-300 hover:border-white/30 sm:text-[10px]">
+                <span className="sr-only sm:not-sr-only">Go to</span>
+                <input
+                  type="date"
+                  min="1800-01-01"
+                  max={todayIso()}
+                  ref={datePickRef}
+                  defaultValue={todayIso()}
+                  onChange={(e) => {
+                    const [y, m, d] = e.target.value.split("-").map(Number)
+                    // (noon, UTC, on the day picked; one typed before 1800 goes to 1800's first day)
+                    if (!y || !m || !d) return
+                    solarRef.current?.goTo(y < 1800 ? Date.UTC(1800, 0, 1, 12) : Date.UTC(y, m - 1, d, 12))
+                  }}
+                  aria-label="Go to a date in the past"
+                  className="bg-transparent font-mono text-[11px] text-neutral-200 [color-scheme:dark] focus:outline-none sm:text-[10px]"
+                />
+              </label>
               {skyTime && skyTime.rate < 0 && (
                 <button type="button" onClick={() => solarRef.current?.timeLapse(0)} className="pointer-events-auto rounded-full border border-white/15 bg-neutral-950/60 px-3 py-1 font-mono text-[11px] text-neutral-300 hover:border-white/30 sm:text-[10px]">
                   ⏸ pause
