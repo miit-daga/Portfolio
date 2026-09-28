@@ -169,6 +169,8 @@ type Placed = {
     dot?: { colour: string; hover: () => string };
 };
 type Arrow = { text: string; x: number; y: number; align: CanvasTextAlign };
+type Box = { x: number; y: number; w: number; h: number };
+type Spot = { x: number; y: number; align: CanvasTextAlign };
 
 export function createSolarSystem() {
     const sprites = new Map<string, Sprite>();
@@ -198,6 +200,8 @@ export function createSolarSystem() {
     let issAngle = 0;
     let issLast = performance.now();
     let issPaused = false;
+    // the page's own text to keep labels off (see keepClear)
+    let clear: Box[] = [];
     // the ISS's latest position, asked for only when someone hovers it
     let iss: { at: number; text: string } | null = null;
     let issAsking = false;
@@ -205,7 +209,7 @@ export function createSolarSystem() {
         if (!issAsking && (!iss || Date.now() - iss.at > 20_000)) {
             issAsking = true;
             issNow()
-                .then((f) => f && (iss = { at: Date.now(), text: `over ${describeLocation(f.latitude, f.longitude)} right now, ${Math.round(f.altitude)} km up` }))
+                .then((f) => f && (iss = { at: Date.now(), text: `${describeLocation(f.latitude, f.longitude)} right now, ${Math.round(f.altitude)} km up` }))
                 .catch(() => {})
                 .finally(() => (issAsking = false));
         }
@@ -287,7 +291,11 @@ export function createSolarSystem() {
             let y = sun.y + b * depth + mouse.y * (8 + i * 5);
             x = cx + (x - cx) * implode;
             y = cy + (y - cy) * implode;
-            const hidden = inView(x, y, depth, r, w, h, sun) ? null : depth < 0 && Math.hypot(x - sun.x, y - sun.y) < sun.r + r * 0.5 ? "sun" : "off";
+            // (in view or not judged where it sits before the mouse moves it, so one near
+            // the Sun's edge doesn't flicker in and out of view as the mouse moves)
+            const sx = cx + (sun.x + a * Math.cos(phi) - cx) * implode;
+            const sy = cy + (sun.y + b * depth - cy) * implode;
+            const hidden = inView(sx, sy, depth, r, w, h, sun) ? null : depth < 0 && Math.hypot(sx - sun.x, sy - sun.y) < sun.r + r * 0.5 ? "sun" : "off";
             const pl: Placed = { spec, sprite: sprites.get(spec.name)!, x, y, r: r * Math.max(0.05, implode), depth, fromEarthAu: p.fromEarthAu, hidden };
             placed.push(pl);
             if (spec.name === "Earth") earth = pl;
@@ -324,7 +332,8 @@ export function createSolarSystem() {
                 const a = auToA(c.au, sun.r);
                 const x = sun.x + a * Math.cos(phi);
                 const y = sun.y + a * SQUASH * Math.sin(phi);
-                dots.push({ spec: dotSpec(c.name), sprite: sprites.get("Moon")!, x, y, r: 2.8, depth: Math.sin(phi), fromEarthAu: null, dot: { colour: "#f9a8d4", hover: () => `${c.au.toFixed(2)} AU from the Sun today; at its closest it passes within 0.05` } });
+                const hidden = inView(x, y, Math.sin(phi), 3, w, h, sun) ? null : Math.sin(phi) < 0 && Math.hypot(x - sun.x, y - sun.y) < sun.r + 2 ? "sun" : "off";
+                dots.push({ spec: dotSpec(c.name), sprite: sprites.get("Moon")!, x, y, r: 2.8, depth: Math.sin(phi), fromEarthAu: null, hidden, dot: { colour: "#f9a8d4", hover: () => `${c.au.toFixed(2)} AU from the Sun today; at its closest it passes within 0.05` } });
                 continue;
             }
             const km = (c.au * AU_KM) / 1e9;
@@ -451,55 +460,125 @@ export function createSolarSystem() {
             c.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
             const w = c.canvas.width;
             const h = c.canvas.height;
-            for (const p of placed) {
+            // labels go in the first of their spots that's free: not on another label,
+            // the Earth, or the page's text; if none is, a name waits for a hover
+            // (the Earth's, the markers and the Voyagers' take their first spot anyway)
+            const taken: Box[] = [...clear];
+            if (e) taken.push({ x: e.x - e.r - 6, y: e.y - e.r - 6, w: 2 * e.r + 12, h: 2 * e.r + 12 });
+            function spot(text: string, spots: Spot[], always: true): Spot;
+            function spot(text: string, spots: Spot[], always: boolean): Spot | null;
+            function spot(text: string, spots: Spot[], always: boolean): Spot | null {
+                const tw = c.measureText(text).width;
+                const box = (o: Spot): Box => ({ x: o.align === "right" ? o.x - tw : o.x, y: o.y - 9, w: tw, h: 12 });
+                const free = (b: Box) => !taken.some((t) => b.x < t.x + t.w && b.x + b.w > t.x && b.y < t.y + t.h && b.y + b.h > t.y);
+                const o = spots.find((x) => free(box(x))) ?? (always ? spots[0] : null);
+                if (o) taken.push(box(o));
+                return o;
+            }
+            // a longer text under a name: kept on the screen, onto more lines if it's wider than that
+            const lines = (text: string, o: Spot): { text: string; x: number; y: number }[] => {
+                const most = Math.min(420, w - 16);
+                const rows: string[] = [];
+                for (const word of text.split(" ")) {
+                    const last = rows[rows.length - 1];
+                    if (last !== undefined && c.measureText(`${last} ${word}`).width <= most) rows[rows.length - 1] = `${last} ${word}`;
+                    else rows.push(word);
+                }
+                return rows.map((row, i) => ({ text: row, ...fit(row, { ...o, y: o.y + i * 12 }) }));
+            };
+            // a text kept on the screen: moved in from whichever edge it would run past
+            const fit = (text: string, o: Spot): Spot => {
+                const tw = c.measureText(text).width;
+                const x0 = o.align === "right" ? o.x - tw : o.x;
+                return { x: Math.max(8, Math.min(w - 8 - tw, x0)), y: o.y, align: "left" };
+            };
+            // a hovered name's more, on a dark backing so it reads over the labels under it
+            const more = (rows: { text: string; x: number; y: number }[], colour: string) => {
+                if (!rows.length) return;
+                const x0 = Math.min(...rows.map((r) => r.x)) - 5;
+                const x1 = Math.max(...rows.map((r) => r.x + c.measureText(r.text).width)) + 5;
+                c.fillStyle = "rgba(2,6,23,0.82)";
+                c.fillRect(x0, rows[0].y - 11, x1 - x0, rows.length * 12 + 6);
+                c.textAlign = "left";
+                c.fillStyle = colour;
+                for (const r of rows) c.fillText(r.text, r.x, r.y);
+            };
+            // out of view: a marker at the Sun's rim, or at the edge it went past
+            const marker = (p: Placed) => {
+                if (lastImplode < 1 || !sunAt) return;
+                if (p.hidden === "sun") {
+                    // just outside the Sun's visible edge, at its height
+                    const my = Math.max(16, Math.min(h - 10, p.y));
+                    const dy = Math.min(sunAt.r, Math.abs(my - sunAt.y));
+                    const mx = Math.max(12, sunAt.x + Math.sqrt(sunAt.r * sunAt.r - dy * dy) + 12);
+                    const at = spot(`${p.spec.name} · behind the Sun`, [{ x: mx, y: my, align: "left" }, { x: mx, y: my + 14, align: "left" }, { x: mx, y: my - 14, align: "left" }], true);
+                    label(c, `${p.spec.name} · behind the Sun`, at.x, at.y, "left", 0.5);
+                } else {
+                    const left = p.x < 0;
+                    const right = p.x > w;
+                    const text = `${p.y < 0 ? "↑ " : p.y > h ? "↓ " : left ? "← " : ""}${p.spec.name}${right ? " →" : ""}`;
+                    const o: Spot = { x: Math.max(12, Math.min(w - 24, p.x)), y: Math.max(16, Math.min(h - 10, p.y)), align: right ? "right" : "left" };
+                    const at = spot(text, [o, { ...o, y: o.y + (o.y > h / 2 ? -14 : 14) }, { ...o, y: o.y + (o.y > h / 2 ? -28 : 28) }], true);
+                    label(c, text, at.x, at.y, at.align, 0.5);
+                }
+                c.textAlign = "left";
+            };
+            // (the Earth's first, so it's the one that keeps its place)
+            for (const p of [...placed].sort((a, b) => Number(b.spec.name === "Earth") - Number(a.spec.name === "Earth"))) {
                 const hovered = pointer && Math.hypot(pointer.x - p.x, pointer.y - p.y) < Math.max(12, p.r + 8);
                 if (p.hidden) {
-                    // out of view: a marker at the Sun's rim, or at the edge it went past
-                    if (lastImplode < 1 || !sunAt) continue;
-                    if (p.hidden === "sun") {
-                        // just outside the Sun's visible edge, at the planet's height
-                        const my = Math.max(16, Math.min(h - 10, p.y));
-                        const dy = Math.min(sunAt.r, Math.abs(my - sunAt.y));
-                        const mx = Math.max(12, sunAt.x + Math.sqrt(sunAt.r * sunAt.r - dy * dy) + 12);
-                        label(c, `${p.spec.name} · behind the Sun`, mx, my, "left", 0.5);
-                    } else {
-                        const left = p.x < 0;
-                        const right = p.x > w;
-                        const arrow = p.y < 0 ? "↑ " : p.y > h ? "↓ " : left ? "← " : "";
-                        label(c, `${arrow}${p.spec.name}${right ? " →" : ""}`, Math.max(12, Math.min(w - 24, p.x)), Math.max(16, Math.min(h - 10, p.y)), right ? "right" : "left", 0.5);
-                    }
-                    c.textAlign = "left";
+                    marker(p);
                     continue;
                 }
-                const lx = p.x + p.r + 6;
-                const ly = p.y - p.r - 2;
+                const name = p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name === "Pluto" ? "Pluto · dwarf planet" : p.spec.name;
+                const at = spot(
+                    name,
+                    [
+                        { x: p.x + p.r + 6, y: p.y - p.r - 2, align: "left" },
+                        { x: p.x + p.r + 6, y: p.y + p.r + 10, align: "left" },
+                        { x: p.x - p.r - 6, y: p.y - p.r - 2, align: "right" },
+                        { x: p.x - p.r - 6, y: p.y + p.r + 10, align: "right" },
+                    ],
+                    p.spec.name === "Earth" || !!hovered,
+                );
+                if (!at) continue;
+                const { x: lx, y: ly, align } = at;
+                c.textAlign = align;
                 c.fillStyle = hovered ? "rgba(226,232,240,0.95)" : "rgba(226,232,240,0.45)";
-                c.fillText(p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name === "Pluto" ? "Pluto · dwarf planet" : p.spec.name, lx, ly);
+                c.fillText(name, lx, ly);
                 if (hovered && p.fromEarthAu !== null) {
                     const mins = (p.fromEarthAu * 499.005) / 60;
                     c.fillStyle = "rgba(148,163,184,0.95)";
-                    c.fillText(`${p.fromEarthAu.toFixed(2)} AU from Earth today · light ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`} · click for a fact`, lx, ly + 13);
+                    const text = `${p.fromEarthAu.toFixed(2)} AU from Earth today · light ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`} · click for a fact`;
+                    more(lines(text, { x: lx, y: ly + 13, align }), "rgba(148,163,184,0.95)");
                 }
+                c.textAlign = "left";
             }
             // the spacecraft: named faintly, and more on hover; labels to the side away from the Earth
             const ex = (earth as Placed | null)?.x ?? 0;
             for (const d of dots) {
                 // (none for one off the screen: its label would be cut off at the edge)
+                if (d.dot && d.hidden) {
+                    marker(d);
+                    continue;
+                }
                 if (!d.dot || lastImplode < 1 || d.x < 4 || d.y < 4 || d.x > w - 4 || d.y > h - 4) continue;
                 const hovered = pointer && Math.hypot(pointer.x - d.x, pointer.y - d.y) < 10;
                 const leftSide = d.spec.name !== "ISS" && d.spec.name !== "Parker Solar Probe" && d.x < ex;
-                const x = leftSide ? d.x - 8 : d.x + 8;
                 const short = d.spec.name === "James Webb Space Telescope" && !hovered ? "JWST" : d.spec.name;
-                label(c, short, x, d.y - 5, leftSide ? "right" : "left", hovered ? 0.98 : 0.42);
-                if (hovered) label(c, d.dot.hover(), x, d.y + 8, leftSide ? "right" : "left", 0.8);
+                const near: Spot = leftSide ? { x: d.x - 8, y: d.y - 5, align: "right" } : { x: d.x + 8, y: d.y - 5, align: "left" };
+                const far: Spot = leftSide ? { x: d.x + 8, y: d.y - 5, align: "left" } : { x: d.x - 8, y: d.y - 5, align: "right" };
+                const at = spot(short, [near, { ...near, y: d.y + 12 }, far, { ...far, y: d.y + 12 }], !!hovered);
+                if (!at) continue;
+                const named = fit(short, at);
+                label(c, short, named.x, named.y, "left", hovered ? 0.98 : 0.42);
+                if (hovered) more(lines(d.dot.hover(), { ...at, y: at.y + 13 }), "rgba(226,232,240,0.85)");
             }
-            // the Voyagers, at the edge (stacked, not overlapping, when they point the same way)
+            // the Voyagers, at the edge (stacked, not overlapping, when they point the same way or meet another label)
             if (lastImplode === 1) {
-                const used: Arrow[] = [];
                 for (const a of arrows) {
-                    let y = a.y;
-                    while (used.some((u) => u.align === a.align && Math.abs(u.y - y) < 14)) y += a.y > h / 2 ? -14 : 14;
-                    used.push({ ...a, y });
+                    const step = a.y > h / 2 ? -14 : 14;
+                    const { y } = spot(a.text, [0, 1, 2, 3, 4].map((k) => ({ x: a.x, y: a.y + k * step, align: a.align })), true);
                     const near = pointer && Math.abs(pointer.y - y) < 10 && (a.align === "left" ? pointer.x < a.x + 320 : pointer.x > a.x - 320);
                     label(c, a.text, a.x, y, a.align, near ? 0.95 : 0.5);
                 }
@@ -520,6 +599,10 @@ export function createSolarSystem() {
             }
             if (sunAt && Math.hypot(x - sunAt.x, y - sunAt.y) < sunAt.r) return { name: "Sun", detail: "The centre of it all" };
             return null;
+        },
+        /** The page's text on the screen now (its boxes, in canvas pixels), for the labels to keep off. */
+        keepClear(boxes: Box[]) {
+            clear = boxes;
         },
         /** Where the ISS is on the screen this frame (for its click-for-telemetry pop-up), or null. */
         issAt() {

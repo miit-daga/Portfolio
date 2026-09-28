@@ -454,7 +454,7 @@ export const ConstellationPuzzle = () => {
                 )}
             </svg>
 
-            <p className="text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.25em] text-neutral-600">
+            <p data-sky-avoid className="text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.25em] text-neutral-600">
                 {solved ? (
                     <span className="text-teal-400/90">
                         {justSolved ? (

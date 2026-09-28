@@ -552,6 +552,21 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     }
     const solar = createSolarSystem()
     solarRef.current = solar
+    // the page's text its labels should keep off (marked data-sky-avoid), a few times a second as it scrolls
+    const keepClear = () =>
+      solar.keepClear(
+        [...document.querySelectorAll<HTMLElement>("[data-sky-avoid]")]
+          .map((el) => {
+            // (the text itself, not the whole width of its box)
+            const r = document.createRange()
+            r.selectNodeContents(el)
+            return r.getBoundingClientRect()
+          })
+          .filter((b) => b.width > 0 && b.bottom > 0 && b.top < window.innerHeight)
+          .map((b) => ({ x: b.left - 6, y: b.top - 4, w: b.width + 12, h: b.height + 8 })),
+      )
+    keepClear()
+    const keepClearTimer = window.setInterval(keepClear, 250)
     let implode = 1
     let lastSun = sunAt(window.innerWidth, window.innerHeight)
     const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; r: number; low: number }) => {
@@ -1110,6 +1125,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       document.removeEventListener("visibilitychange", handleVisibility)
       if (animationFrame) cancelAnimationFrame(animationFrame)
       if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)
+      window.clearInterval(keepClearTimer)
       solar.dispose()
     }
   }, [isImploding])
