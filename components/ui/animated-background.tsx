@@ -389,8 +389,8 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const onClick = (e: MouseEvent) => {
       if (issPausedRef.current) return
       const target = e.target as Element | null
-      // Ignore interactive elements, and all clicks while Defense Mode is live
-      if (target?.closest("a, button, input, textarea, select, [role='button'], [data-defense-mode]")) return
+      // Ignore interactive elements, the hero, and all clicks while Defense Mode is live
+      if (target?.closest("a, button, input, textarea, select, [role='button'], [data-defense-mode], [data-hero]")) return
       if (document.querySelector("[data-defense-mode]")) return
       for (const s of satellitePosRef.current) {
         const dx = e.clientX - s.x
@@ -433,7 +433,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     const onClick = (e: MouseEvent) => {
       if (issPausedRef.current || bodyModalRef.current) return
       const target = e.target as Element | null
-      if (target?.closest("a, button, input, textarea, select, label, img, svg, p, h1, h2, h3, h4, h5, h6, li, [role='button'], [role='dialog'], [data-defense-mode]")) return
+      if (target?.closest("a, button, input, textarea, select, label, img, svg, p, h1, h2, h3, h4, h5, h6, li, [role='button'], [role='dialog'], [data-defense-mode], [data-hero]")) return
       if (document.querySelector("[data-defense-mode]")) return
       const hit = solarRef.current?.hitTest(e.clientX, e.clientY)
       if (!hit) return
@@ -538,17 +538,27 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       didPlayImplosionSound.current = true;
     }
 
+    // (over the hero, the solar system's names and readouts don't answer the pointer)
+    let overHero = false
     const handleMouseMove = (e: MouseEvent) => {
       mouseRef.current = {
         x: (e.clientX / window.innerWidth) - 0.5,
         y: (e.clientY / window.innerHeight) - 0.5
       };
+      overHero = !!(e.target as Element | null)?.closest?.("[data-hero]")
     };
     // Parallax only for real pointers: on touch, taps fire synthetic mousemove
     // jumps that make the planets snap around
     if (window.matchMedia("(pointer: fine)").matches) {
       window.addEventListener("mousemove", handleMouseMove);
     }
+    // (and on a scroll, the hero may have moved out from under a still pointer, or in)
+    const handleHeroScroll = () => {
+      const b = document.querySelector("[data-hero]")?.getBoundingClientRect()
+      const py = (mouseRef.current.y + 0.5) * window.innerHeight
+      overHero = !!b && py >= b.top && py <= b.bottom
+    }
+    window.addEventListener("scroll", handleHeroScroll, { passive: true })
 
     ctx.imageSmoothingEnabled = true
     bgCtx.imageSmoothingEnabled = true
@@ -944,7 +954,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       solar.drawBack(bgCtx, tNow)
       if (sunNow) drawSun(bgCtx, sunNow)
       const fine = mouseRef.current.x !== 0 || mouseRef.current.y !== 0
-      solar.drawFront(bgCtx, tNow, fine && !isImploding ? { x: (mouseRef.current.x + 0.5) * canvas.width, y: (mouseRef.current.y + 0.5) * canvas.height } : null)
+      solar.drawFront(bgCtx, tNow, fine && !isImploding && !overHero ? { x: (mouseRef.current.x + 0.5) * canvas.width, y: (mouseRef.current.y + 0.5) * canvas.height } : null)
 
       // 1. Draw Planets (Behind Stars)
       planets.forEach(planet => {
@@ -1202,6 +1212,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       if (cometTimeout) clearTimeout(cometTimeout)
       window.removeEventListener("resize", handleResize)
       window.removeEventListener("mousemove", handleMouseMove)
+      window.removeEventListener("scroll", handleHeroScroll)
       document.removeEventListener("visibilitychange", handleVisibility)
       if (animationFrame) cancelAnimationFrame(animationFrame)
       if (twinkleIntervalHandle) clearInterval(twinkleIntervalHandle)

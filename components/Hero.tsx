@@ -213,6 +213,8 @@ const Hero = () => {
     <motion.div
       ref={heroRef}
       style={{ opacity }}
+      // (the background's solar system doesn't answer the pointer over the hero: no facts, no names)
+      data-hero
       className="h-dvh relative overflow-hidden"
     >
       <BackgroundGradientAnimation>
