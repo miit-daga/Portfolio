@@ -741,13 +741,19 @@ export function createSolarSystem() {
             // a hovered name's more, on a solid dark backing, drawn after everything else
             // (so no other label lands on it, and none shows through)
             const later: (() => void)[] = [];
-            const more = (rows: { text: string; x: number; y: number }[], colour: string) => {
+            const more = (list: { text: string; x: number; y: number }[], colour: string) => {
+                let rows = list;
                 if (!rows.length) return;
                 later.push(() => {
                     const x0 = Math.min(...rows.map((r) => r.x)) - 6;
                     const x1 = Math.max(...rows.map((r) => r.x + c.measureText(r.text).width)) + 6;
-                    const y0 = rows[0].y - 12;
                     const hh = rows.length * 12 + 8;
+                    // (above the name instead, if below it would run into the page's own words and
+                    // buttons, as the view's rewind, or off the bottom)
+                    const hits = (top: number) => top + hh > h - 4 || clear.some((b) => x0 < b.x + b.w && x1 > b.x && top < b.y + b.h && top + hh > b.y);
+                    const up = -34 - (rows.length - 1) * 12;
+                    if (hits(rows[0].y - 12) && rows[0].y - 12 + up > 4 && !hits(rows[0].y - 12 + up)) rows = rows.map((r) => ({ ...r, y: r.y + up }));
+                    const y0 = rows[0].y - 12;
                     c.fillStyle = "rgb(8,11,22)";
                     c.fillRect(x0, y0, x1 - x0, hh);
                     c.strokeStyle = "rgba(255,255,255,0.12)";
