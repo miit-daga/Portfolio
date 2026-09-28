@@ -772,6 +772,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     let animationFrame: number
     let shootingStarTimer = 0
     let shootingStarInterval = SHOOTING_STAR_INTERVAL_MIN + Math.random() * (SHOOTING_STAR_INTERVAL_MAX - SHOOTING_STAR_INTERVAL_MIN)
+    const ROAMING_ISS = false
     let satelliteTimer = 0
     let satelliteInterval = 1500 + Math.random() * 2500
     let twinkleIntervalHandle: number
@@ -1000,8 +1001,12 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         }
       }
 
-      // 5. ISS - drifts slowly and steadily across the sky, no trail
-      if (!isImploding) {
+      // 5. ISS - drifted slowly across the sky. No longer launched: beside a
+      // real solar system a tiny ISS crossing a Sun-sized disc made no sense
+      // of scale, so the ISS now circles the Earth in it (lib/solar-system.ts,
+      // with where it really is on hover). The drift and its telemetry card
+      // are left in place, idle.
+      if (!isImploding && ROAMING_ISS) {
         satelliteTimer += 1;
         if (satelliteTimer > satelliteInterval) {
           createSatellite()

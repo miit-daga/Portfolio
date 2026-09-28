@@ -1,4 +1,6 @@
 import type { SolarNow } from "@/app/api/solar-system/route";
+import { issNow } from "@/lib/iss";
+import { describeLocation } from "@/lib/locate";
 
 // The solar system in the site's background (components/ui/animated-background.tsx),
 // round the big half-Sun on the left, seen from above and a little to the side
@@ -15,13 +17,25 @@ import type { SolarNow } from "@/app/api/solar-system/route";
 //   backwards, and Mercury and Venus barely at all, as they really do.
 // - The Moon circles the Earth at its real place today, so its phase is real.
 // - Hovering a planet names it, with its distance from Earth today.
+// - The view is turned, each day, to whichever angle shows the most planets
+//   with the Earth in view (their angles from each other stay true); one
+//   still hidden gets a small marker at the edge, or at the Sun's rim.
+// - Spacecraft at their real places: the ISS circling the Earth (sped up 60
+//   times; hover for where it is right now), ISRO's Aditya-L1 at L1 and the
+//   James Webb Space Telescope at L2 (their 1.5 million km from the Earth
+//   drawn larger), Parker Solar Probe on its real orbit near the Sun, and the
+//   Voyagers as arrows at the edge, pointing the way they've gone.
 
 const ASSET = "/arcade/";
 const RAD = Math.PI / 180;
 const TWO_PI = Math.PI * 2;
 const SQUASH = 0.34;
-// where the Earth sits on its orbit, on the screen (radians; 0 is to the Sun's right, positive toward the viewer)
+// where the Earth would sit on its orbit, on the screen, all else equal (radians;
+// 0 is to the Sun's right, positive toward the viewer); the framing picks the
+// angle that shows the most planets, nearest this
 const EARTH_AT = 0.5;
+const AU_OF = [0.387, 0.723, 1, 1.524, 5.203, 9.537];
+const AU_KM = 149_597_870.7;
 
 type Spec = { name: string; file: string; r: number; spinHours: number; tilt: number; colour: string; ring?: boolean };
 const PLANETS: Spec[] = [
@@ -123,7 +137,33 @@ function paint(sp: Sprite, size: number, spin: number, lx: number, ly: number) {
 }
 
 export type SunPlace = { x: number; y: number; r: number };
-type Placed = { spec: Spec; sprite: Sprite; x: number; y: number; r: number; depth: number; fromEarthAu: number | null };
+
+/** A small label with a dark outline, so it reads over the Sun as well as over space. */
+function label(c: CanvasRenderingContext2D, text: string, x: number, y: number, align: CanvasTextAlign, alpha: number) {
+    c.save();
+    c.textAlign = align;
+    c.lineJoin = "round";
+    c.lineWidth = 3;
+    c.strokeStyle = `rgba(0,0,0,${0.7 * alpha + 0.2})`;
+    c.strokeText(text, x, y);
+    c.fillStyle = `rgba(226,232,240,${alpha})`;
+    c.fillText(text, x, y);
+    c.restore();
+}
+type Placed = {
+    spec: Spec;
+    sprite: Sprite;
+    x: number;
+    y: number;
+    r: number;
+    depth: number;
+    fromEarthAu: number | null;
+    /** a planet out of view: behind the Sun, or off the screen */
+    hidden?: "sun" | "off" | null;
+    /** a spacecraft: drawn as a point of light, named on hover */
+    dot?: { colour: string; hover: () => string };
+};
+type Arrow = { text: string; x: number; y: number; align: CanvasTextAlign };
 
 export function createSolarSystem() {
     const sprites = new Map<string, Sprite>();
@@ -147,11 +187,67 @@ export function createSolarSystem() {
     let orbits: { a: number; b: number }[] = [];
     let sunAt: SunPlace | null = null;
     let fade = 0;
+    let arrows: Arrow[] = [];
+    let framing: { key: string; earthAt: number } | null = null;
+    let lastImplode = 1;
+    // the ISS's latest position, asked for only when someone hovers it
+    let iss: { at: number; text: string } | null = null;
+    let issAsking = false;
+    const issText = () => {
+        if (!issAsking && (!iss || Date.now() - iss.at > 20_000)) {
+            issAsking = true;
+            issNow()
+                .then((f) => f && (iss = { at: Date.now(), text: `over ${describeLocation(f.latitude, f.longitude)} right now, ${Math.round(f.altitude)} km up` }))
+                .catch(() => {})
+                .finally(() => (issAsking = false));
+        }
+        return iss ? iss.text : "finding where it is…";
+    };
+    const dotSpec = (name: string): Spec => ({ name, file: "", r: 2, spinHours: 1, tilt: 0, colour: "#fff" });
+
+    /** Whether a point is in view: on the screen, and not behind the Sun. */
+    const inView = (x: number, y: number, depth: number, r: number, w: number, h: number, sun: SunPlace) =>
+        x > r && x < w - r && y > r && y < h - r && !(depth < 0 && Math.hypot(x - sun.x, y - sun.y) < sun.r + r * 0.5);
+
+    /** The Earth's angle on the screen that shows the most planets (their true angles from it kept). */
+    const frame = (w: number, h: number, sun: SunPlace, earthLon: number) => {
+        let best = EARTH_AT;
+        let bestScore = -Infinity;
+        for (let e = -0.5; e <= 1.35; e += 0.02) {
+            const ei = 2;
+            const ex = sun.x + orbits[ei].a * Math.cos(e);
+            const ey = sun.y + orbits[ei].b * Math.sin(e);
+            if (!(ex > 60 && ex < w - 160 && ey > 60 && ey < h - 60) || (Math.sin(e) < 0 && Math.hypot(ex - sun.x, ey - sun.y) < sun.r + 20)) continue;
+            let count = 0;
+            now!.planets.forEach((p) => {
+                const i = PLANETS.findIndex((q) => q.name === p.name);
+                if (i < 0) return;
+                const phi = e - (p.lon - earthLon) * RAD;
+                if (inView(sun.x + orbits[i].a * Math.cos(phi), sun.y + orbits[i].b * Math.sin(phi), Math.sin(phi), 16, w, h, sun)) count++;
+            });
+            const score = count * 100 - Math.abs(e - EARTH_AT) * 10;
+            if (score > bestScore) {
+                bestScore = score;
+                best = e;
+            }
+        }
+        return best;
+    };
+
+    /** A distance from the Sun (AU) on the diagram's spacing: between the planets' orbits, in proportion. */
+    const auToA = (au: number, sunR: number) => {
+        const xs = [0, ...AU_OF];
+        const ys = [sunR, ...orbits.map((o) => o.a)];
+        for (let i = 1; i < xs.length; i++) if (au <= xs[i]) return ys[i - 1] + ((ys[i] - ys[i - 1]) * (au - xs[i - 1])) / (xs[i] - xs[i - 1]);
+        const n = xs.length - 1;
+        return ys[n] + ((ys[n] - ys[n - 1]) * (au - xs[n])) / (xs[n] - xs[n - 1]);
+    };
 
     /** Where everything is this frame; call before drawBack. `implode` (1 down to 0) pulls it all into (cx, cy). */
     const layout = (w: number, h: number, sun: SunPlace, mouse: { x: number; y: number }, implode: number) => {
         sunAt = sun;
         placed = [];
+        dots = [];
         earth = moon = null;
         if (!now) return;
         fade = Math.min(1, fade + 0.02);
@@ -165,11 +261,16 @@ export function createSolarSystem() {
         });
         const cx = w / 2;
         const cy = h / 2;
+        lastImplode = implode;
+        // the framing, worked out again only when the day's positions or the screen change
+        const key = `${now.at}|${w}|${h}`;
+        if (!framing || framing.key !== key) framing = { key, earthAt: frame(w, h, sun, earthLon) };
+        const earthAt = framing.earthAt;
         PLANETS.forEach((spec, i) => {
             const p = now!.planets.find((q) => q.name === spec.name);
             if (!p) return;
             // (counter-clockwise from the north, as the planets go: seen from above, the far side is up the screen)
-            const phi = EARTH_AT - (p.lon - earthLon) * RAD;
+            const phi = earthAt - (p.lon - earthLon) * RAD;
             const { a, b } = orbits[i];
             const depth = Math.sin(phi);
             // nearer ones a little bigger, and moving more with the mouse
@@ -178,21 +279,74 @@ export function createSolarSystem() {
             let y = sun.y + b * depth + mouse.y * (8 + i * 5);
             x = cx + (x - cx) * implode;
             y = cy + (y - cy) * implode;
-            const pl: Placed = { spec, sprite: sprites.get(spec.name)!, x, y, r: r * Math.max(0.05, implode), depth, fromEarthAu: p.fromEarthAu };
+            const hidden = inView(x, y, depth, r, w, h, sun) ? null : depth < 0 && Math.hypot(x - sun.x, y - sun.y) < sun.r + r * 0.5 ? "sun" : "off";
+            const pl: Placed = { spec, sprite: sprites.get(spec.name)!, x, y, r: r * Math.max(0.05, implode), depth, fromEarthAu: p.fromEarthAu, hidden };
             placed.push(pl);
             if (spec.name === "Earth") earth = pl;
         });
         // the Moon, round the Earth at its real angle (so lit as it really is: its phase)
         if (earth) {
             const e: Placed = earth;
-            const phiM = EARTH_AT - (now.moonLon - earthLon) * RAD;
+            const phiM = earthAt - (now.moonLon - earthLon) * RAD;
             const dm = e.r * 2.4;
             moon = { spec: MOON, sprite: sprites.get("Moon")!, x: e.x + dm * Math.cos(phiM), y: e.y + dm * SQUASH * 1.4 * Math.sin(phiM), r: MOON.r * size * Math.max(0.05, implode), depth: e.depth + Math.sin(phiM) * 0.001, fromEarthAu: null };
+
+            // the ISS, round the Earth: once every 92.7 minutes, shown 60 times faster
+            const th = (performance.now() / 1000) * (TWO_PI / 92.7);
+            const di = e.r * 1.7;
+            dots.push({ spec: dotSpec("ISS"), sprite: sprites.get("Moon")!, x: e.x + di * Math.cos(th), y: e.y + di * 0.45 * Math.sin(th), r: 1.6, depth: e.depth + Math.sin(th) * 0.001, fromEarthAu: null, dot: { colour: "#e2e8f0", hover: issText } });
+            // L1 toward the Sun, L2 away from it, 1.5 million km each (drawn larger)
+            const ux = sun.x - e.x;
+            const uy = sun.y - e.y;
+            const un = Math.hypot(ux, uy) || 1;
+            const dl = e.r * 3.4;
+            dots.push({ spec: dotSpec("Aditya-L1"), sprite: sprites.get("Moon")!, x: e.x + (ux / un) * dl, y: e.y + (uy / un) * dl, r: 1.8, depth: e.depth, fromEarthAu: null, dot: { colour: "#fbbf24", hover: () => "ISRO's solar observatory, at L1: 1.5 million km sunward, watching the Sun without a break" } });
+            dots.push({ spec: dotSpec("James Webb Space Telescope"), sprite: sprites.get("Moon")!, x: e.x - (ux / un) * dl, y: e.y - (uy / un) * dl, r: 1.8, depth: e.depth, fromEarthAu: null, dot: { colour: "#fde68a", hover: () => "at L2: 1.5 million km beyond the Earth, in its shadow side" } });
+        }
+
+        // Parker Solar Probe, on its real orbit; the Voyagers, the way they've gone
+        arrows = [];
+        for (const c of now.craft ?? []) {
+            const phi = earthAt - (c.lon - earthLon) * RAD;
+            if (c.name === "Parker Solar Probe") {
+                const a = auToA(c.au, sun.r);
+                const x = sun.x + a * Math.cos(phi);
+                const y = sun.y + a * SQUASH * Math.sin(phi);
+                dots.push({ spec: dotSpec(c.name), sprite: sprites.get("Moon")!, x, y, r: 1.8, depth: Math.sin(phi), fromEarthAu: null, dot: { colour: "#f9a8d4", hover: () => `${c.au.toFixed(2)} AU from the Sun today; at its closest it passes within 0.05` } });
+                continue;
+            }
+            const km = (c.au * AU_KM) / 1e9;
+            const label = `${c.name} · ${km.toFixed(1)} billion km that way`;
+            const dx = Math.cos(phi);
+            const dy = SQUASH * Math.sin(phi);
+            if (dx > 0.15) {
+                // along the line from the Sun to the screen's edge
+                const ts = [(w - 24 - sun.x) / dx, dy > 0 ? (h - 18 - sun.y) / dy : dy < 0 ? (18 - sun.y) / dy : Infinity].filter((v) => v > 0);
+                const t = Math.min(...ts);
+                arrows.push({ text: `${label} →`, x: sun.x + dx * t, y: sun.y + dy * t, align: "right" });
+            } else {
+                // out past the left edge: at the edge, above or below the Sun
+                arrows.push({ text: `← ${label}`, x: 14, y: Math.max(20, Math.min(h - 14, sun.y + Math.sign(dy || 1) * h * 0.44)), align: "left" });
+            }
         }
     };
+    let dots: Placed[] = [];
 
     const drawBody = (c: CanvasRenderingContext2D, p: Placed, t: number) => {
         if (p.x < -p.r * 3 || p.y < -p.r * 3 || p.y > c.canvas.height + p.r * 3 || p.x > c.canvas.width + p.r * 3) return;
+        if (p.dot) {
+            // a spacecraft: a point of light
+            c.save();
+            c.globalAlpha = fade;
+            c.fillStyle = p.dot.colour;
+            c.shadowColor = p.dot.colour;
+            c.shadowBlur = 6;
+            c.beginPath();
+            c.arc(p.x, p.y, p.r, 0, TWO_PI);
+            c.fill();
+            c.restore();
+            return;
+        }
         const size = Math.max(6, Math.round(p.r * 2) & ~1);
         // the light, from the Sun
         const lx = (sunAt?.x ?? 0) - p.x;
@@ -249,7 +403,7 @@ export function createSolarSystem() {
     };
 
     const order = (front: boolean) => {
-        const list = [...placed];
+        const list = [...placed, ...dots];
         if (moon) list.push(moon);
         return list.filter((p) => (front ? p.depth >= 0 : p.depth < 0)).sort((a, b) => a.depth - b.depth);
     };
@@ -277,10 +431,28 @@ export function createSolarSystem() {
                 c.stroke();
             }
             c.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace";
+            const w = c.canvas.width;
+            const h = c.canvas.height;
             for (const p of placed) {
                 const hovered = pointer && Math.hypot(pointer.x - p.x, pointer.y - p.y) < Math.max(12, p.r + 8);
-                const behindSun = sunAt && p.depth < 0 && Math.hypot(p.x - sunAt.x, p.y - sunAt.y) < sunAt.r;
-                if (behindSun) continue;
+                if (p.hidden) {
+                    // out of view: a marker at the Sun's rim, or at the edge it went past
+                    if (lastImplode < 1 || !sunAt) continue;
+                    if (p.hidden === "sun") {
+                        // just outside the Sun's visible edge, at the planet's height
+                        const my = Math.max(16, Math.min(h - 10, p.y));
+                        const dy = Math.min(sunAt.r, Math.abs(my - sunAt.y));
+                        const mx = Math.max(12, sunAt.x + Math.sqrt(sunAt.r * sunAt.r - dy * dy) + 12);
+                        label(c, `${p.spec.name} · behind the Sun`, mx, my, "left", 0.5);
+                    } else {
+                        const left = p.x < 0;
+                        const right = p.x > w;
+                        const arrow = p.y < 0 ? "↑ " : p.y > h ? "↓ " : left ? "← " : "";
+                        label(c, `${arrow}${p.spec.name}${right ? " →" : ""}`, Math.max(12, Math.min(w - 24, p.x)), Math.max(16, Math.min(h - 10, p.y)), right ? "right" : "left", 0.5);
+                    }
+                    c.textAlign = "left";
+                    continue;
+                }
                 const lx = p.x + p.r + 6;
                 const ly = p.y - p.r - 2;
                 c.fillStyle = hovered ? "rgba(226,232,240,0.95)" : "rgba(226,232,240,0.45)";
@@ -289,6 +461,23 @@ export function createSolarSystem() {
                     const mins = (p.fromEarthAu * 499.005) / 60;
                     c.fillStyle = "rgba(148,163,184,0.95)";
                     c.fillText(`${p.fromEarthAu.toFixed(2)} AU from Earth today · light ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`}`, lx, ly + 13);
+                }
+            }
+            // the spacecraft: named only on hover
+            for (const d of dots) {
+                if (!pointer || !d.dot || Math.hypot(pointer.x - d.x, pointer.y - d.y) > 9) continue;
+                label(c, d.spec.name, d.x + 7, d.y - 6, "left", 0.98);
+                label(c, d.dot.hover(), d.x + 7, d.y + 7, "left", 0.8);
+            }
+            // the Voyagers, at the edge (stacked, not overlapping, when they point the same way)
+            if (lastImplode === 1) {
+                const used: Arrow[] = [];
+                for (const a of arrows) {
+                    let y = a.y;
+                    while (used.some((u) => u.align === a.align && Math.abs(u.y - y) < 14)) y += a.y > h / 2 ? -14 : 14;
+                    used.push({ ...a, y });
+                    const near = pointer && Math.abs(pointer.y - y) < 10 && (a.align === "left" ? pointer.x < a.x + 320 : pointer.x > a.x - 320);
+                    label(c, a.text, a.x, y, a.align, near ? 0.95 : 0.5);
                 }
             }
             c.restore();
