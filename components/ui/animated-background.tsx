@@ -8,6 +8,7 @@ import { describeLocation } from "@/lib/locate"
 import { skyPalette } from "@/lib/sky"
 import { renderSunDisc } from "@/lib/sun-disc"
 import { createSolarSystem } from "@/lib/solar-system"
+import { nextFact } from "@/lib/space-facts"
 import { subscribeIss } from "@/lib/iss"
 
 interface AnimatedBackgroundProps {
@@ -362,6 +363,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   const issPausedRef = useRef(false)
   const issFactIdx = useRef(Math.floor(Math.random() * ISS_FACTS.length))
   const issSarcasmIdx = useRef(Math.floor(Math.random() * ISS_SARCASM.length))
+  // The solar system, for clicks on the Sun, a planet or the Moon: a fact each time, none repeated in turn
+  const solarRef = useRef<ReturnType<typeof createSolarSystem> | null>(null)
+  const [bodyModal, setBodyModal] = useState<{ name: string; detail: string | null; fact: string } | null>(null)
 
   // 30s cadence keeps the prefetched position warm; while the modal is open
   // it tightens to 10s (with an immediate fetch) so the readout visibly drifts
@@ -418,6 +422,30 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       window.removeEventListener("iss-hail", onHail)
     }
   }, [])
+
+  // Clicking the Sun, a planet or the Moon: a fact about it (after the ISS's own
+  // handler, registered first, has had its chance at the click)
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (issPausedRef.current || bodyModalRef.current) return
+      const target = e.target as Element | null
+      if (target?.closest("a, button, input, textarea, select, label, img, svg, p, h1, h2, h3, h4, h5, h6, li, [role='button'], [role='dialog'], [data-defense-mode]")) return
+      if (document.querySelector("[data-defense-mode]")) return
+      const hit = solarRef.current?.hitTest(e.clientX, e.clientY)
+      if (!hit) return
+      setBodyModal({ ...hit, fact: nextFact(hit.name) })
+    }
+    window.addEventListener("click", onClick)
+    return () => window.removeEventListener("click", onClick)
+  }, [])
+  const bodyModalRef = useRef(false)
+  bodyModalRef.current = bodyModal !== null
+  useEffect(() => {
+    if (!bodyModal) return
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setBodyModal(null)
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [bodyModal])
 
   const closeIssModal = () => {
     setIssModal(null)
@@ -523,6 +551,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       }
     }
     const solar = createSolarSystem()
+    solarRef.current = solar
     let implode = 1
     let lastSun = sunAt(window.innerWidth, window.innerHeight)
     const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; r: number; low: number }) => {
@@ -1025,7 +1054,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         drawISS(ctx, sat.x, sat.y, Math.atan2(sat.vy, sat.vx))
         if (sat.life > sat.maxLife) satellites.splice(i, 1)
       }
-      satellitePosRef.current = satellites.map((s) => ({ x: s.x, y: s.y }))
+      // the ISS clicked for its telemetry pop-up is now the one circling the
+      // Earth in the solar system (held still while the pop-up is open)
+      solar.setIssPaused(issPausedRef.current)
+      const issDot = solar.issAt()
+      satellitePosRef.current = ROAMING_ISS ? satellites.map((s) => ({ x: s.x, y: s.y })) : issDot ? [issDot] : []
 
       ctx.shadowColor = "transparent"; ctx.shadowBlur = 0
       animationFrame = requestAnimationFrame(drawSpace)
@@ -1146,6 +1179,51 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
               >
                 Resume orbit
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+        {bodyModal && (
+          <motion.div
+            key="body-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[9100] flex items-center justify-center px-4"
+          >
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setBodyModal(null)} />
+            <motion.div
+              role="dialog"
+              aria-label={bodyModal.name}
+              initial={{ scale: 0.92, y: 14, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.92, y: 14, opacity: 0 }}
+              className="relative z-10 w-full max-w-sm rounded-2xl border border-amber-400/30 bg-neutral-950/95 p-6 shadow-[0_0_40px_rgba(251,191,36,0.18)]"
+            >
+              <button
+                onClick={() => setBodyModal(null)}
+                aria-label="Close"
+                className="absolute right-3 top-3 rounded-full p-1.5 text-neutral-500 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+              <p className="font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.3em] text-amber-300/85">{bodyModal.name === "Pluto" ? "dwarf planet" : bodyModal.name === "Sun" ? "our star" : bodyModal.name === "Moon" ? "our moon" : "planet"}</p>
+              <p className="mt-2 text-2xl font-bold text-white">{bodyModal.name === "Sun" || bodyModal.name === "Moon" ? `The ${bodyModal.name}` : bodyModal.name}</p>
+              {bodyModal.detail && <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.12em] text-neutral-400">{bodyModal.detail}</p>}
+              <p className="mt-4 text-xs uppercase tracking-wider text-neutral-500">Did you know</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-amber-50">{bodyModal.fact}</p>
+              <div className="mt-5 flex gap-2">
+                <button
+                  onClick={() => setBodyModal((m) => (m ? { ...m, fact: nextFact(m.name) } : m))}
+                  className="flex-1 rounded-full border border-amber-400/40 bg-amber-400/15 px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-400/25"
+                >
+                  Another fact
+                </button>
+                <button onClick={() => setBodyModal(null)} className="rounded-full border border-white/15 px-4 py-2 text-sm text-neutral-300 transition-colors hover:border-white/30">
+                  Close
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

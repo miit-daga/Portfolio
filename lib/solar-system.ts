@@ -10,7 +10,8 @@ import { describeLocation } from "@/lib/locate";
 // - Where each planet is: its true angle round the Sun today (app/api/solar-system),
 //   the view turned so the Earth always sits front-right, in view; the others
 //   keep their true angles from it. Distances are evenly spaced, not to scale
-//   (to scale, Mercury would hug the Sun and Saturn be many screens away).
+//   (to scale, Mercury would hug the Sun and Pluto be dozens of screens away).
+//   Mercury to Neptune, and Pluto, the dwarf planet.
 // - Each planet spins, from its real map, lit from the Sun: the spins sped up
 //   3,600 times (a real hour a second, so the Earth turns once in 24 s and
 //   Jupiter in 10 s), their relative speeds and tilts real; Venus turns
@@ -34,7 +35,7 @@ const SQUASH = 0.34;
 // 0 is to the Sun's right, positive toward the viewer); the framing picks the
 // angle that shows the most planets, nearest this
 const EARTH_AT = 0.5;
-const AU_OF = [0.387, 0.723, 1, 1.524, 5.203, 9.537];
+const AU_OF = [0.387, 0.723, 1, 1.524, 5.203, 9.537, 19.19, 30.07, 39.48];
 const AU_KM = 149_597_870.7;
 
 type Spec = { name: string; file: string; r: number; spinHours: number; tilt: number; colour: string; ring?: boolean };
@@ -45,6 +46,10 @@ const PLANETS: Spec[] = [
     { name: "Mars", file: "planet-mars.jpg", r: 9, spinHours: 24.62, tilt: 25.2, colour: "#d9724a" },
     { name: "Jupiter", file: "planet-jupiter.jpg", r: 26, spinHours: 9.93, tilt: 3.1, colour: "#d8b48c" },
     { name: "Saturn", file: "planet-saturn.jpg", r: 21, spinHours: 10.66, tilt: 26.7, colour: "#e3cf9f", ring: true },
+    // Uranus spins on its side; Pluto's axis leans past the vertical too (so both turn "backwards" as drawn)
+    { name: "Uranus", file: "planet-uranus.jpg", r: 15, spinHours: 17.24, tilt: 97.8, colour: "#a5e9f0" },
+    { name: "Neptune", file: "planet-neptune.jpg", r: 14.5, spinHours: 16.11, tilt: 28.3, colour: "#5b8def" },
+    { name: "Pluto", file: "planet-pluto.jpg", r: 4.5, spinHours: 153.3, tilt: 122.5, colour: "#d9c4a8" },
 ];
 const MOON: Spec = { name: "Moon", file: "planet-moon.jpg", r: 3.8, spinHours: 655.7, tilt: 6.7, colour: "#cbd5e1" };
 
@@ -190,6 +195,9 @@ export function createSolarSystem() {
     let arrows: Arrow[] = [];
     let framing: { key: string; earthAt: number } | null = null;
     let lastImplode = 1;
+    let issAngle = 0;
+    let issLast = performance.now();
+    let issPaused = false;
     // the ISS's latest position, asked for only when someone hovers it
     let iss: { at: number; text: string } | null = null;
     let issAsking = false;
@@ -292,16 +300,20 @@ export function createSolarSystem() {
             moon = { spec: MOON, sprite: sprites.get("Moon")!, x: e.x + dm * Math.cos(phiM), y: e.y + dm * SQUASH * 1.4 * Math.sin(phiM), r: MOON.r * size * Math.max(0.05, implode), depth: e.depth + Math.sin(phiM) * 0.001, fromEarthAu: null };
 
             // the ISS, round the Earth: once every 92.7 minutes, shown 60 times faster
-            const th = (performance.now() / 1000) * (TWO_PI / 92.7);
+            // (held still while its pop-up is open)
+            const tNow = performance.now();
+            if (!issPaused) issAngle += ((tNow - issLast) / 1000) * (TWO_PI / 92.7);
+            issLast = tNow;
+            const th = issAngle;
             const di = e.r * 1.7;
-            dots.push({ spec: dotSpec("ISS"), sprite: sprites.get("Moon")!, x: e.x + di * Math.cos(th), y: e.y + di * 0.45 * Math.sin(th), r: 1.6, depth: e.depth + Math.sin(th) * 0.001, fromEarthAu: null, dot: { colour: "#e2e8f0", hover: issText } });
+            dots.push({ spec: dotSpec("ISS"), sprite: sprites.get("Moon")!, x: e.x + di * Math.cos(th), y: e.y + di * 0.45 * Math.sin(th), r: 2.4, depth: e.depth + Math.sin(th) * 0.001, fromEarthAu: null, dot: { colour: "#f1f5f9", hover: () => `${issText()} · click for its live telemetry` } });
             // L1 toward the Sun, L2 away from it, 1.5 million km each (drawn larger)
             const ux = sun.x - e.x;
             const uy = sun.y - e.y;
             const un = Math.hypot(ux, uy) || 1;
             const dl = e.r * 3.4;
-            dots.push({ spec: dotSpec("Aditya-L1"), sprite: sprites.get("Moon")!, x: e.x + (ux / un) * dl, y: e.y + (uy / un) * dl, r: 1.8, depth: e.depth, fromEarthAu: null, dot: { colour: "#fbbf24", hover: () => "ISRO's solar observatory, at L1: 1.5 million km sunward, watching the Sun without a break" } });
-            dots.push({ spec: dotSpec("James Webb Space Telescope"), sprite: sprites.get("Moon")!, x: e.x - (ux / un) * dl, y: e.y - (uy / un) * dl, r: 1.8, depth: e.depth, fromEarthAu: null, dot: { colour: "#fde68a", hover: () => "at L2: 1.5 million km beyond the Earth, in its shadow side" } });
+            dots.push({ spec: dotSpec("Aditya-L1"), sprite: sprites.get("Moon")!, x: e.x + (ux / un) * dl, y: e.y + (uy / un) * dl, r: 2.6, depth: e.depth, fromEarthAu: null, dot: { colour: "#fbbf24", hover: () => "ISRO's solar observatory, at L1: 1.5 million km sunward, watching the Sun without a break" } });
+            dots.push({ spec: dotSpec("James Webb Space Telescope"), sprite: sprites.get("Moon")!, x: e.x - (ux / un) * dl, y: e.y - (uy / un) * dl, r: 2.6, depth: e.depth, fromEarthAu: null, dot: { colour: "#fde68a", hover: () => "at L2: 1.5 million km beyond the Earth, in its shadow side" } });
         }
 
         // Parker Solar Probe, on its real orbit; the Voyagers, the way they've gone
@@ -312,7 +324,7 @@ export function createSolarSystem() {
                 const a = auToA(c.au, sun.r);
                 const x = sun.x + a * Math.cos(phi);
                 const y = sun.y + a * SQUASH * Math.sin(phi);
-                dots.push({ spec: dotSpec(c.name), sprite: sprites.get("Moon")!, x, y, r: 1.8, depth: Math.sin(phi), fromEarthAu: null, dot: { colour: "#f9a8d4", hover: () => `${c.au.toFixed(2)} AU from the Sun today; at its closest it passes within 0.05` } });
+                dots.push({ spec: dotSpec(c.name), sprite: sprites.get("Moon")!, x, y, r: 2.8, depth: Math.sin(phi), fromEarthAu: null, dot: { colour: "#f9a8d4", hover: () => `${c.au.toFixed(2)} AU from the Sun today; at its closest it passes within 0.05` } });
                 continue;
             }
             const km = (c.au * AU_KM) / 1e9;
@@ -338,9 +350,14 @@ export function createSolarSystem() {
             // a spacecraft: a point of light
             c.save();
             c.globalAlpha = fade;
+            // a dark ring first, so it shows over the Sun as well as over space
+            c.fillStyle = "rgba(0,0,0,0.65)";
+            c.beginPath();
+            c.arc(p.x, p.y, p.r + 1.6, 0, TWO_PI);
+            c.fill();
             c.fillStyle = p.dot.colour;
             c.shadowColor = p.dot.colour;
-            c.shadowBlur = 6;
+            c.shadowBlur = 8;
             c.beginPath();
             c.arc(p.x, p.y, p.r, 0, TWO_PI);
             c.fill();
@@ -456,18 +473,23 @@ export function createSolarSystem() {
                 const lx = p.x + p.r + 6;
                 const ly = p.y - p.r - 2;
                 c.fillStyle = hovered ? "rgba(226,232,240,0.95)" : "rgba(226,232,240,0.45)";
-                c.fillText(p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name, lx, ly);
+                c.fillText(p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name === "Pluto" ? "Pluto · dwarf planet" : p.spec.name, lx, ly);
                 if (hovered && p.fromEarthAu !== null) {
                     const mins = (p.fromEarthAu * 499.005) / 60;
                     c.fillStyle = "rgba(148,163,184,0.95)";
-                    c.fillText(`${p.fromEarthAu.toFixed(2)} AU from Earth today · light ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`}`, lx, ly + 13);
+                    c.fillText(`${p.fromEarthAu.toFixed(2)} AU from Earth today · light ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`} · click for a fact`, lx, ly + 13);
                 }
             }
-            // the spacecraft: named only on hover
+            // the spacecraft: named faintly, and more on hover; labels to the side away from the Earth
+            const ex = (earth as Placed | null)?.x ?? 0;
             for (const d of dots) {
-                if (!pointer || !d.dot || Math.hypot(pointer.x - d.x, pointer.y - d.y) > 9) continue;
-                label(c, d.spec.name, d.x + 7, d.y - 6, "left", 0.98);
-                label(c, d.dot.hover(), d.x + 7, d.y + 7, "left", 0.8);
+                if (!d.dot || lastImplode < 1) continue;
+                const hovered = pointer && Math.hypot(pointer.x - d.x, pointer.y - d.y) < 10;
+                const leftSide = d.spec.name !== "ISS" && d.spec.name !== "Parker Solar Probe" && d.x < ex;
+                const x = leftSide ? d.x - 8 : d.x + 8;
+                const short = d.spec.name === "James Webb Space Telescope" && !hovered ? "JWST" : d.spec.name;
+                label(c, short, x, d.y - 5, leftSide ? "right" : "left", hovered ? 0.98 : 0.42);
+                if (hovered) label(c, d.dot.hover(), x, d.y + 8, leftSide ? "right" : "left", 0.8);
             }
             // the Voyagers, at the edge (stacked, not overlapping, when they point the same way)
             if (lastImplode === 1) {
@@ -481,6 +503,30 @@ export function createSolarSystem() {
                 }
             }
             c.restore();
+        },
+        /** What's at a point on the screen, for the click-for-a-fact pop-up: a planet or the Moon in view, or the Sun. */
+        hitTest(x: number, y: number): { name: string; detail: string | null } | null {
+            if (lastImplode < 1) return null;
+            const bodies = [...placed.filter((p) => !p.hidden), ...(moon ? [moon] : [])].sort((a, b) => b.depth - a.depth);
+            for (const p of bodies) {
+                if (Math.hypot(x - p.x, y - p.y) > Math.max(12, p.r + 6)) continue;
+                if (p.spec.name === "Earth") return { name: "Earth", detail: "You are here" };
+                if (p.spec.name === "Moon") return { name: "Moon", detail: "Circling the Earth, shown at today's phase" };
+                if (p.fromEarthAu === null) return { name: p.spec.name, detail: null };
+                const mins = (p.fromEarthAu * 499.005) / 60;
+                return { name: p.spec.name, detail: `${p.fromEarthAu.toFixed(2)} AU from Earth today · its light takes ${mins < 60 ? `${Math.round(mins)} min` : `${(mins / 60).toFixed(1)} h`} to reach you` };
+            }
+            if (sunAt && Math.hypot(x - sunAt.x, y - sunAt.y) < sunAt.r) return { name: "Sun", detail: "The centre of it all" };
+            return null;
+        },
+        /** Where the ISS is on the screen this frame (for its click-for-telemetry pop-up), or null. */
+        issAt() {
+            const d = dots.find((x) => x.spec.name === "ISS");
+            return d && lastImplode === 1 ? { x: d.x, y: d.y } : null;
+        },
+        /** Hold the ISS still (while its pop-up is open), or let it go on. */
+        setIssPaused(p: boolean) {
+            issPaused = p;
         },
         dispose() {
             window.clearInterval(timer);

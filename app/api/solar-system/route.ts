@@ -14,7 +14,7 @@ import { hasKv, kv } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-const BODIES = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn"] as const;
+const BODIES = ["Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"] as const;
 const CRAFT = [
     { id: "-96", name: "Parker Solar Probe" },
     { id: "-31", name: "Voyager 1" },
