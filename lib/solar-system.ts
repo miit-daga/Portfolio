@@ -11,6 +11,11 @@ import { describeLocation } from "@/lib/locate";
 // away and the Sun glides to the middle of the screen, the orbits opening out
 // round it so all of it's in view, the view turning to its own best angle.
 // `layout` takes how far along that is (0, reading, to 1, the whole view).
+// There it can be zoomed, in as far as 12 times, never out past the whole of
+// it (the wheel or a pinch, toward the pointer; or flown in close to follow the
+// Earth), and panned by dragging: positions scale with the zoom, sizes more
+// gently (with its square root), and round the Earth, the Moon, the ISS and
+// the telescopes at L1 and L2 stay close to it, the Moon's orbit opening out.
 //
 // - Where each planet is: its true angle round the Sun today (app/api/solar-system),
 //   the view turned so the Earth always sits front-right, in view; the others
@@ -22,6 +27,11 @@ import { describeLocation } from "@/lib/locate";
 //   Jupiter in 10 s), their relative speeds and tilts real; Venus turns
 //   backwards, and Mercury and Venus barely at all, as they really do.
 // - The Moon circles the Earth at its real place today, so its phase is real.
+// - Pluto's orbit is drawn as it really is, stretched (from the ephemeris, its
+//   distance mapped onto the diagram's spacing as the rest are), so for 20 years
+//   in every 248 it dips inside Neptune's, as it did from 1979 to 1999; its label
+//   says so then. (They never meet: tilted 17° apart, and Pluto goes round twice
+//   for every three of Neptune's, so it's never near when it crosses.)
 // - Hovering a planet names it, with its distance from Earth today.
 // - The view is turned, each day, to whichever angle shows the most planets
 //   with the Earth in view (their angles from each other stay true); one
@@ -280,6 +290,16 @@ export function createSolarSystem() {
         return c;
     });
     let view = { mouse: { x: 0, y: 0 }, implode: 1, cx: 0, cy: 0, size: 1 };
+    // the view's camera: on the screen, x·z + ox (and y·z + oy); eased toward its targets.
+    // `follow`, flown in to the Earth, keeps it in the middle as it goes round
+    const cam = { z: 1, ox: 0, oy: 0, tz: 1, tox: 0, toy: 0, follow: false, w: 1, h: 1 };
+    const MAX_ZOOM = 12;
+    /** Keep the camera's targets within the whole view (no panning off it, no zooming out past it). */
+    const clampCam = () => {
+        cam.tz = Math.max(1, Math.min(MAX_ZOOM, cam.tz));
+        cam.tox = Math.max(cam.w - cam.w * cam.tz, Math.min(0, cam.tox));
+        cam.toy = Math.max(cam.h - cam.h * cam.tz, Math.min(0, cam.toy));
+    };
     let sunPainted = { at: -1e9, size: 0 };
     // the time-lapse: days from now (never ahead of it), and how many a second (negative,
     // back in time; 0 is real time); `toNow`, replaying it forward to the present
@@ -313,10 +333,10 @@ export function createSolarSystem() {
         const date = new Date(Date.now() + sim.days * 86_400_000);
         const vec = (name: string) => A.HelioVector(A.Body[name as keyof typeof A.Body], date);
         const ev = vec("Earth");
-        const out = new Map<string, { lon: number; fromEarthAu: number | null }>();
+        const out = new Map<string, { lon: number; fromEarthAu: number | null; au: number }>();
         for (const p of PLANETS) {
             const v = p.name === "Earth" ? ev : vec(p.name);
-            out.set(p.name, { lon: A.Ecliptic(v).elon, fromEarthAu: p.name === "Earth" ? null : Math.hypot(v.x - ev.x, v.y - ev.y, v.z - ev.z) });
+            out.set(p.name, { lon: A.Ecliptic(v).elon, fromEarthAu: p.name === "Earth" ? null : Math.hypot(v.x - ev.x, v.y - ev.y, v.z - ev.z), au: Math.hypot(v.x, v.y, v.z) });
         }
         return { planets: out, moonLon: A.EclipticGeoMoon(date).lon, date };
     };
@@ -334,6 +354,12 @@ export function createSolarSystem() {
     let focusFade = 0;
     // where each label went last frame (its spot, and how far faded in), so it stays put
     const labelMemo = new Map<string, { i: number; a: number }>();
+    // Pluto's real orbit, once round (from 1900, every 1.5 years or so): its angle and distance;
+    // and this frame's, on the screen, with each point's depth
+    let plutoTrack: { lon: number; au: number }[] | null = null;
+    let plutoPath: { x: number; y: number; depth: number }[] | null = null;
+    // Pluto inside Neptune's orbit, on the date shown
+    let plutoInside = false;
     // the date's word for the hover and the facts: "today", or the date
     let when = "today";
     let placed: Placed[] = [];
@@ -427,12 +453,12 @@ export function createSolarSystem() {
      * Where everything is this frame; call before drawBack. `implode` (1 down to 0) pulls it all into (cx, cy).
      * `sky`: how far into the solar system view (0 to 1, eased), and where the Sun is in each view.
      */
-    const layout = (w: number, h: number, sun: SunPlace, mouse: { x: number; y: number }, implode: number, sky?: { e: number; left: SunPlace; centre: SunPlace }) => {
+    const layout = (w: number, h: number, sun: SunPlace, mouse: { x: number; y: number }, implode: number, sky?: { e: number; left: SunPlace; centre: SunPlace }): SunPlace => {
         sunAt = sun;
         placed = [];
         dots = [];
         earth = moon = null;
-        if (!now) return;
+        if (!now) return sun;
         fade = Math.min(1, fade + 0.02);
         const earthLon = now.planets.find((p) => p.name === "Earth")!.lon;
         stepSim();
@@ -468,7 +494,9 @@ export function createSolarSystem() {
             if (!p) return;
             // (counter-clockwise from the north, as the planets go: seen from above, the far side is up the screen)
             const phi = earthAt - (p.lon - earthLon) * RAD;
-            const { a, b } = orbits[i];
+            // (Pluto at its real distance, on its stretched orbit; the rest on their rings)
+            const pluto = spec.name === "Pluto" && "au" in p ? auToA(p.au, sun.r) : null;
+            const { a, b } = pluto ? { a: pluto, b: pluto * squash } : orbits[i];
             const depth = Math.sin(phi);
             // nearer ones a little bigger; all of it moves with the mouse as one, with the
             // Sun (so each planet stays on its orbit's line)
@@ -482,6 +510,24 @@ export function createSolarSystem() {
             placed.push(pl);
             if (spec.name === "Earth") earth = pl;
         });
+        // Pluto's orbit, as it really is
+        if (Astro && !plutoTrack) {
+            const A = Astro;
+            plutoTrack = Array.from({ length: 170 }, (_, n) => {
+                const v = A.HelioVector(A.Body.Pluto, new Date(Date.UTC(1900, 0, 1) + (n / 170) * 248.1 * 365.25 * 86_400_000));
+                return { lon: A.Ecliptic(v).elon, au: Math.hypot(v.x, v.y, v.z) };
+            });
+        }
+        plutoPath = plutoTrack
+            ? plutoTrack.map((q) => {
+                  const phi = earthAt - (q.lon - earthLon) * RAD;
+                  const r = auToA(q.au, sun.r);
+                  return { x: cx + (sun.x + r * Math.cos(phi) - cx) * implode, y: cy + (sun.y + r * squash * Math.sin(phi) - cy) * implode, depth: Math.sin(phi) };
+              })
+            : null;
+        const pa = at?.planets.get("Pluto")?.au;
+        const na = at?.planets.get("Neptune")?.au;
+        plutoInside = pa !== undefined && na !== undefined && pa < na;
         // the Moon, round the Earth at its real angle (so lit as it really is: its phase)
         if (earth) {
             const e: Placed = earth;
@@ -548,6 +594,57 @@ export function createSolarSystem() {
                 arrows.push({ text: `← ${label}`, x: 14, y: Math.max(20, Math.min(h - 84, sun.y + Math.sign(dy || 1) * h * 0.44)), align: "left", detail: voyagerDetail(c) });
             }
         }
+
+        // the camera (only in the view: anywhere else, and on the way in or out, the whole of it)
+        cam.w = w;
+        cam.h = h;
+        const ew = earth ? { x: (earth as Placed).x, y: (earth as Placed).y } : null;
+        if (e < 1) Object.assign(cam, { tz: 1, tox: 0, toy: 0, follow: false });
+        if (cam.follow && ew) {
+            cam.tox = w / 2 - ew.x * cam.tz;
+            cam.toy = h / 2 - ew.y * cam.tz;
+        }
+        clampCam();
+        const ease = 0.2;
+        cam.z += (cam.tz - cam.z) * ease;
+        cam.ox += (cam.tox - cam.ox) * ease;
+        cam.oy += (cam.toy - cam.oy) * ease;
+        if (Math.abs(cam.z - cam.tz) < 1e-4 && Math.abs(cam.ox - cam.tox) < 0.05 && Math.abs(cam.oy - cam.toy) < 0.05) Object.assign(cam, { z: cam.tz, ox: cam.tox, oy: cam.toy });
+        if (cam.z < 1.001 && Math.abs(cam.ox) < 0.5 && Math.abs(cam.oy) < 0.5) return sun;
+        const z = cam.z;
+        const k = Math.sqrt(z);
+        const T = (x: number, y: number) => ({ x: x * z + cam.ox, y: y * z + cam.oy });
+        const sunT: SunPlace = { ...sun, ...T(sun.x, sun.y), r: sun.r * k };
+        const eT = ew ? T(ew.x, ew.y) : null;
+        // (round the Earth, kept close to it: their gaps grow as sizes do)
+        const nearEarth = (p: Placed) => {
+            if (!ew || !eT) return;
+            p.x = eT.x + (p.x - ew.x) * k;
+            p.y = eT.y + (p.y - ew.y) * k;
+        };
+        for (const p of placed) {
+            const q = T(p.x, p.y);
+            p.x = q.x;
+            p.y = q.y;
+            p.r *= k;
+        }
+        for (const d of dots) {
+            if (d.spec.name === "Parker Solar Probe") Object.assign(d, T(d.x, d.y));
+            else nearEarth(d);
+        }
+        if (moon) {
+            nearEarth(moon);
+            moon.r *= k;
+        }
+        orbits = orbits.map((o) => ({ a: o.a * z, b: o.b * z }));
+        if (plutoPath) plutoPath = plutoPath.map((q) => ({ ...q, ...T(q.x, q.y) }));
+        // what's in view now, closer in
+        for (const p of [...placed, ...dots.filter((d) => d.spec.name === "Parker Solar Probe")])
+            p.hidden = inView(p.x, p.y, p.depth, p.r, w, h, sunT) ? null : p.depth < 0 && Math.hypot(p.x - sunT.x, p.y - sunT.y) < sunT.r + p.r * 0.5 ? "sun" : "off";
+        // (the Voyagers' arrows are for the whole view)
+        arrows = [];
+        sunAt = sunT;
+        return sunT;
     };
     let dots: Placed[] = [];
 
@@ -616,11 +713,27 @@ export function createSolarSystem() {
         c.save();
         c.globalAlpha = fade;
         c.lineWidth = 1;
-        for (const o of orbits) {
+        orbits.forEach((o, i) => {
+            // (Pluto's is drawn as it really is, below)
+            if (i === PLANETS.length - 1 && plutoPath) return;
             c.strokeStyle = half === "back" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.08)";
+            // (with Pluto inside it, Neptune's ring shows, so the crossing does)
+            if (plutoInside && i === PLANETS.length - 2) c.strokeStyle = half === "back" ? "rgba(147,197,253,0.18)" : "rgba(147,197,253,0.32)";
             c.beginPath();
-            if (half === "back") c.ellipse(sunAt.x, sunAt.y, o.a, o.b, 0, Math.PI, TWO_PI);
-            else c.ellipse(sunAt.x, sunAt.y, o.a, o.b, 0, 0, Math.PI);
+            if (half === "back") c.ellipse(sunAt!.x, sunAt!.y, o.a, o.b, 0, Math.PI, TWO_PI);
+            else c.ellipse(sunAt!.x, sunAt!.y, o.a, o.b, 0, 0, Math.PI);
+            c.stroke();
+        });
+        if (plutoPath) {
+            c.strokeStyle = plutoInside ? (half === "back" ? "rgba(196,181,253,0.22)" : "rgba(196,181,253,0.4)") : half === "back" ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.08)";
+            c.beginPath();
+            const path = plutoPath;
+            path.forEach((q, n) => {
+                const next = path[(n + 1) % path.length];
+                if ((q.depth + next.depth) / 2 >= 0 !== (half === "front")) return;
+                c.moveTo(q.x, q.y);
+                c.lineTo(next.x, next.y);
+            });
             c.stroke();
         }
         c.restore();
@@ -646,7 +759,7 @@ export function createSolarSystem() {
             x = cx + (x - cx) * implode;
             y = cy + (y - cy) * implode;
             if (x < -4 || y < -4 || x > w + 4 || y > h + 4) continue;
-            const sz = k.s * size;
+            const sz = k.s * size * Math.pow(cam.z, 0.3);
             // (fainter on the far side, as if farther off)
             c.globalAlpha = fade * skyE * k.lum * (k.kuiper ? 0.6 : 1) * (front ? 1 : 0.75);
             if (sz > 2.2) c.drawImage(rockSprites[(k.a0 * 7) & 3], x - sz, y - sz, sz * 2, sz * 2);
@@ -766,7 +879,8 @@ export function createSolarSystem() {
             };
             // out of view: a marker at the Sun's rim, or at the edge it went past
             const marker = (p: Placed, k = 1) => {
-                if (lastImplode < 1 || !sunAt || k <= 0.02) return;
+                // (zoomed in, whatever's off the screen goes unmarked: it'd crowd the edges)
+                if (lastImplode < 1 || !sunAt || k <= 0.02 || (cam.z > 1.05 && p.hidden === "off")) return;
                 if (p.hidden === "sun") {
                     // just outside the Sun's visible edge, at its height
                     const my = Math.max(16, Math.min(h - 10, p.y));
@@ -822,7 +936,7 @@ export function createSolarSystem() {
                     } else marker(p, others);
                     continue;
                 }
-                const name = p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name === "Pluto" ? "Pluto · dwarf planet" : p.spec.name;
+                const name = p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name === "Pluto" ? (plutoInside ? "Pluto · inside Neptune's orbit" : "Pluto · dwarf planet") : p.spec.name;
                 // (one whirling round faster than 200° a second in the time-lapse goes unnamed
                 // meanwhile: no label could keep up with it; it fades back in as time slows)
                 if (!hovered && p.spec.name !== "Earth" && (sim.pace * 360) / (YEAR_DAYS[p.spec.name] ?? Infinity) > 200) {
@@ -843,9 +957,11 @@ export function createSolarSystem() {
                 );
                 if (!at) continue;
                 const { x: lx, y: ly, align } = at;
-                c.textAlign = align;
+                // (kept on the screen, moved in from an edge it'd run past)
+                const onScreen = fit(name, at);
+                c.textAlign = "left";
                 c.fillStyle = hovered ? "rgba(226,232,240,0.95)" : `rgba(226,232,240,${0.45 * at.alpha * others})`;
-                c.fillText(name, lx, ly);
+                c.fillText(name, onScreen.x, onScreen.y);
                 if (hovered && p.fromEarthAu !== null) {
                     const mins = (p.fromEarthAu * 499.005) / 60;
                     c.fillStyle = "rgba(148,163,184,0.95)";
@@ -977,6 +1093,36 @@ export function createSolarSystem() {
         /** The date shown, whether it's now (real time), and the pace (days a second). */
         simNow() {
             return { date: new Date(Date.now() + sim.days * 86_400_000), now: sim.days === 0, rate: sim.toNow ? 0 : sim.rate, toNow: sim.toNow };
+        },
+        /** Zoom by `f` toward a point on the screen (the view only; between the whole view and 12 times). */
+        zoomAt(px: number, py: number, f: number) {
+            if (skyE < 1) return;
+            const tz = Math.max(1, Math.min(MAX_ZOOM, cam.tz * f));
+            if (!cam.follow) {
+                cam.tox = px - (px - cam.tox) * (tz / cam.tz);
+                cam.toy = py - (py - cam.toy) * (tz / cam.tz);
+            }
+            cam.tz = tz;
+            if (tz <= 1) cam.follow = false;
+            clampCam();
+        },
+        /** Fly in close to the Earth and follow it, or back out to the whole view. */
+        zoomTo(where: "earth" | "whole") {
+            if (skyE < 1 && where === "earth") return;
+            if (where === "earth") Object.assign(cam, { tz: 8, follow: true });
+            else Object.assign(cam, { tz: 1, tox: 0, toy: 0, follow: false });
+        },
+        /** Drag the zoomed view along (stops following the Earth). */
+        panBy(dx: number, dy: number) {
+            if (cam.tz <= 1) return;
+            cam.follow = false;
+            cam.tox += dx;
+            cam.toy += dy;
+            clampCam();
+        },
+        /** How far in the view is zoomed (1, the whole of it), and whether it's following the Earth. */
+        zoomNow() {
+            return { z: cam.tz, follow: cam.follow };
         },
         /** The page's text on the screen now (its boxes, in canvas pixels), for the labels to keep off. */
         keepClear(boxes: Box[]) {

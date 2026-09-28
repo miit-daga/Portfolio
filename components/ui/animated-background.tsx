@@ -387,7 +387,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   // The canvas is pointer-transparent, so hit-test window clicks by position.
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (issPausedRef.current) return
+      if (issPausedRef.current || skyDraggedRef.current) return
       const target = e.target as Element | null
       // Ignore interactive elements, the hero, and all clicks while Defense Mode is live
       if (target?.closest("a, button, input, textarea, select, [role='button'], [data-defense-mode], [data-hero]")) return
@@ -431,6 +431,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   // handler, registered first, has had its chance at the click)
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
+      // (a drag across the zoomed view isn't a click)
+      if (skyDraggedRef.current) {
+        skyDraggedRef.current = false
+        return
+      }
       if (issPausedRef.current || bodyModalRef.current) return
       const target = e.target as Element | null
       if (target?.closest("a, button, input, textarea, select, label, img, svg, p, h1, h2, h3, h4, h5, h6, li, [role='button'], [role='dialog'], [data-defense-mode], [data-hero]")) return
@@ -450,6 +455,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   // "solar-system-view" event); Escape or "Back to the page" returns
   const [skyView, setSkyView] = useState(false)
   const skyViewRef = useRef(false)
+  // a drag just ended (panning the zoomed view), so its click opens nothing
+  const skyDraggedRef = useRef(false)
+  const [skyZoom, setSkyZoom] = useState({ z: 1, follow: false })
   skyViewRef.current = skyView
   useEffect(() => {
     const onToggle = () => setSkyView((v) => !v)
@@ -477,6 +485,80 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   useEffect(() => {
     if (isImploding) setSkyView(false)
   }, [isImploding])
+  // zooming and panning the view: the wheel (or a trackpad's pinch), a pinch on a phone,
+  // dragging, and + − 0 on the keyboard
+  useEffect(() => {
+    if (!skyView) return
+    const solar = () => solarRef.current
+    const onUi = (t: EventTarget | null) => !!(t as Element | null)?.closest?.("a, button, input, [role='dialog']")
+    const onWheel = (e: WheelEvent) => {
+      if (onUi(e.target) || document.querySelector("[role='dialog']")) return
+      e.preventDefault()
+      solar()?.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)))
+    }
+    let drag: { x: number; y: number; moved: number; id: number } | null = null
+    const onDown = (e: PointerEvent) => {
+      if (onUi(e.target) || !e.isPrimary) return
+      drag = { x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId }
+    }
+    const onMove = (e: PointerEvent) => {
+      if (!drag || e.pointerId !== drag.id || pinch) return
+      const dx = e.clientX - drag.x
+      const dy = e.clientY - drag.y
+      drag.moved += Math.abs(dx) + Math.abs(dy)
+      drag.x = e.clientX
+      drag.y = e.clientY
+      if (drag.moved > 5) solar()?.panBy(dx, dy)
+    }
+    const onUp = () => {
+      if (drag && drag.moved > 5 && (solar()?.zoomNow().z ?? 1) > 1) skyDraggedRef.current = true
+      drag = null
+      window.setTimeout(() => (skyDraggedRef.current = false), 0)
+    }
+    let pinch: { d: number } | null = null
+    const spread = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY)
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) pinch = { d: spread(e.touches) }
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pinch || e.touches.length !== 2) return
+      e.preventDefault()
+      const d = spread(e.touches)
+      solar()?.zoomAt((e.touches[0].clientX + e.touches[1].clientX) / 2, (e.touches[0].clientY + e.touches[1].clientY) / 2, d / pinch.d)
+      pinch.d = d
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) pinch = null
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector("[role='dialog']")) return
+      const w = window.innerWidth / 2
+      const h = window.innerHeight / 2
+      if (e.key === "+" || e.key === "=") solar()?.zoomAt(w, h, 1.5)
+      else if (e.key === "-" || e.key === "_") solar()?.zoomAt(w, h, 1 / 1.5)
+      else if (e.key === "0") solar()?.zoomTo("whole")
+    }
+    window.addEventListener("wheel", onWheel, { passive: false })
+    window.addEventListener("pointerdown", onDown)
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+    window.addEventListener("pointercancel", onUp)
+    window.addEventListener("touchstart", onTouchStart, { passive: true })
+    window.addEventListener("touchmove", onTouchMove, { passive: false })
+    window.addEventListener("touchend", onTouchEnd)
+    window.addEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("wheel", onWheel)
+      window.removeEventListener("pointerdown", onDown)
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+      window.removeEventListener("pointercancel", onUp)
+      window.removeEventListener("touchstart", onTouchStart)
+      window.removeEventListener("touchmove", onTouchMove)
+      window.removeEventListener("touchend", onTouchEnd)
+      window.removeEventListener("keydown", onKey)
+    }
+  }, [skyView])
   // time in the view: real time, or back in the past (a reverse time-lapse); read a few times a second for the clock
   const [skyTime, setSkyTime] = useState<{ date: Date; now: boolean; rate: number; toNow: boolean } | null>(null)
   useEffect(() => {
@@ -487,7 +569,12 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       return
     }
     solar?.timeLapse(0)
-    const read = () => solarRef.current && setSkyTime(solarRef.current.simNow())
+    const read = () => {
+      if (!solarRef.current) return
+      setSkyTime(solarRef.current.simNow())
+      const z = solarRef.current.zoomNow()
+      setSkyZoom((o) => (o.z === z.z && o.follow === z.follow ? o : z))
+    }
     read()
     const id = window.setInterval(read, 100)
     return () => window.clearInterval(id)
@@ -676,7 +763,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       sunDisc ??= renderSunDisc(768, "fire")
       if (skyE < 1) c.drawImage(sunDisc, x - r, y - r, r * 2, r * 2)
       // in the solar system view, its real map, turning (faded in over the drawn one as it arrives)
-      if (skyE > 0) solar.drawSun(c, x, y, r, performance.now(), skyE, sunCentre(c.canvas.width, c.canvas.height).r)
+      // (painted at its size in the view, or finer when zoomed in, in steps, so not at every size)
+      const base = sunCentre(c.canvas.width, c.canvas.height).r
+      if (skyE > 0) solar.drawSun(c, x, y, r, performance.now(), skyE, r > base * 1.05 ? Math.min(360, Math.ceil(r / 40) * 40) : base)
       // and a bright rim of light just inside the limb, where it glows
       c.globalCompositeOperation = "lighter"
       c.globalAlpha = 1
@@ -949,10 +1038,11 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       if (sunNow) lastSun = sunNow
       // the solar system round it: the far side, then the Sun, then the near side
       implode = isImploding ? implode * 0.96 : 1
-      solar.layout(canvas.width, canvas.height, lastSun, mouseRef.current, implode, { e: skyE, left: sunLeft(canvas.width, canvas.height), centre: sunCentre(canvas.width, canvas.height) })
+      // (the Sun where the view's camera puts it, zoomed in)
+      const sunSeen = solar.layout(canvas.width, canvas.height, lastSun, mouseRef.current, implode, { e: skyE, left: sunLeft(canvas.width, canvas.height), centre: sunCentre(canvas.width, canvas.height) })
       const tNow = performance.now()
       solar.drawBack(bgCtx, tNow)
-      if (sunNow) drawSun(bgCtx, sunNow)
+      if (sunNow) drawSun(bgCtx, { ...sunNow, x: sunSeen.x, y: sunSeen.y, r: sunSeen.r })
       const fine = mouseRef.current.x !== 0 || mouseRef.current.y !== 0
       solar.drawFront(bgCtx, tNow, fine && !isImploding && !overHero ? { x: (mouseRef.current.x + 0.5) * canvas.width, y: (mouseRef.current.y + 0.5) * canvas.height } : null)
 
@@ -1282,6 +1372,39 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
             >
               ← Back to the page
             </button>
+            {/* zoom: in, out, close to the Earth, and back to the whole of it */}
+            <div data-sky-view-avoid className="absolute right-4 top-4 flex items-center gap-1.5">
+              {[
+                { key: "out", label: "−", aria: "Zoom out", off: skyZoom.z <= 1, go: () => solarRef.current?.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.5) },
+                { key: "in", label: "+", aria: "Zoom in", off: skyZoom.z >= 12, go: () => solarRef.current?.zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.5) },
+              ].map((b) => (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={b.go}
+                  disabled={b.off}
+                  aria-label={b.aria}
+                  className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-950/70 font-mono text-base text-neutral-200 backdrop-blur-md transition-colors hover:border-white/30 disabled:opacity-35 disabled:hover:border-white/15"
+                >
+                  {b.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => solarRef.current?.zoomTo(skyZoom.follow ? "whole" : "earth")}
+                className={cn(
+                  "pointer-events-auto rounded-full border px-3 py-1.5 font-mono text-[11px] backdrop-blur-md transition-colors sm:text-[10px]",
+                  skyZoom.follow ? "border-teal-300/60 bg-teal-300/15 text-teal-100" : "border-white/15 bg-neutral-950/70 text-neutral-200 hover:border-white/30",
+                )}
+              >
+                {skyZoom.follow ? "Whole view" : "Fly to Earth"}
+              </button>
+              {!skyZoom.follow && skyZoom.z > 1 && (
+                <button type="button" onClick={() => solarRef.current?.zoomTo("whole")} className="pointer-events-auto rounded-full border border-white/15 bg-neutral-950/70 px-3 py-1.5 font-mono text-[11px] text-neutral-200 backdrop-blur-md hover:border-white/30 sm:text-[10px]">
+                  Whole view
+                </button>
+              )}
+            </div>
             <div data-sky-view-avoid className="absolute inset-x-0 top-16 px-4 text-center sm:top-5">
               <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300/85 sm:text-[10px]">
                 {!skyTime || skyTime.now ? "The solar system, right now" : "The solar system, back in time"}
