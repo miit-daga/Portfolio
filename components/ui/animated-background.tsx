@@ -1444,6 +1444,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
                 { label: "a week a second", short: "week/s", rate: -7 },
                 { label: "a month a second", short: "month/s", rate: -30.44 },
                 { label: "a year a second", short: "year/s", rate: -365.25 },
+                { label: "a century a second", short: "century/s", rate: -36525 },
               ].map((o) => (
                 <button
                   key={o.rate}

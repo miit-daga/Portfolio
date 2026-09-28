@@ -948,7 +948,8 @@ export function createSolarSystem() {
                 const name = p.spec.name === "Earth" ? "Earth · you are here" : p.spec.name === "Pluto" ? (plutoInside ? "Pluto · inside Neptune's orbit" : "Pluto · dwarf planet") : p.spec.name;
                 // (one whirling round faster than 200° a second in the time-lapse goes unnamed
                 // meanwhile: no label could keep up with it; it fades back in as time slows)
-                if (!hovered && p.spec.name !== "Earth" && (sim.pace * 360) / (YEAR_DAYS[p.spec.name] ?? Infinity) > 200) {
+                // (the Earth's kept longer, as "you are here", until even it whirls round too fast to follow)
+                if (!hovered && (sim.pace * 360) / (YEAR_DAYS[p.spec.name] ?? Infinity) > (p.spec.name === "Earth" ? 2000 : 200)) {
                     const kept = labelMemo.get(p.spec.name);
                     if (kept) kept.a = 0;
                     continue;
