@@ -327,6 +327,9 @@ export function createSolarSystem() {
         const hours = (p.au * 499.005) / 3600;
         return `${km} km from the Sun right now${p.away ? `, ${p.away.toFixed(1)} km farther every second` : ""} · its signal takes about ${Math.floor(hours)} h ${Math.round((hours % 1) * 60)} min to reach us · launched ${c.name === "Voyager 1" ? "5 Sep 1977" : "20 Aug 1977"}`;
     };
+    // where each Voyager's words were drawn last frame, to point at them by (after any nudge
+    // out of another label's way)
+    const arrowBoxes = new Map<string, Box>();
     // with one thing pointed at, the rest of the labels fade away (0 to 1)
     let focusFade = 0;
     // where each label went last frame (its spot, and how far faded in), so it stays put
@@ -789,8 +792,14 @@ export function createSolarSystem() {
                     if (q.dot && !q.hidden && d < 10 && d < best) [best, focus] = [d, q.spec.name];
                 }
                 if (!focus)
-                    for (const a of arrows)
-                        if (Math.abs(pointer.y - a.y) < 10 && (a.align === "left" ? pointer.x > a.x - 6 && pointer.x < a.x + 320 : pointer.x < a.x + 6 && pointer.x > a.x - 320)) focus = `arrow:${a.text}`;
+                    for (const a of arrows) {
+                        // (on its words, as drawn, with a little give)
+                        const b = arrowBoxes.get(a.text);
+                        const on = b
+                            ? pointer.x > b.x - 6 && pointer.x < b.x + b.w + 6 && pointer.y > b.y - 5 && pointer.y < b.y + b.h + 5
+                            : Math.abs(pointer.y - a.y) < 10 && (a.align === "left" ? pointer.x > a.x - 6 && pointer.x < a.x + 320 : pointer.x < a.x + 6 && pointer.x > a.x - 320);
+                        if (on) focus = `arrow:${a.text}`;
+                    }
             }
             focusFade = focus ? Math.min(1, focusFade + 0.15) : Math.max(0, focusFade - 0.1);
             const others = 1 - focusFade;
@@ -867,6 +876,8 @@ export function createSolarSystem() {
                     if (!near && others <= 0.02) continue;
                     const step = a.y > h / 2 ? -14 : 14;
                     const { y } = spot(`arrow:${a.text}`, a.text, [0, 1, 2, 3, 4].map((k) => ({ x: a.x, y: a.y + k * step, align: a.align })), true);
+                    const aw = c.measureText(a.text).width;
+                    arrowBoxes.set(a.text, { x: a.align === "right" ? a.x - aw : a.x, y: y - 11, w: aw, h: 15 });
                     // its direction: a dotted line from the Sun's edge out toward it, stopping short of
                     // the words (so two Voyagers read as two ways, not two stray labels)
                     if (a.ray && sunAt) {
