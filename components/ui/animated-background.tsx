@@ -440,6 +440,54 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
   }, [])
   const bodyModalRef = useRef(false)
   bodyModalRef.current = bodyModal !== null
+
+  // The solar system view: the page fades away and the whole solar system opens out
+  // round the Sun in the middle (the button on the left edge, or the command menu's
+  // "solar-system-view" event); Escape or "Back to the page" returns
+  const [skyView, setSkyView] = useState(false)
+  const skyViewRef = useRef(false)
+  skyViewRef.current = skyView
+  useEffect(() => {
+    const onToggle = () => setSkyView((v) => !v)
+    window.addEventListener("solar-system-view", onToggle)
+    return () => window.removeEventListener("solar-system-view", onToggle)
+  }, [])
+  useEffect(() => {
+    if (!skyView) return
+    // (the page underneath doesn't scroll meanwhile; Escape closes a fact first, then the view)
+    const html = document.documentElement
+    const was = html.style.overflow
+    html.style.overflow = "hidden"
+    html.dataset.solarView = "1"
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || bodyModalRef.current || issPausedRef.current) return
+      setSkyView(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => {
+      html.style.overflow = was
+      delete html.dataset.solarView
+      window.removeEventListener("keydown", onKey)
+    }
+  }, [skyView])
+  useEffect(() => {
+    if (isImploding) setSkyView(false)
+  }, [isImploding])
+  // time in the view: real time, or back in the past (a reverse time-lapse); read a few times a second for the clock
+  const [skyTime, setSkyTime] = useState<{ date: Date; now: boolean; rate: number; toNow: boolean } | null>(null)
+  useEffect(() => {
+    const solar = solarRef.current
+    if (!skyView) {
+      // (leaving: back to now, replayed forward as the Sun goes home)
+      solar?.toNow()
+      return
+    }
+    solar?.timeLapse(0)
+    const read = () => solarRef.current && setSkyTime(solarRef.current.simNow())
+    read()
+    const id = window.setInterval(read, 100)
+    return () => window.clearInterval(id)
+  }, [skyView])
   useEffect(() => {
     if (!bodyModal) return
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setBodyModal(null)
@@ -540,7 +588,7 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     // its disc, drawn once, the first time it's up (granulation, limb darkening; lib/sun-disc.ts), then scaled
     let sunDisc: HTMLCanvasElement | null = null
     void sunPhase
-    const sunAt = (w: number, h: number) => {
+    const sunLeft = (w: number, h: number) => {
       const r = Math.min(h * 0.42, w * 0.34)
       return {
         r,
@@ -550,12 +598,37 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         low: 0,
       }
     }
+    // in the solar system view: smaller, in the middle of the screen
+    const sunCentre = (w: number, h: number) => ({
+      r: Math.max(34, Math.min(w * 0.085, h * 0.16)),
+      x: w * 0.5 + mouseRef.current.x * 8,
+      y: h * 0.5 + mouseRef.current.y * 8,
+      low: 0,
+    })
+    // how far into the view (0 to 1, eased), stepped along each frame toward the button's choice
+    let skyP = skyViewRef.current ? 1 : 0
+    let skyE = skyP
+    let skyLast = performance.now()
+    const stepSky = () => {
+      const now = performance.now()
+      const goal = skyViewRef.current ? 1 : 0
+      skyP += Math.sign(goal - skyP) * Math.min(Math.abs(goal - skyP), (now - skyLast) / 1400)
+      skyLast = now
+      skyE = skyP * skyP * (3 - 2 * skyP)
+    }
+    const sunAt = (w: number, h: number) => {
+      const a = sunLeft(w, h)
+      if (skyE <= 0) return a
+      const b = sunCentre(w, h)
+      return { r: a.r + (b.r - a.r) * skyE, x: a.x + (b.x - a.x) * skyE, y: a.y + (b.y - a.y) * skyE, low: 0 }
+    }
     const solar = createSolarSystem()
     solarRef.current = solar
     // the page's text its labels should keep off (marked data-sky-avoid), a few times a second as it scrolls
     const keepClear = () =>
       solar.keepClear(
-        [...document.querySelectorAll<HTMLElement>("[data-sky-avoid]")]
+        // (in the solar system view, the page is hidden: its own words instead)
+        [...document.querySelectorAll<HTMLElement>(skyViewRef.current ? "[data-sky-view-avoid]" : "[data-sky-avoid]")]
           .map((el) => {
             // (the text itself, not the whole width of its box)
             const r = document.createRange()
@@ -587,7 +660,9 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       // (opaque, so the planets behind it are hidden)
       c.globalAlpha = 1
       sunDisc ??= renderSunDisc(768, "fire")
-      c.drawImage(sunDisc, x - r, y - r, r * 2, r * 2)
+      if (skyE < 1) c.drawImage(sunDisc, x - r, y - r, r * 2, r * 2)
+      // in the solar system view, its real map, turning (faded in over the drawn one as it arrives)
+      if (skyE > 0) solar.drawSun(c, x, y, r, performance.now(), skyE, sunCentre(c.canvas.width, c.canvas.height).r)
       // and a bright rim of light just inside the limb, where it glows
       c.globalCompositeOperation = "lighter"
       c.globalAlpha = 1
@@ -855,11 +930,12 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       }
 
       // 0. The Sun, by day (behind the planets)
+      stepSky()
       const sunNow = isImploding ? null : sunAt(canvas.width, canvas.height)
       if (sunNow) lastSun = sunNow
       // the solar system round it: the far side, then the Sun, then the near side
       implode = isImploding ? implode * 0.96 : 1
-      solar.layout(canvas.width, canvas.height, lastSun, mouseRef.current, implode)
+      solar.layout(canvas.width, canvas.height, lastSun, mouseRef.current, implode, { e: skyE, left: sunLeft(canvas.width, canvas.height), centre: sunCentre(canvas.width, canvas.height) })
       const tNow = performance.now()
       solar.drawBack(bgCtx, tNow)
       if (sunNow) drawSun(bgCtx, sunNow)
@@ -1145,7 +1221,108 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
         ref={canvasRef}
         style={{ position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", pointerEvents: "none", zIndex: -1 }}
       />
-      <div className="relative z-10">{children}</div>
+      {/* the page: faded away in the solar system view (back only once the Sun is nearly home) */}
+      <div
+        className={cn("relative z-10 transition-opacity", skyView ? "pointer-events-none opacity-0 duration-500" : "opacity-100 delay-700 duration-700")}
+        aria-hidden={skyView || undefined}
+      >
+        {children}
+      </div>
+
+      {/* into the solar system view: a small Sun on the half-Sun, its name on hover */}
+      {!isImploding && (
+        <button
+          type="button"
+          onClick={() => setSkyView(true)}
+          aria-label="See the solar system"
+          className={cn(
+            "group fixed left-3 top-1/2 z-40 flex -translate-y-1/2 items-center rounded-full border border-amber-300/30 bg-neutral-950/70 p-2 text-amber-200 shadow-[0_0_18px_rgba(251,146,60,0.25)] backdrop-blur-md transition-all duration-500 hover:border-amber-300/60 hover:text-amber-100",
+            skyView ? "pointer-events-none opacity-0" : "opacity-100 delay-700",
+          )}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+            <circle cx="12" cy="12" r="4.2" fill="currentColor" fillOpacity="0.25" />
+            <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" />
+          </svg>
+          <span className="max-w-0 overflow-hidden whitespace-nowrap text-xs font-medium transition-all duration-300 group-hover:ml-2 group-hover:mr-1 group-hover:max-w-[12rem] group-focus-visible:ml-2 group-focus-visible:mr-1 group-focus-visible:max-w-[12rem]">
+            See the solar system
+          </span>
+        </button>
+      )}
+
+      {/* the solar system view's own words and way back */}
+      <AnimatePresence>
+        {skyView && (
+          <motion.div
+            key="sky-view"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.6, delay: 0.9 } }}
+            exit={{ opacity: 0, transition: { duration: 0.3 } }}
+            className="pointer-events-none fixed inset-0 z-40"
+          >
+            <button
+              type="button"
+              onClick={() => setSkyView(false)}
+              className="pointer-events-auto absolute left-4 top-4 rounded-full border border-white/15 bg-neutral-950/70 px-4 py-2 text-sm text-neutral-200 backdrop-blur-md transition-colors hover:border-white/30 hover:text-white"
+            >
+              ← Back to the page
+            </button>
+            <div data-sky-view-avoid className="absolute inset-x-0 top-16 px-4 text-center sm:top-5">
+              <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300/85 sm:text-[10px]">
+                {!skyTime || skyTime.now ? "The solar system, right now" : "The solar system, back in time"}
+              </p>
+              <p className="mt-1 flex items-center justify-center gap-2 text-sm tabular-nums text-neutral-300">
+                {!skyTime || skyTime.now ? (
+                  <>
+                    <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400 motion-reduce:animate-none" />
+                    {(skyTime?.date ?? new Date()).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })} ·{" "}
+                    {(skyTime?.date ?? new Date()).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </>
+                ) : (
+                  skyTime.date.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+                )}
+              </p>
+            </div>
+            {/* back in time: a reverse time-lapse, never ahead of now */}
+            <div data-sky-view-avoid className="absolute inset-x-0 bottom-14 flex flex-wrap items-center justify-center gap-1.5 px-4 sm:bottom-12">
+              <span className="mr-1 font-mono text-[10px] uppercase tracking-[0.2em] text-neutral-500">Rewind</span>
+              {[
+                { label: "a week a second", short: "week/s", rate: -7 },
+                { label: "a month a second", short: "month/s", rate: -30.44 },
+                { label: "a year a second", short: "year/s", rate: -365.25 },
+              ].map((o) => (
+                <button
+                  key={o.rate}
+                  type="button"
+                  onClick={() => solarRef.current?.timeLapse(o.rate)}
+                  aria-pressed={skyTime?.rate === o.rate}
+                  className={cn(
+                    "pointer-events-auto rounded-full border px-3 py-1 font-mono text-[11px] transition-colors sm:text-[10px]",
+                    skyTime?.rate === o.rate ? "border-amber-300/60 bg-amber-300/15 text-amber-100" : "border-white/15 bg-neutral-950/60 text-neutral-300 hover:border-white/30",
+                  )}
+                >
+                  ⏪ <span className="sm:hidden">{o.short}</span>
+                  <span className="hidden sm:inline">{o.label}</span>
+                </button>
+              ))}
+              {skyTime && skyTime.rate < 0 && (
+                <button type="button" onClick={() => solarRef.current?.timeLapse(0)} className="pointer-events-auto rounded-full border border-white/15 bg-neutral-950/60 px-3 py-1 font-mono text-[11px] text-neutral-300 hover:border-white/30 sm:text-[10px]">
+                  ⏸ pause
+                </button>
+              )}
+              {skyTime && !skyTime.now && !skyTime.toNow && (
+                <button type="button" onClick={() => solarRef.current?.toNow()} className="pointer-events-auto rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1 font-mono text-[11px] text-emerald-200 hover:border-emerald-400/70 sm:text-[10px]">
+                  Back to now →
+                </button>
+              )}
+            </div>
+            <p data-sky-view-avoid className="absolute inset-x-0 bottom-5 px-4 text-center font-mono text-[11px] uppercase tracking-[0.15em] text-neutral-500 sm:text-[10px]">
+              <span className="sm:hidden">Real positions, in real time · not to scale · tap one for a fact</span>
+              <span className="hidden sm:inline">Every planet where it really is, moving at its real pace · seen from above, distances not to scale · hover for more, click for a fact · Esc to go back</span>
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ISS interruption modal (the station holds position while it's open) */}
       <AnimatePresence>

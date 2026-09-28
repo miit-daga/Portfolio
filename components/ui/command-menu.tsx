@@ -492,6 +492,9 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 <Item value="poke the saucer ufo ship contact" icon={<IconUfo />} hint="the crew will not like it" onSelect={() => runCommand(() => jumpThen("#contact", "[data-signal-ufo]", (el) => el.click()))}>
                                                     Poke the saucer
                                                 </Item>
+                                                <Item value="view the solar system planets sun orbits today" icon={<IconSun />} hint="where every planet is today" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("solar-system-view")))}>
+                                                    View the solar system
+                                                </Item>
                                                 <Item value="hail the iss space station satellite" icon={<IconSatellite />} hint="live from orbit" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("iss-hail")))}>
                                                     Hail the ISS
                                                 </Item>

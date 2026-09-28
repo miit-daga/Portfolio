@@ -813,7 +813,8 @@ export const FloatingNav = ({
   // Only render via portal once mounted to avoid hydration mismatch
   if (!mounted) return null;
 
-  return createPortal(navContent, document.body);
+  // (in a wrapper the solar system view can hide: it's outside the page, in the body)
+  return createPortal(<div data-hide-in-solar-view>{navContent}</div>, document.body);
 };
 
 // Kolkata's hour, for the phone menu's header

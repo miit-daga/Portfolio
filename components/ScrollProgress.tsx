@@ -246,7 +246,8 @@ export const ScrollProgress = () => {
     }, []);
 
     return (
-        <>
+        // (hidden in the solar system view, with the page)
+        <div data-hide-in-solar-view>
         <div
             className={`fixed top-0 left-0 right-0 h-1.5 z-[6000] pointer-events-none transition-opacity duration-200 ${BAR_ONLY_WITHOUT_RAIL}`}
             style={{ opacity: menuOpen ? 0 : 1 }}
@@ -349,6 +350,6 @@ export const ScrollProgress = () => {
         {finaleActive && (
             <Finale key={`finale-${finaleKey}`} reduceMotion={!!shouldReduceMotion} onDone={handleFinaleDone} />
         )}
-        </>
+        </div>
     );
 };

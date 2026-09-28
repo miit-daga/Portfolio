@@ -378,3 +378,13 @@ html[data-mac] .enter-key-other { display: none; }
 /* Stack the Station: the glow of the radiation belts, and a meteor's streak */
 @keyframes arcade-glow { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes arcade-meteor { 0% { opacity: 0; transform: translate(0, 0) rotate(-30deg); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(-240px, 139px) rotate(-30deg); } }
+
+/* The solar system view (components/ui/animated-background.tsx): what's drawn
+   outside the page's own wrapper, as the navbar is, fades away with it */
+[data-hide-in-solar-view] {
+  transition: opacity 0.5s;
+}
+html[data-solar-view] [data-hide-in-solar-view] {
+  opacity: 0;
+  pointer-events: none;
+}
