@@ -345,6 +345,9 @@ const ISS_FACTS = [
   "It is visible to the naked eye and is the third-brightest object in the night sky.",
 ]
 
+/** How far the half-Sun is dimmed while reading (0 to 1), so what's over it reads. */
+const SUN_EMBER = 0.35
+
 /** A day as the date picker writes it (YYYY-MM-DD, in the visitor's own time zone): today, unless given one. */
 const todayIso = (d = new Date()) => `${String(d.getFullYear()).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 
@@ -756,12 +759,15 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
     let lastSun = sunAt(window.innerWidth, window.innerHeight)
     const drawSun = (c: CanvasRenderingContext2D, s: { x: number; y: number; r: number; low: number }) => {
       const { x, y, r, low } = s
+      // while reading, an ember: dimmed, so the page's words and colours read over it;
+      // full bright in the solar system view (brightening as the Sun glides in)
+      const ember = SUN_EMBER * (1 - skyE)
       c.save()
       // the corona: a wide, soft glow
       c.globalCompositeOperation = "lighter"
       const glow = c.createRadialGradient(x, y, r * 0.95, x, y, r * 2.3)
-      glow.addColorStop(0, `rgba(255, ${Math.round(160 - 50 * low)}, ${Math.round(60 - 40 * low)}, 0.38)`)
-      glow.addColorStop(0.3, `rgba(255, ${Math.round(120 - 40 * low)}, 30, 0.12)`)
+      glow.addColorStop(0, `rgba(255, ${Math.round(160 - 50 * low)}, ${Math.round(60 - 40 * low)}, ${0.38 * (1 - ember * 0.6)})`)
+      glow.addColorStop(0.3, `rgba(255, ${Math.round(120 - 40 * low)}, 30, ${0.12 * (1 - ember * 0.6)})`)
       glow.addColorStop(1, "rgba(255, 100, 30, 0)")
       c.fillStyle = glow
       c.beginPath()
@@ -789,6 +795,14 @@ export const AnimatedBackground = ({ children, className, isImploding = false }:
       c.arc(x, y, r * 1.02, 0, Math.PI * 2)
       c.fill()
       c.globalCompositeOperation = "source-over"
+      if (ember > 0.01) {
+        c.globalAlpha = ember
+        c.fillStyle = "rgb(8, 4, 2)"
+        c.beginPath()
+        c.arc(x, y, r + 0.5, 0, Math.PI * 2)
+        c.fill()
+        c.globalAlpha = 1
+      }
       // redder when low
       if (low > 0.05) {
         c.globalCompositeOperation = "multiply"
