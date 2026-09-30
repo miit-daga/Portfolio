@@ -53,14 +53,14 @@ const KEYWORDS: Record<string, Keyword> = {
   },
   ml: {
     title: "Published research",
-    detail: "quantum kernels, abstaining classifiers, anonymisation",
+    detail: "quantum kernels, blood cell staging, anonymisation",
     target: () => byText("#publications h4", "Quantum")?.closest(".group") ?? null,
     section: "publications",
   },
   "deep learning": {
     title: "Exploring it on the side",
-    detail: "AquaSelect put it to work on underwater species",
-    target: () => byText("#publications h4", "AquaSelect")?.closest(".group") ?? null,
+    detail: "HemoCline put it to work on blood cell maturation",
+    target: () => byText("#publications h4", "HemoCline")?.closest(".group") ?? null,
     section: "publications",
   },
 };

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
         url: "/resume",
         siteName: "Miit Daga",
         title: "Miit Daga · Resume",
-        description: "Resume of Miit Daga, Software Development Engineer: B.Tech IT at VIT, 10 Scopus-indexed papers and a patent.",
+        description: "Resume of Miit Daga, Software Development Engineer: B.Tech IT at VIT, 11 Scopus-indexed papers and a patent.",
     },
     twitter: {
         card: "summary_large_image",

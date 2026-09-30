@@ -13,7 +13,7 @@ import { motion, useInView, useReducedMotion } from "framer-motion";
 // They loop only while on screen. Reduced motion gets a still of the finished
 // state.
 
-export type VisualAbstractKind = "verix" | "quantum" | "aquaselect" | "patent";
+export type VisualAbstractKind = "verix" | "quantum" | "aquaselect" | "patent" | "hemocline";
 
 const VIOLET = "#a78bfa";
 const INDIGO = "#818cf8";
@@ -475,6 +475,235 @@ const PatentSvg = ({ play }: Props) => {
   );
 };
 
+/* -------------------------------------------------------------------------- */
+/* HemoCline: the gap that opens                                               */
+/* -------------------------------------------------------------------------- */
+
+// In a cumulative-link model an interior stage's probability can never pass
+// P_max(g) = 2σ(g/2) − 1, where g is the gap between its two thresholds. The
+// paper reports the optimizer widening the narrow gaps from 1.0 to 2.0 on its
+// own; the two ceilings drawn are that formula at those gaps, 2σ(0.5) − 1 =
+// 0.245 and 2σ(1) − 1 = 0.462. The hills are the model's actual interior
+// probabilities along the latent score, σ(θ_right − η) − σ(θ_left − η). At a
+// gap of 1.0 a cell sitting mid-stage is still more likely a neighbour, so the
+// rare ones are swallowed; at 2.0 the interior stage wins. How many dots fall
+// where is illustrative (the real imbalance is far steeper, 167:1).
+const HEMO_T = 10;
+const HEMO_WIDEN = [0, 0.35, 0.55, 0.92, 1];
+const HEMO_BASE = 96;
+const HEMO_UNIT = 40; // px per latent unit
+const HEMO_TALL = 100; // px per unit of probability
+const HEMO_THETA = [
+  { at: [110, 70], label: "θ1" },
+  { at: [150, 150], label: "θ2" },
+  { at: [190, 230], label: "θ3" },
+];
+const sigma = (z: number) => 1 / (1 + Math.exp(-z));
+const ceilingY = (gap: number) => HEMO_BASE - HEMO_TALL * (2 * sigma(gap / 2) - 1);
+
+const hill = (left: number, right: number) => {
+  const pts: string[] = [];
+  for (let x = 8; x <= 292; x += 4) {
+    const p = sigma((right - x) / HEMO_UNIT) - sigma((left - x) / HEMO_UNIT);
+    pts.push(`L${x} ${(HEMO_BASE - HEMO_TALL * p).toFixed(2)}`);
+  }
+  return `M8 ${HEMO_BASE} ${pts.join(" ")} L292 ${HEMO_BASE} Z`;
+};
+// Metamyelocyte between θ1 and θ2, band between θ2 and θ3; bunched, then widened
+const HILLS = [
+  [hill(110, 150), hill(70, 150)],
+  [hill(150, 190), hill(150, 230)],
+];
+
+type Dot = { t0: number; x: number; y: number; color: string; to?: { x: number; color: string } };
+// The segmented pile, bottom row first
+const PILE = [
+  ...Array.from({ length: 7 }, (_, i) => ({ x: 253 + i * 5.5, y: 93.5 })),
+  ...Array.from({ length: 5 }, (_, i) => ({ x: 255.75 + i * 5.5, y: 88.5 })),
+];
+const SEG_TIMES = [0.02, 0.06, 0.1, 0.17, 0.21, 0.28, 0.57, 0.61, 0.68, 0.72, 0.79, 0.86];
+const HEMO_DOTS: Dot[] = [
+  ...SEG_TIMES.map((t0, i) => ({ t0, ...PILE[i], color: AMBER })),
+  // Gap 1.0: heading for their own stage, taken by the neighbour
+  { t0: 0.13, x: 130, y: 94, color: EMERALD, to: { x: 94, color: LAVENDER } },
+  { t0: 0.24, x: 170, y: 94, color: EMERALD, to: { x: 206, color: AMBER } },
+  // Gap 2.0: they land
+  { t0: 0.64, x: 110, y: 93.5, color: EMERALD },
+  { t0: 0.75, x: 190, y: 93.5, color: EMERALD },
+];
+
+const HemoDot = ({ d, play }: { d: Dot; play: boolean }) => {
+  const fall = 0.06;
+  const top = 42;
+  if (!play) {
+    // The finished state: the pile, and the two that landed
+    if (d.to) return null;
+    return <circle cx={d.x} cy={d.y} r={d.color === EMERALD ? 2.6 : 2.2} fill={d.color} />;
+  }
+  const loop = { duration: HEMO_T, repeat: Infinity, ease: "linear" as const };
+  if (d.to) {
+    const times = [0, d.t0, d.t0 + 0.01, d.t0 + fall, d.t0 + fall + 0.04, d.t0 + fall + 0.09, 1];
+    return (
+      <motion.circle
+        r={2.4}
+        initial={{ cx: d.x, cy: top, opacity: 0, fill: d.color }}
+        animate={{
+          cx: [d.x, d.x, d.x, d.x, d.to.x, d.to.x, d.to.x],
+          cy: [top, top, top + (d.y - top) / 6, d.y, d.y, d.y, d.y],
+          opacity: [0, 0, 1, 1, 1, 0, 0],
+          fill: [d.color, d.color, d.color, d.color, d.to.color, d.to.color, d.to.color],
+        }}
+        transition={{ ...loop, times }}
+      />
+    );
+  }
+  const times = [0, d.t0, d.t0 + 0.01, d.t0 + fall, 0.93, 0.97, 1];
+  return (
+    <motion.circle
+      cx={d.x}
+      r={d.color === EMERALD ? 2.6 : 2.2}
+      fill={d.color}
+      initial={{ cy: top, opacity: 0 }}
+      animate={{
+        cy: [top, top, top + (d.y - top) / 6, d.y, d.y, d.y, d.y],
+        opacity: [0, 0, 1, 1, 1, 0, 0],
+      }}
+      transition={{ ...loop, times }}
+    />
+  );
+};
+
+// The nucleus as it really changes along the chain
+const arc = (r: number, from: number, to: number) => {
+  const p = (a: number) => `${(r * Math.cos((a * Math.PI) / 180)).toFixed(2)} ${(r * Math.sin((a * Math.PI) / 180)).toFixed(2)}`;
+  return `M${p(from)} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${p(to)}`;
+};
+const NUCLEI = [
+  { name: "MYELOCYTE", x: 40, draw: <circle cx={-0.8} cy={0.4} r={4.4} fill={VIOLET} /> },
+  { name: "METAMYELOCYTE", x: 110, draw: <path d={arc(2.6, 5, 175)} stroke={VIOLET} strokeWidth={4.4} strokeLinecap="round" fill="none" /> },
+  { name: "BAND", x: 190, draw: <path d={arc(4, -40, 220)} stroke={VIOLET} strokeWidth={2.3} strokeLinecap="round" fill="none" /> },
+  {
+    name: "SEGMENTED",
+    x: 260,
+    draw: (
+      <g fill={VIOLET} stroke={VIOLET}>
+        <path d="M-3.6 -1.4 L0 2.2 L3.6 -1.4" strokeWidth={0.7} fill="none" />
+        <circle cx={-3.6} cy={-1.4} r={2.3} />
+        <circle cx={0} cy={2.2} r={2.3} />
+        <circle cx={3.6} cy={-1.4} r={2.3} />
+      </g>
+    ),
+  },
+];
+
+const HemoSvg = ({ play }: Props) => {
+  const widen = (from: number, to: number) =>
+    play
+      ? { animate: [from, from, to, to, from], transition: { duration: HEMO_T, times: HEMO_WIDEN, repeat: Infinity, ease: "easeInOut" as const } }
+      : { animate: to, transition: { duration: 0 } };
+  const cell = widen(0.35, 1);
+  const ceilY = widen(ceilingY(1), ceilingY(2));
+  const ceilX = widen(170, 190);
+
+  return (
+    <g>
+      {/* The maturation chain */}
+      {NUCLEI.map((n, i) => {
+        const interior = i === 1 || i === 2;
+        return (
+          <motion.g
+            key={n.name}
+            initial={false}
+            animate={{ opacity: interior ? cell.animate : 1 }}
+            transition={interior ? cell.transition : { duration: 0 }}
+          >
+            <g transform={`translate(${n.x} 14)`}>
+              <circle r={9} fill="rgba(196,181,253,0.07)" stroke={LAVENDER} strokeOpacity={0.55} strokeWidth={0.6} />
+              {n.draw}
+            </g>
+            <text x={n.x} y={31} textAnchor="middle" fontSize="5.6" letterSpacing="0.3" fill={interior ? EMERALD : MUTED}>
+              {n.name}
+            </text>
+          </motion.g>
+        );
+      })}
+      {[75, 150, 225].map((x) => (
+        <path key={x} d={`M${x - 2} 11.5 L${x + 1} 14 L${x - 2} 16.5`} stroke={MUTED} strokeWidth={0.7} fill="none" />
+      ))}
+
+      {/* The interior stages' probability, capped by the gap. Its tails run
+          past the ends of the axis, so they fade out there. */}
+      <defs>
+        <linearGradient id="hemo-fade" x1="8" x2="292" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#fff" stopOpacity={0} />
+          <stop offset="0.16" stopColor="#fff" stopOpacity={1} />
+          <stop offset="0.84" stopColor="#fff" stopOpacity={1} />
+          <stop offset="1" stopColor="#fff" stopOpacity={0} />
+        </linearGradient>
+        <mask id="hemo-ends" maskUnits="userSpaceOnUse" x={0} y={0} width={300} height={120}>
+          <rect x={8} y={36} width={284} height={HEMO_BASE - 36} fill="url(#hemo-fade)" />
+        </mask>
+      </defs>
+      <g mask="url(#hemo-ends)">
+      {HILLS.map(([from, to], i) => (
+        <motion.path
+          key={i}
+          fill="rgba(167,139,250,0.16)"
+          stroke={VIOLET}
+          strokeWidth={0.8}
+          initial={false}
+          animate={{ d: play ? [from, from, to, to, from] : to }}
+          transition={cell.transition}
+        />
+      ))}
+      </g>
+      <motion.line
+        x1={36}
+        stroke={LAVENDER}
+        strokeOpacity={0.6}
+        strokeWidth={0.5}
+        strokeDasharray="1.5 1.5"
+        initial={false}
+        animate={{ y1: ceilY.animate, y2: ceilY.animate, x2: ceilX.animate }}
+        transition={ceilY.transition}
+      />
+      <motion.text
+        x={34}
+        textAnchor="end"
+        fontSize="5"
+        letterSpacing="0.3"
+        fill={LAVENDER}
+        initial={false}
+        animate={{ y: typeof ceilY.animate === "number" ? ceilY.animate + 1.8 : ceilY.animate.map((y) => y + 1.8) }}
+        transition={ceilY.transition}
+      >
+        CEILING
+      </motion.text>
+
+      {/* The latent score and its thresholds */}
+      <line x1={8} y1={HEMO_BASE} x2={292} y2={HEMO_BASE} stroke="rgba(255,255,255,0.22)" />
+      <text x={292} y={105} textAnchor="end" fontSize="5.6" fill={MUTED}>score →</text>
+      {HEMO_THETA.map((t) => {
+        const move = widen(t.at[0], t.at[1]);
+        return (
+          <motion.g key={t.label} initial={false} animate={{ x: move.animate }} transition={move.transition}>
+            <line x1={0} y1={44} x2={0} y2={HEMO_BASE + 2} stroke={LAVENDER} strokeOpacity={0.55} strokeWidth={0.6} strokeDasharray="2 2" />
+            <text x={0} y={105} textAnchor="middle" fontSize="6" fill={LAVENDER}>{t.label}</text>
+          </motion.g>
+        );
+      })}
+
+      {HEMO_DOTS.map((d, i) => (
+        <HemoDot key={i} d={d} play={play} />
+      ))}
+
+      <text x={8} y={116} fontSize="6.2" letterSpacing="0.3" fill="#e4e4e7">
+        gap 1.0 → 2.0 · ceiling 0.24 → 0.46
+      </text>
+    </g>
+  );
+};
+
 const FIGURES: Record<VisualAbstractKind, { Svg: (p: Props) => React.ReactElement; caption: string }> = {
   verix: {
     Svg: VerixSvg,
@@ -492,5 +721,9 @@ const FIGURES: Record<VisualAbstractKind, { Svg: (p: Props) => React.ReactElemen
   patent: {
     Svg: PatentSvg,
     caption: "99.3% accuracy · under 2.5 s · no specialised hardware",
+  },
+  hemocline: {
+    Svg: HemoSvg,
+    caption: "532K params · 93.36% accuracy at 167:1 imbalance",
   },
 };

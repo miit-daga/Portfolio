@@ -53,24 +53,23 @@ export const Publications = [
     },
     {
         type: "journal" as const,
-        venue: "Array · Elsevier",
-        title: "AquaSelect: Learning when to abstain via score fusion for reliable underwater species classification",
-        description: "Deep learning classifiers for fine-grained visual recognition provide no per-prediction reliability estimate, yet selective prediction methods that allow classifiers to abstain remain evaluated only on standard benchmarks, untested in domains where visual degradation drives failure patterns. We present AquaSelect, a post-hoc selective prediction framework that learns when to abstain rather than risk a misclassification. AquaSelect trains a lightweight binary selection head of 213K parameters on a frozen backbone to predict classifier correctness, fusing this with temperature-calibrated confidence and image quality features via interpretable logistic regression. Because the backbone remains frozen, the selection head can be retrained for new environments without touching the base classifier. Evaluated on two underwater species datasets, AQUA20 with 8,171 images across 20 classes and Sea Animals with 13,711 images across 23 classes, using ConvNeXt-Tiny and DeiT-Small backbones across three seeds, AquaSelect outperforms Softmax Response and Monte Carlo Dropout on all six seed-backbone evaluations on AQUA20 and improves mean coverage metrics on Sea Animals. At 80% coverage, accuracy rises from 87.3% to 94.8% and Macro F1 from 81.5% to 88.6%, surpassing the benchmark full-data accuracy of 90.69% despite using 15% less training data. We also report that RAPS conformal prediction sets averaging 3.7 to 5.0 classes are impractical for single-label classification, and fusing set sizes with learned scores degrades selection quality. Ablation identifies the learned selection head as the dominant component. The framework runs at 149 FPS, 2.8 times faster than Deep Ensembles, and applies to any classification system where errors carry asymmetric costs.",
-        link: "https://doi.org/10.1016/j.array.2026.100890",
-        visual: "aquaselect" as const,
-        tldr: "An AI that identifies sea animals from murky underwater photos is sometimes confidently wrong. AquaSelect adds a small add-on that learns when the classifier is likely to be wrong, so it can say \"not sure\" instead of guessing. Letting it pass on the hardest 20% of images lifts accuracy from 87% to 95%, and it runs about three times faster than the usual alternative.",
+        venue: "Machine Learning with Applications · Elsevier",
+        title: "HemoCline: Threshold gap dynamics in cumulative-link ordinal models for imbalanced blood cell maturation",
+        description: "In cumulative-link ordinal models, the probability of any interior stage is bounded by threshold spacing: P_max(g) = 2σ(g/2) − 1. This bound is elementary, but its interaction with gradient-based training under class imbalance is not. The gaps widen only under pressure from interior samples sitting near their thresholds; before features separate the stages, too few are positioned there, so narrow gaps reinforce. We characterize this feedback loop and derive the minimum gap g_min(τ) for a target interior recall. We validate the analysis with HemoCline, a 532K-parameter network pairing an MBConv backbone with a hierarchical cumulative-link head for blood cell maturation staging (167:1 class imbalance). Trained from scratch without ImageNet pretraining, HemoCline reaches 98.79 ± 0.17% accuracy / 98.86 ± 0.18% macro-F1 on Barcelona PBC (8 classes) and 93.36 ± 0.89% accuracy / 79.53 ± 1.45% macro-F1 on KU-Optofil (13 classes). Against MobileNetV3-Small trained from scratch under an identical recipe, it matches accuracy using 2.9× fewer parameters, with higher macro-F1, maturation-chain F1, and calibration. Across five seeds, removing the ordinal structure costs 0.030 maturation-chain F1, and CORN (Conditional Ordinal Regression for Neural networks), which avoids the P_max ceiling by construction, is statistically indistinguishable from the cumulative-link head (−0.008 macro-F1), its only per-class deficit falling on Metamyelocyte. The optimizer self-widens narrow gaps from 1.0 to 2.0 without intervention, and a gap-floor regularizer derived from g_min proves inactive at the working initialization. Two pre-specified hypotheses were falsified under a five-seed deployment-readiness protocol.",
+        link: "https://doi.org/10.1016/j.mlwa.2026.101031",
+        visual: "hemocline" as const,
+        tldr: "Blood cells mature through four stages, and the early ones are rare: in one dataset the most mature stage outnumbers the earliest 167 to 1. Models that respect that order have a hidden ceiling on how likely the in-between stages can ever be, and under that imbalance they can get stuck below it. The paper works out the ceiling and the fix, and HemoCline, a small 532K-parameter network, reaches 98.8% accuracy on one dataset and 93.4% at 167:1 imbalance, matching a model almost three times its size.",
         cite: {
-            bibtex: `@article{daga2026aquaselect,
-  title     = {AquaSelect: Learning when to abstain via score fusion for reliable underwater species classification},
-  author    = {Daga, Miit and Naole, Saransh and Ramu, Swarna Priya},
-  journal   = {Array},
-  volume    = {30},
-  pages     = {100890},
+            bibtex: `@article{daga2026hemocline,
+  title     = {HemoCline: Threshold gap dynamics in cumulative-link ordinal models for imbalanced blood cell maturation},
+  author    = {Daga, Miit and Bommineni, Kundanika Reddy and Ramu, Swarna Priya},
+  journal   = {Machine Learning with Applications},
+  pages     = {101031},
   year      = {2026},
   publisher = {Elsevier},
-  doi       = {10.1016/j.array.2026.100890}
+  doi       = {10.1016/j.mlwa.2026.101031}
 }`,
-            apa: "Daga, M., Naole, S., & Ramu, S. P. (2026). AquaSelect: Learning when to abstain via score fusion for reliable underwater species classification. Array, 30, 100890. https://doi.org/10.1016/j.array.2026.100890",
+            apa: "Daga, M., Bommineni, K. R., & Ramu, S. P. (2026). HemoCline: Threshold gap dynamics in cumulative-link ordinal models for imbalanced blood cell maturation. Machine Learning with Applications, 101031. https://doi.org/10.1016/j.mlwa.2026.101031",
         },
     },
     {
@@ -102,7 +101,7 @@ const PublicationsSection = () => {
         <div className="max-w-5xl mx-auto px-8 py-16" id="publications" style={accentVars(getSection("publications"))}>
             <Heading section="publications" />
             <p className="mt-4 text-center text-sm md:text-base text-neutral-400">
-                A few highlights below, drawn from 10 Scopus-indexed papers (with more under review), plus a book chapter and a published patent.
+                A few highlights below, drawn from 11 Scopus-indexed papers (with more under review), plus a book chapter and a published patent.
             </p>
             {/* The whole list lives on ORCID */}
             <div className="mt-4 flex justify-center">

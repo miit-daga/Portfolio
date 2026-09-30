@@ -34,7 +34,7 @@ const TEASERS: Record<string, string> = {
   "#education": "B.Tech IT at VIT · CGPA 9.22",
   "#skills-achievements": "9 languages · 2 hackathon wins",
   "#projects": "featured repos, live from GitHub",
-  "#publications": "10 Scopus-indexed papers · 1 patent",
+  "#publications": "11 Scopus-indexed papers · 1 patent",
   "#contact": "email, crew card, and a guestbook on the radar",
 };
 

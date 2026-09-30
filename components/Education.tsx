@@ -65,10 +65,10 @@ const STAGES: Stage[] = [
 ];
 
 // What shipped during the degree. Figures come from the rest of the page:
-// Publications (10 Scopus-indexed papers, 1 patent), the hackathon medals, and
+// Publications (11 Scopus-indexed papers, 1 patent), the hackathon medals, and
 // the four internships in Work Experience that fall within 2022-2026.
 const WHILE_STUDYING = [
-    { value: "10", label: "Scopus-indexed papers", to: "#publications" },
+    { value: "11", label: "Scopus-indexed papers", to: "#publications" },
     { value: "1", label: "Patent published", to: "#publications" },
     { value: "2", label: "Hackathon wins", to: "#skills-achievements" },
     { value: "4", label: "Internships", to: "#workex" },
