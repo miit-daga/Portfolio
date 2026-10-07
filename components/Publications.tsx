@@ -38,15 +38,13 @@ export const Publications = [
         visual: "hemocline" as const,
         tldr: "Blood cells mature through four stages, and the early ones are rare: in one dataset the most mature stage outnumbers the earliest 167 to 1. Models that respect that order have a hidden ceiling on how likely the in-between stages can ever be, and under that imbalance they can get stuck below it. The paper works out the ceiling and the fix, and HemoCline, a small 532K-parameter network, reaches 98.8% accuracy on one dataset and 93.4% at 167:1 imbalance, matching a model almost three times its size.",
         cite: {
-            bibtex: `@article{DAGA2026101031,
-title = {HemoCline: Threshold gap dynamics in cumulative-link ordinal models for imbalanced blood cell maturation},
-journal = {Machine Learning with Applications},
-pages = {101031},
-year = {2026},
-issn = {2666-8270},
-doi = {https://doi.org/10.1016/j.mlwa.2026.101031},
-url = {https://www.sciencedirect.com/science/article/pii/S2666827026001969},
-author = {Miit Daga and Kundanika Reddy Bommineni and Swarna Priya Ramu}
+            bibtex: `@article{daga2026hemocline,
+  title={HemoCline: Threshold gap dynamics in cumulative-link ordinal models for imbalanced blood cell maturation},
+  author={Daga, Miit and Bommineni, Kundanika Reddy and Ramu, Swarna Priya},
+  journal={Machine Learning with Applications},
+  pages={101031},
+  year={2026},
+  publisher={Elsevier}
 }`,
             apa: "Daga, M., Bommineni, K. R., & Ramu, S. P. (2026). HemoCline: Threshold gap dynamics in cumulative-link ordinal models for imbalanced blood cell maturation. Machine Learning with Applications, 101031. https://doi.org/10.1016/j.mlwa.2026.101031",
         },
