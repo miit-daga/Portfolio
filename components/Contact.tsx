@@ -229,6 +229,12 @@ export function Contact() {
                 <p className="text-neutral-500 text-sm">
                     © {new Date().getFullYear()} Miit Daga. All rights reserved.
                 </p>
+                {/* The privacy policy and terms (app/privacy, app/terms) */}
+                <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-neutral-600 sm:text-xs">
+                    <a href="/privacy" className="transition-colors hover:text-teal-300">Privacy</a>
+                    {" · "}
+                    <a href="/terms" className="transition-colors hover:text-teal-300">Terms</a>
+                </p>
                 {/* The 3D games (app/arcade) */}
                 <a
                     href="/arcade"
