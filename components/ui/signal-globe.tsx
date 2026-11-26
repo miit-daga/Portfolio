@@ -26,7 +26,9 @@ import { issNow, subscribeIss } from "@/lib/iss";
 //               times a real round trip to this site's nearest server
 //   ISS         hover it for live altitude and speed; click to follow it, and
 //               watch it live: Sen's 4K cameras on the station, embedded
-//   Home        double-click to zoom in on Kolkata: the last three hours from
+//   Home        double-click to zoom in on the visitor's own city (Kolkata for
+//               a visitor there, or before their location is known), with a
+//               switch to Kolkata in the card: the last three hours from
 //               Meteosat, looping (live, every 15 minutes), ISRO's own
 //               INSAT-3DS (every 30), or today's sharper view from NASA; the
 //               weather there, the time and the reply line
@@ -814,12 +816,13 @@ export const SignalGlobe = () => {
             if (on) window.setTimeout(() => setFollowing(false), FOLLOW_MS);
             return;
         }
-        // A second click (or tap) inside the window is a double: zoom home.
-        // Detected here rather than with dblclick, which phones do not all send
+        // A second click (or tap) inside the window is a double: zoom in on the
+        // visitor's own sky. Detected here rather than with dblclick, which
+        // phones do not all send
         if (clickTimer.current) {
             window.clearTimeout(clickTimer.current);
             clickTimer.current = null;
-            goHome(!home, "kolkata");
+            goHome(!home, "you");
             return;
         }
         clickTimer.current = window.setTimeout(() => {
@@ -875,7 +878,7 @@ export const SignalGlobe = () => {
                     ref={canvasRef}
                     style={{ width: SIZE, height: SIZE, touchAction: "pan-y" }}
                     className={home ? "cursor-zoom-out" : "cursor-grab active:cursor-grabbing"}
-                    aria-label="Globe showing the signal path from your location to Kolkata, India. Drag to spin it, hover to explore, click to ping Kolkata, double-click to zoom in on Kolkata"
+                    aria-label="Globe showing the signal path from your location to Kolkata, India. Drag to spin it, hover to explore, click to ping Kolkata, double-click to see your own city from orbit"
                     role="img"
                     onPointerDown={onPointerDown}
                     onPointerMove={onPointerMove}
@@ -968,8 +971,8 @@ export const SignalGlobe = () => {
                         </p>
                     )}
                     <p className="pt-1 text-[11px] sm:text-[9px] normal-case tracking-[0.12em] text-neutral-600">
-                        <span className="hidden md:inline">drag to spin · click to ping · double-click for home{yourPlace ? " · your city for your sky" : ""}</span>
-                        <span className="md:hidden">drag to spin · tap to ping · double-tap for home{yourPlace ? " · your city for your sky" : ""}</span>
+                        <span className="hidden md:inline">drag to spin · click to ping · double-click for {yourPlace ? "your sky" : "home"}</span>
+                        <span className="md:hidden">drag to spin · tap to ping · double-tap for {yourPlace ? "your sky" : "home"}</span>
                     </p>
                     <p className="text-[11px] sm:text-[8.5px] normal-case tracking-[0.1em] text-neutral-700">
                         cities{" "}
