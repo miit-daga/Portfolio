@@ -37,6 +37,8 @@ import {
     IconDeviceGamepad2,
     IconArrowBarToDown,
     IconSignature,
+    IconBroadcast,
+    IconWorld,
 } from "@tabler/icons-react";
 import { warpForJump } from "@/components/ui/warp-overlay";
 import { RESUME_PAGE, RESUME_DOWNLOAD_URL } from "@/lib/resume";
@@ -213,6 +215,19 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
     const nextFragment = FRAGMENT_IDS.find((f) => !found.includes(f));
 
     // Glide to something once the jump to its section has landed, then poke it
+    // The contact globe loads only once Contact comes near, so wait for it to
+    // mount, then hand it the event
+    const globeThen = (event: string) => {
+        navTo("#contact");
+        const started = Date.now();
+        const look = () => {
+            const el = document.querySelector<HTMLElement>("[data-signal-globe]");
+            if (el) return glideTo(el, () => window.setTimeout(() => window.dispatchEvent(new CustomEvent(event)), 150));
+            if (Date.now() - started < 8000) window.setTimeout(look, 250);
+        };
+        window.setTimeout(look, 900);
+    };
+
     const jumpThen = (hash: string, selector: string, then?: (el: HTMLElement) => void) => {
         navTo(hash);
         window.setTimeout(() => {
@@ -497,6 +512,12 @@ export function CommandMenu({ defaultOpen = false }: { defaultOpen?: boolean }) 
                                                 </Item>
                                                 <Item value="hail the iss space station satellite" icon={<IconSatellite />} hint="live from orbit" onSelect={() => runCommand(() => window.dispatchEvent(new CustomEvent("iss-hail")))}>
                                                     Hail the ISS
+                                                </Item>
+                                                <Item value="watch the iss live video cameras youtube space view earth from orbit" icon={<IconBroadcast />} hint="live cameras on the station" onSelect={() => runCommand(() => globeThen("iss-live"))}>
+                                                    Watch the ISS live
+                                                </Item>
+                                                <Item value="see your own sky from orbit satellite clouds weather where you are" icon={<IconWorld />} hint="a live satellite view of where you are" onSelect={() => runCommand(() => globeThen("your-sky"))}>
+                                                    See your sky from orbit
                                                 </Item>
                                                 <Item value="fly to the edge of the page end bottom finale" icon={<IconArrowBarToDown />} hint="something happens at the very end" onSelect={() => runCommand(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" }))}>
                                                     Fly to the edge of the page

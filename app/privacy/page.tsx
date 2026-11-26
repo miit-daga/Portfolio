@@ -77,8 +77,8 @@ export default function PrivacyPage() {
                 <p>Some features load content directly from other services. When your browser fetches from them, they receive your IP address and browser details under their own privacy policies:</p>
                 <ul>
                     <li>Where The ISS At (live ISS position)</li>
-                    <li>Open-Meteo (Kolkata&apos;s weather; your location isn&apos;t sent)</li>
-                    <li>NASA and EUMETSAT (satellite and Sun images)</li>
+                    <li>Open-Meteo (Kolkata&apos;s weather; your approximate location is sent only if you open your own sky on the contact globe)</li>
+                    <li>NASA and EUMETSAT (satellite and Sun images; if you open your own sky, the images requested are of the area around your approximate location)</li>
                     <li>YouTube (the live ISS video, using YouTube&apos;s privacy-enhanced mode)</li>
                     <li>Google Drive (the resume)</li>
                     <li>Google Fonts and the Tailwind CDN (on the terminal page only)</li>

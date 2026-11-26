@@ -201,6 +201,8 @@ export const SignalGlobe = () => {
     const pingRef = useRef<number | null>(null);
     const followUntil = useRef(0);
     const homeRef = useRef(false);
+    // Where a zoomed-in globe faces: Kolkata, or the visitor's own city
+    const homeAt = useRef<{ lat: number; lon: number }>(BASE);
     const citiesRef = useRef<City[]>([]);
     const redraw = useRef<() => void>(() => {});
     const clickTimer = useRef<number | null>(null);
@@ -211,6 +213,9 @@ export const SignalGlobe = () => {
     const [issLive, setIssLive] = useState(false);
     const [home, setHome] = useState(false);
     const [weather, setWeather] = useState<{ temp: number; word: string; humidity: number } | null>(null);
+    // The close-up shows Kolkata's sky, or the visitor's own
+    const [station, setStation] = useState<"kolkata" | "you">("kolkata");
+    const [yourWeather, setYourWeather] = useState<{ temp: number; word: string; humidity: number } | null>(null);
 
     useEffect(() => {
         setClock(new Date());
@@ -281,19 +286,42 @@ export const SignalGlobe = () => {
         };
     }, []);
 
-    // Kolkata's weather, for the zoomed-in card
+    // The weather for the zoomed-in card: Kolkata's, or the visitor's only once
+    // they open their own sky (until then their location goes nowhere)
     useEffect(() => {
-        if (!home || weather) return;
-        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${BASE.lat}&longitude=${BASE.lon}&current=temperature_2m,weather_code,relative_humidity_2m`)
+        const mine = station === "you";
+        if (!home || (mine ? yourWeather || !origin : weather)) return;
+        const at = mine && origin ? origin : BASE;
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${at.lat.toFixed(2)}&longitude=${at.lon.toFixed(2)}&current=temperature_2m,weather_code,relative_humidity_2m`)
             .then((r) => (r.ok ? r.json() : null))
             .then((d) => {
                 const c = d?.current;
                 if (c && Number.isFinite(c.temperature_2m)) {
-                    setWeather({ temp: Math.round(c.temperature_2m), word: weatherWord(c.weather_code), humidity: c.relative_humidity_2m });
+                    const w = { temp: Math.round(c.temperature_2m), word: weatherWord(c.weather_code), humidity: c.relative_humidity_2m };
+                    (mine ? setYourWeather : setWeather)(w);
                 }
             })
             .catch(() => {});
-    }, [home, weather]);
+    }, [home, station, origin, weather, yourWeather]);
+
+    // From the command menu: watch the ISS live, or open your own sky
+    useEffect(() => {
+        const onIss = () => {
+            if (homeRef.current) goHome(false);
+            followUntil.current = performance.now() + FOLLOW_MS;
+            setFollowing(true);
+            window.setTimeout(() => setFollowing(false), FOLLOW_MS);
+            setIssLive(true);
+        };
+        const onSky = () => goHome(true, "you");
+        window.addEventListener("iss-live", onIss);
+        window.addEventListener("your-sky", onSky);
+        return () => {
+            window.removeEventListener("iss-live", onIss);
+            window.removeEventListener("your-sky", onSky);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [origin]);
 
     useEffect(() => {
         if (!issLive) return;
@@ -366,7 +394,7 @@ export const SignalGlobe = () => {
             // ---- where the globe points this frame
             if (!drag.current) {
                 let target: { theta: number; phi: number } | null = null;
-                if (home) target = facing(BASE.lat, BASE.lon);
+                if (home) target = facing(homeAt.current.lat, homeAt.current.lon);
                 else if (follow) target = facing(follow.lat, follow.lon);
                 else if (now - v.lastTouch > SETTLE_MS) {
                     target = { theta: thetaBase + (reduce ? 0 : 0.45 * Math.sin((t * 2 * Math.PI) / 14)), phi: 0 };
@@ -791,7 +819,7 @@ export const SignalGlobe = () => {
         if (clickTimer.current) {
             window.clearTimeout(clickTimer.current);
             clickTimer.current = null;
-            goHome(!home);
+            goHome(!home, "kolkata");
             return;
         }
         clickTimer.current = window.setTimeout(() => {
@@ -800,7 +828,12 @@ export const SignalGlobe = () => {
         }, 260);
     };
 
-    function goHome(on: boolean) {
+    function goHome(on: boolean, where: "kolkata" | "you" = station) {
+        // Your own sky needs to know where you are, and a visitor in Kolkata
+        // already has Kolkata's
+        const at = where === "you" && origin && haversineKm(origin.lat, origin.lon, BASE.lat, BASE.lon) > 60 ? "you" : "kolkata";
+        homeAt.current = at === "you" && origin ? origin : BASE;
+        setStation(at);
         homeRef.current = on;
         setHome(on);
         setHover(null);
@@ -831,10 +864,12 @@ export const SignalGlobe = () => {
     }
 
     const distance = origin ? haversineKm(origin.lat, origin.lon, BASE.lat, BASE.lon) : null;
+    // A visitor in Kolkata already has Kolkata's sky
+    const yourPlace: Place | null = origin && distance !== null && distance > 60 ? { lat: origin.lat, lon: origin.lon, city: origin.city, kolkata: false } : null;
     const rttMs = distance !== null ? Math.max(1, Math.round((distance / LIGHTSPEED_KM_S) * 1000 * 2)) : null;
 
     return (
-        <div ref={wrapRef} className="flex flex-col items-center gap-4">
+        <div ref={wrapRef} data-signal-globe className="flex flex-col items-center gap-4">
             <div className="relative" style={{ width: SIZE, height: SIZE }}>
                 <canvas
                     ref={canvasRef}
@@ -874,13 +909,39 @@ export const SignalGlobe = () => {
                 <AnimatePresence>{issLive && <IssLive onClose={() => setIssLive(false)} />}</AnimatePresence>
 
                 {/* Zoomed in on Kolkata */}
-                <AnimatePresence>{home && <HomeCard onClose={() => goHome(false)} weather={weather} clock={clock} />}</AnimatePresence>
+                <AnimatePresence>
+                    {home &&
+                        (station === "you" && yourPlace ? (
+                            <HomeCard key="you" onClose={() => goHome(false)} weather={yourWeather} clock={clock} place={yourPlace} other={{ label: "Kolkata", onSwitch: () => goHome(true, "kolkata") }} />
+                        ) : (
+                            <HomeCard
+                                key="kolkata"
+                                onClose={() => goHome(false)}
+                                weather={weather}
+                                clock={clock}
+                                other={yourPlace ? { label: yourPlace.city, onSwitch: () => goHome(true, "you") } : null}
+                            />
+                        ))}
+                </AnimatePresence>
             </div>
 
             {origin && distance !== null && (
                 <div className="space-y-1 text-center font-mono text-[11px] sm:text-[10px] uppercase tracking-[0.2em] text-neutral-500">
                     <p>
-                        uplink &middot; <span className="text-violet-300/90">{origin.city}</span> →{" "}
+                        uplink &middot;{" "}
+                        {yourPlace ? (
+                            <button
+                                type="button"
+                                onClick={() => goHome(true, "you")}
+                                title="See your own sky from orbit"
+                                className="uppercase text-violet-300/90 underline decoration-dotted underline-offset-2 hover:text-violet-200"
+                            >
+                                {origin.city}
+                            </button>
+                        ) : (
+                            <span className="text-violet-300/90">{origin.city}</span>
+                        )}{" "}
+                        →{" "}
                         <span className="text-teal-300/90">kolkata station</span>
                     </p>
                     <p className="flex items-center justify-center gap-2">
@@ -907,8 +968,8 @@ export const SignalGlobe = () => {
                         </p>
                     )}
                     <p className="pt-1 text-[11px] sm:text-[9px] normal-case tracking-[0.12em] text-neutral-600">
-                        <span className="hidden md:inline">drag to spin · click to ping · double-click for home</span>
-                        <span className="md:hidden">drag to spin · tap to ping · double-tap for home</span>
+                        <span className="hidden md:inline">drag to spin · click to ping · double-click for home{yourPlace ? " · your city for your sky" : ""}</span>
+                        <span className="md:hidden">drag to spin · tap to ping · double-tap for home{yourPlace ? " · your city for your sky" : ""}</span>
                     </p>
                     <p className="text-[11px] sm:text-[8.5px] normal-case tracking-[0.1em] text-neutral-700">
                         cities{" "}
@@ -934,6 +995,13 @@ const VIEW = 360; // px of the tile mosaic shown, around Kolkata
 const IMG = 176; // its size on screen, so the card fits over the globe
 
 const passDate = () => new Date(Date.now() - 8 * 3600 * 1000).toISOString().slice(0, 10);
+// The same for anywhere: Terra crosses at about 10:30 local solar time, and
+// its tiles land a few hours after (Kolkata, at 88°E, works out to the 8 h above)
+const passDateAt = (lon: number) => new Date(Date.now() + (lon / 15 - 14) * 3600 * 1000).toISOString().slice(0, 10);
+
+// Whose sky the close-up shows: Kolkata's, or the visitor's own
+type Place = { lat: number; lon: number; city: string; kolkata: boolean };
+const KOLKATA_PLACE: Place = { lat: BASE.lat, lon: BASE.lon, city: "Kolkata", kolkata: true };
 
 // Live: Meteosat's Indian Ocean satellite photographs the region every 15
 // minutes, and EUMETSAT publishes each frame about half an hour later.
@@ -941,26 +1009,102 @@ const passDate = () => new Date(Date.now() - 8 * 3600 * 1000).toISOString().slic
 const EUM = "https://view.eumetsat.int/geoserver";
 const LIVE_FRAMES = 12; // three hours
 const LIVE_PX = 352;
-const LIVE_BBOX = (() => {
-    const x = (BASE.lon * 20037508.34) / 180;
-    const y = ((Math.log(Math.tan(((90 + BASE.lat) * Math.PI) / 360)) / (Math.PI / 180)) * 20037508.34) / 180;
+// A square around a place, in web-mercator metres, for the WMS requests
+const bboxAt = (lat: number, lon: number) => {
+    const la = Math.max(-80, Math.min(80, lat));
+    const x = (lon * 20037508.34) / 180;
+    const y = ((Math.log(Math.tan(((90 + la) * Math.PI) / 360)) / (Math.PI / 180)) * 20037508.34) / 180;
     const h = 330000; // metres either side of the city
     return `${x - h},${y - h},${x + h},${y + h}`;
-})();
-// Daylight over Kolkata at that moment: the natural-colour view; after dark, infrared
-const sunUpAt = (d: Date) => {
+};
+// Daylight there at that moment: the natural-colour view; after dark, infrared
+const sunUpAt = (d: Date, lat = BASE.lat, lon = BASE.lon) => {
     const s = sunVector(d);
-    const k = toVec(BASE.lat, BASE.lon);
+    const k = toVec(lat, lon);
     return s[0] * k[0] + s[1] * k[1] + s[2] * k[2] > 0.1;
 };
-const frameUrl = (t: Date) =>
-    `${EUM}/ows?service=WMS&version=1.3.0&request=GetMap&layers=msg_iodc:${sunUpAt(t) ? "rgb_naturalenhncd" : "ir108"},backgrounds:ne_10m_coastline,backgrounds:ne_boundary_lines_land&styles=&crs=EPSG:3857&bbox=${LIVE_BBOX}&width=${LIVE_PX}&height=${LIVE_PX}&format=image/jpeg&time=${t.toISOString().slice(0, 19)}Z`;
 const kolkataClock = (d: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", minute: "2-digit" }).format(d);
+// The visitor's own clock, for their own sky
+const localClock = (d: Date) => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(d);
+
+// The geostationary satellites the live loop can use. Each one sees about a
+// third of the Earth from a fixed longitude; a place gets the nearest one.
+// Meteosat frames come from EUMETSAT every 15 minutes; GOES and Himawari
+// come through NASA GIBS every 10: the visible band by day, infrared after
+// dark. (GIBS's GOES GeoColor answers WMS requests with blank frames, and its
+// infrared is coloured by cloud-top temperature, so those frames say IR.)
+type Sat = { name: string; lon: number; from: "eum" | "gibs"; day: string; night: string };
+const IODC: Sat = { name: "Meteosat", lon: 45.5, from: "eum", day: "msg_iodc:rgb_naturalenhncd", night: "msg_iodc:ir108" };
+const SATS: Sat[] = [
+    { name: "GOES-West", lon: -137.2, from: "gibs", day: "GOES-West_ABI_Band2_Red_Visible_1km", night: "GOES-West_ABI_Band13_Clean_Infrared" },
+    { name: "GOES-East", lon: -75.2, from: "gibs", day: "GOES-East_ABI_Band2_Red_Visible_1km", night: "GOES-East_ABI_Band13_Clean_Infrared" },
+    { name: "Meteosat", lon: 0, from: "eum", day: "msg_fes:rgb_naturalenhncd", night: "msg_fes:ir108" },
+    IODC,
+    { name: "Himawari", lon: 140.7, from: "gibs", day: "Himawari_AHI_Band3_Red_Visible_1km", night: "Himawari_AHI_Band13_Clean_Infrared" },
+];
+// Beyond about 65 degrees from the point below a satellite the view is too
+// slanted to use, so far-north and far-south visitors only get NASA's daily view
+const pickSat = (lat: number, lon: number): Sat | null => {
+    if (Math.abs(lat) > 65) return null;
+    let best: Sat | null = null;
+    let bestD = 65;
+    for (const s of SATS) {
+        const d = Math.abs(((lon - s.lon + 540) % 360) - 180);
+        if (d < bestD) {
+            bestD = d;
+            best = s;
+        }
+    }
+    return best;
+};
+
+const GIBS_WMS = "https://gibs.earthdata.nasa.gov/wms/epsg3857/best/wms.cgi";
+const satFrameUrl = (sat: Sat, lat: number, lon: number, t: Date) => {
+    const layer = sunUpAt(t, lat, lon) ? sat.day : sat.night;
+    const bbox = bboxAt(lat, lon);
+    if (sat.from === "eum") {
+        return `${EUM}/ows?service=WMS&version=1.3.0&request=GetMap&layers=${layer},backgrounds:ne_10m_coastline,backgrounds:ne_boundary_lines_land&styles=&crs=EPSG:3857&bbox=${bbox}&width=${LIVE_PX}&height=${LIVE_PX}&format=image/jpeg&time=${t.toISOString().slice(0, 19)}Z`;
+    }
+    return `${GIBS_WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=${layer}&STYLES=&CRS=EPSG:3857&BBOX=${bbox}&WIDTH=${LIVE_PX}&HEIGHT=${LIVE_PX}&FORMAT=image/jpeg&TIME=${t.toISOString().slice(0, 19)}Z`;
+};
+// GIBS coastlines as their own transparent layer over the frames, so a blank
+// frame stays recognisable by its size (a 352 px blank JPEG is about 1 KB)
+const coastUrl = (lat: number, lon: number) =>
+    `${GIBS_WMS}?SERVICE=WMS&REQUEST=GetMap&VERSION=1.3.0&LAYERS=Coastlines_15m&STYLES=&CRS=EPSG:3857&BBOX=${bboxAt(lat, lon)}&WIDTH=${LIVE_PX}&HEIGHT=${LIVE_PX}&FORMAT=image/png&TRANSPARENT=TRUE`;
+const BLANK_BYTES = 1500;
+
+// GIBS answers a time it has no frame for with a blank image, not an error,
+// so the frames are taken from the times it says it has: its domain list,
+// "start/end/PT10M" ranges with the occasional gap
+async function gibsTimes(layer: string): Promise<Date[]> {
+    const to = new Date(Date.now() + 3600000);
+    const from = new Date(Date.now() - 4 * 3600000);
+    const iso = (d: Date) => `${d.toISOString().slice(0, 19)}Z`;
+    try {
+        const xml = await fetch(`https://gibs.earthdata.nasa.gov/wmts/epsg4326/best/1.0.0/${layer}/default/1km/all/${iso(from)}--${iso(to)}.xml`).then((r) => r.text());
+        const domain = xml.match(/<Domain>([^<]+)<\/Domain>/)?.[1] ?? "";
+        const since = Date.now() - 3 * 3600000;
+        const out: number[] = [];
+        for (const range of domain.split(",")) {
+            const [a, b, p] = range.split("/");
+            const step = (Number(p?.match(/PT(\d+)M/)?.[1]) || 10) * 60000;
+            const start = Date.parse(a.includes("T") ? a : `${a}T00:00:00Z`);
+            const end = Date.parse(b ?? a);
+            if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+            for (let t = Math.max(start, Math.ceil(since / step) * step); t <= end; t += step) out.push(t);
+        }
+        // At most LIVE_FRAMES, spread over the three hours
+        const keep = out.length <= LIVE_FRAMES ? out : Array.from({ length: LIVE_FRAMES }, (_, k) => out[Math.round((k * (out.length - 1)) / (LIVE_FRAMES - 1))]);
+        return keep.map((t) => new Date(t));
+    } catch {
+        return [];
+    }
+}
 
 // The newest frame published, from the layer's own capabilities; a guess if that fails
-async function latestFrame(): Promise<Date> {
+async function latestFrame(workspace = "msg_iodc"): Promise<Date> {
     try {
-        const xml = await fetch(`${EUM}/msg_iodc/ir108/ows?service=WMS&request=GetCapabilities`).then((r) => r.text());
+        const xml = await fetch(`${EUM}/${workspace}/ir108/ows?service=WMS&request=GetCapabilities`).then((r) => r.text());
         const m = xml.match(/<Dimension name="time"[^>]*default="([^"]+)"/);
         if (m) return new Date(m[1]);
     } catch {
@@ -970,22 +1114,57 @@ async function latestFrame(): Promise<Date> {
     return new Date(Math.floor((Date.now() - 35 * 60 * 1000) / q) * q);
 }
 
-function LiveLoop({ reduce }: { reduce: boolean | null }) {
+// The frame times for a satellite: Meteosat every 15 minutes back from its
+// newest frame; GOES and Himawari from what GIBS says it holds
+async function frameTimes(sat: Sat): Promise<Date[]> {
+    if (sat.from === "gibs") return gibsTimes(sat.day);
+    const latest = await latestFrame(sat.day.split(":")[0]);
+    return Array.from({ length: LIVE_FRAMES }, (_, k) => new Date(latest.getTime() - (LIVE_FRAMES - 1 - k) * 15 * 60 * 1000));
+}
+
+function LiveLoop({
+    reduce,
+    sat = IODC,
+    lat = BASE.lat,
+    lon = BASE.lon,
+    clockOf = kolkataClock,
+}: {
+    reduce: boolean | null;
+    sat?: Sat;
+    lat?: number;
+    lon?: number;
+    clockOf?: (d: Date) => string;
+}) {
     const [frames, setFrames] = useState<{ t: Date; url: string; ok: boolean | null }[]>([]);
     const [idx, setIdx] = useState(0);
+    const [none, setNone] = useState(false);
 
     // Build the last three hours and preload them, so the loop never waits
     useEffect(() => {
         let alive = true;
-        latestFrame().then((latest) => {
+        const made: string[] = [];
+        frameTimes(sat).then((times) => {
             if (!alive) return;
-            const list = Array.from({ length: LIVE_FRAMES }, (_, k) => {
-                const t = new Date(latest.getTime() - (LIVE_FRAMES - 1 - k) * 15 * 60 * 1000);
-                return { t, url: frameUrl(t), ok: null as boolean | null };
-            });
+            if (!times.length) return setNone(true);
+            const list = times.map((t) => ({ t, url: satFrameUrl(sat, lat, lon, t), ok: null as boolean | null }));
             setFrames(list);
             setIdx(list.length - 1);
             list.forEach((f, k) => {
+                // GIBS can list a time before its image is ready, and answers
+                // with a blank one: fetched as data, those are dropped
+                if (sat.from === "gibs") {
+                    fetch(f.url)
+                        .then((r) => (r.ok ? r.blob() : Promise.reject()))
+                        .then((blob) => {
+                            if (!alive) return;
+                            const ok = blob.size > BLANK_BYTES;
+                            const url = ok ? URL.createObjectURL(blob) : f.url;
+                            if (ok) made.push(url);
+                            setFrames((fs) => fs.map((x, j) => (j === k ? { ...x, url, ok } : x)));
+                        })
+                        .catch(() => alive && setFrames((fs) => fs.map((x, j) => (j === k ? { ...x, ok: false } : x))));
+                    return;
+                }
                 const img = new Image();
                 img.onload = () => alive && setFrames((fs) => fs.map((x, j) => (j === k ? { ...x, ok: true } : x)));
                 img.onerror = () => alive && setFrames((fs) => fs.map((x, j) => (j === k ? { ...x, ok: false } : x)));
@@ -994,11 +1173,12 @@ function LiveLoop({ reduce }: { reduce: boolean | null }) {
         });
         return () => {
             alive = false;
+            made.forEach((u) => URL.revokeObjectURL(u));
         };
-    }, []);
+    }, [sat, lat, lon]);
 
     const ready = frames.filter((f) => f.ok);
-    const allIn = frames.length > 0 && frames.every((f) => f.ok !== null);
+    const allIn = none || (frames.length > 0 && frames.every((f) => f.ok !== null));
 
     // Play once everything is in: through the three hours, pausing on the newest
     useEffect(() => {
@@ -1028,13 +1208,18 @@ function LiveLoop({ reduce }: { reduce: boolean | null }) {
                     style={{ opacity: f === shown ? 1 : 0 }}
                 />
             ))}
+            {sat.from === "gibs" && ready.length > 0 && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coastUrl(lat, lon)} alt="" className="pointer-events-none absolute inset-0 h-full w-full max-w-none object-cover" />
+            )}
             {!allIn && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[9.5px] text-neutral-500">fetching the last 3 hours…</p>}
             {allIn && !ready.length && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[9.5px] text-neutral-500">the satellite is quiet</p>}
             {shown && (
                 <>
                     <span className="absolute bottom-1.5 left-2 flex items-center gap-1 whitespace-nowrap rounded bg-black/60 px-1.5 py-0.5 text-[11px] sm:text-[8.5px] tracking-wide text-neutral-300">
                         <span className={cn("h-1.5 w-1.5 rounded-full", shown === newest ? "bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.9)]" : "bg-neutral-500")} />
-                        {shown === newest ? `live · ${kolkataClock(shown.t)} · Meteosat` : kolkataClock(shown.t)}
+                        {shown === newest ? `live · ${clockOf(shown.t)} · ${sat.name}` : clockOf(shown.t)}
+                        {sat.from === "gibs" && !sunUpAt(shown.t, lat, lon) && " IR"}
                     </span>
                     {/* Where in the three hours this frame is */}
                     <span className="absolute inset-x-2 bottom-0.5 h-px bg-white/10">
@@ -1316,16 +1501,23 @@ function HomeCard({
     onClose,
     weather,
     clock,
+    place = KOLKATA_PLACE,
+    other,
 }: {
     onClose: () => void;
     weather: { temp: number; word: string; humidity: number } | null;
     clock: Date | null;
+    place?: Place;
+    // The other station, to switch to
+    other?: { label: string; onSwitch: () => void } | null;
 }) {
-    const [date, setDate] = useState(passDate);
+    const sat = place.kolkata ? IODC : pickSat(place.lat, place.lon);
+    const tabs: ("live" | "isro" | "today")[] = place.kolkata ? ["live", "isro", "today"] : sat ? ["live", "today"] : ["today"];
+    const [date, setDate] = useState(() => (place.kolkata ? passDate() : passDateAt(place.lon)));
     const [failed, setFailed] = useState(false);
-    const [tab, setTab] = useState<"live" | "isro" | "today">("live");
+    const [tab, setTab] = useState<"live" | "isro" | "today">(tabs[0]);
     const reduce = useReducedMotion();
-    const c = tileXY(BASE.lat, BASE.lon, TILE_Z);
+    const c = tileXY(Math.max(-80, Math.min(80, place.lat)), place.lon, TILE_Z);
     const left = c.x - VIEW / 2;
     const top = c.y - VIEW / 2;
     const tiles: { x: number; y: number }[] = [];
@@ -1352,8 +1544,18 @@ function HomeCard({
                 transition={{ delay: 0.25, duration: 0.25 }}
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="mb-1.5 flex items-center justify-between px-0.5">
-                    <p className="text-[11px] sm:text-[10px] uppercase tracking-[0.22em] text-neutral-300">kolkata station</p>
+                <div className="mb-1.5 flex items-center justify-between gap-1 px-0.5">
+                    <p className="min-w-0 truncate text-[11px] sm:text-[10px] uppercase tracking-[0.22em] text-neutral-300">{place.kolkata ? "kolkata station" : place.city}</p>
+                    {other && (
+                        <button
+                            type="button"
+                            onClick={other.onSwitch}
+                            className="ml-auto max-w-[72px] shrink-0 truncate rounded-full bg-white/10 px-1.5 py-0.5 text-[11px] sm:text-[8.5px] uppercase tracking-wide text-neutral-300 hover:bg-white/15 hover:text-white"
+                            title={`Switch to ${other.label}`}
+                        >
+                            {other.label} →
+                        </button>
+                    )}
                     <button type="button" onClick={onClose} aria-label="Zoom back out" className="rounded-full p-1 text-neutral-500 hover:bg-white/10 hover:text-white">
                         <IconX className="h-3.5 w-3.5" />
                     </button>
@@ -1361,7 +1563,7 @@ function HomeCard({
 
                 {/* The view from orbit, centred on the city: live and moving, or today's sharp one */}
                 <div className="relative overflow-hidden rounded-lg bg-slate-900" style={{ width: IMG, height: IMG }}>
-                    {tab === "live" && <LiveLoop reduce={reduce} />}
+                    {tab === "live" && (place.kolkata ? <LiveLoop reduce={reduce} /> : sat && <LiveLoop reduce={reduce} sat={sat} lat={place.lat} lon={place.lon} clockOf={localClock} />)}
                     {tab === "isro" && <IsroView />}
                     {tab === "today" && !failed && (
                         <div className="absolute left-0 top-0 origin-top-left" style={{ width: VIEW, height: VIEW, transform: `scale(${scale})` }}>
@@ -1387,9 +1589,9 @@ function HomeCard({
                         </div>
                     )}
                     {tab === "today" && failed && <p className="absolute inset-0 flex items-center justify-center text-[11px] sm:text-[10px] text-neutral-500">no clear pass lately</p>}
-                    {/* Kolkata */}
-                    <span className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,1)]" />
-                    <span className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border border-amber-300/70 motion-reduce:animate-none" />
+                    {/* Kolkata in amber; the visitor in violet, as on the globe */}
+                    <span className={cn("absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full", place.kolkata ? "bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,1)]" : "bg-violet-300 shadow-[0_0_8px_rgba(196,181,253,1)]")} />
+                    <span className={cn("absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 animate-ping rounded-full border motion-reduce:animate-none", place.kolkata ? "border-amber-300/70" : "border-violet-300/70")} />
                     {tab === "today" && (
                         <span className="absolute bottom-1.5 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[11px] sm:text-[8.5px] tracking-wide text-neutral-300">
                             from orbit · NASA · {pretty}
@@ -1397,7 +1599,7 @@ function HomeCard({
                     )}
                     {/* live, or today's sharper pass */}
                     <span className="absolute right-1.5 top-1.5 flex rounded-full bg-black/60 p-0.5 text-[11px] sm:text-[8.5px] tracking-wide">
-                        {(["live", "isro", "today"] as const).map((k) => (
+                        {tabs.map((k) => (
                             <button
                                 key={k}
                                 type="button"
@@ -1411,13 +1613,19 @@ function HomeCard({
                 </div>
 
                 <div className="mt-1.5 space-y-0 px-0.5 text-[11px] sm:text-[9.5px] leading-snug text-neutral-400">
-                    {now && (
+                    {!place.kolkata && clock && (
+                        <p>
+                            <span className="text-neutral-100">{localClock(clock)}</span> · your time
+                        </p>
+                    )}
+                    {!place.kolkata && !sat && <p className="text-neutral-500">too far north or south for a live satellite; NASA&apos;s daily view</p>}
+                    {place.kolkata && now && (
                         <p>
                             <span className="text-neutral-100">{now.time}</span> · <span style={{ color: now.mood.color }}>{now.mood.label}</span>
                         </p>
                     )}
                     <p>{weather ? `${weather.temp}°C · ${weather.word} · ${weather.humidity}% humidity` : "reading the weather…"}</p>
-                    {now && <p className="text-neutral-500">{now.mood.reply}</p>}
+                    {place.kolkata && now && <p className="text-neutral-500">{now.mood.reply}</p>}
                 </div>
             </motion.div>
         </motion.div>

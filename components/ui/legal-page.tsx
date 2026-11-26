@@ -4,7 +4,7 @@ import Link from "next/link";
 // The layout of the site's privacy policy and terms (app/privacy, app/terms):
 // the engineering log's plain page, with headed sections.
 
-export const LEGAL_UPDATED = "20 October 2026";
+export const LEGAL_UPDATED = "26 November 2026";
 
 export function LegalPage({ eyebrow, title, intro, children }: { eyebrow: string; title: string; intro: React.ReactNode; children: React.ReactNode }) {
     return (
